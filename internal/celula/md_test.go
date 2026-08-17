@@ -347,7 +347,9 @@ func TestPaginaDesenhaTituloComoCapitulo(t *testing.T) {
 	if !strings.Contains(historico.LimparCodigos(juntas), "MÓDULO 7") {
 		t.Fatalf("o título devia virar faixa em caixa alta:\n%s", juntas)
 	}
-	if !strings.Contains(juntas, "48;5;") {
+	// "48;" cobre o fundo em 256 cores e em 24 bits: o que importa é que a
+	// faixa tenha fundo, não em que profundidade o terminal a escreve.
+	if !strings.Contains(juntas, "48;") {
 		t.Fatalf("a faixa do título devia ter fundo próprio:\n%q", juntas)
 	}
 }

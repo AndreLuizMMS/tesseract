@@ -6,6 +6,8 @@ import (
 	"charm.land/glamour/v2"
 	"charm.land/glamour/v2/ansi"
 	"charm.land/glamour/v2/styles"
+
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
 // A aba de markdown desenha o arquivo como uma página, não como saída de
@@ -35,66 +37,70 @@ func montarEstiloDaPagina() ansi.StyleConfig {
 	estilo.Document.Margin = numero(0)
 	estilo.Document.BlockPrefix = ""
 	estilo.Document.BlockSuffix = "\n"
-	estilo.Document.Color = texto("252")
+	estilo.Document.Color = texto(tema.FgDefault)
 
-	// Título: barra sólida ocupando a linha, como capítulo de livro.
+	// Título: faixa sólida ocupando a linha, como capítulo de livro. A faixa é
+	// ciano porque título é estrutura do documento, não estado.
 	estilo.H1.Prefix = "  "
 	estilo.H1.Suffix = "  "
-	estilo.H1.Color = texto("231")
-	estilo.H1.BackgroundColor = texto("62")
+	estilo.H1.Color = texto(tema.Flux)
+	estilo.H1.BackgroundColor = texto(tema.FluxDeep)
 	estilo.H1.Bold = sim()
 	estilo.H1.Upper = sim()
 	estilo.H1.BlockPrefix = "\n"
 	estilo.H1.BlockSuffix = "\n"
 
-	// Seções: barra à esquerda em vez dos sustenidos do markdown.
+	// Seções: barra à esquerda em vez dos sustenidos do markdown. A hierarquia
+	// desce pelo brilho, não pelo matiz — ciano forte, ciano fraco, cinza.
 	estilo.H2.Prefix = "▌ "
-	estilo.H2.Color = texto("81")
+	estilo.H2.Color = texto(tema.Flux)
 	estilo.H2.Bold = sim()
 	estilo.H2.BlockPrefix = "\n"
 	estilo.H2.BlockSuffix = "\n"
 
 	estilo.H3.Prefix = "▏ "
-	estilo.H3.Color = texto("117")
+	estilo.H3.Color = texto(tema.FluxCore)
 	estilo.H3.Bold = sim()
 	estilo.H3.BlockPrefix = "\n"
 
 	estilo.H4.Prefix = "· "
-	estilo.H4.Color = texto("146")
+	estilo.H4.Color = texto(tema.FgBright)
 	estilo.H4.Bold = sim()
 	estilo.H5.Prefix = "· "
-	estilo.H5.Color = texto("146")
+	estilo.H5.Color = texto(tema.FgMuted)
 	estilo.H6.Prefix = "· "
-	estilo.H6.Color = texto("245")
+	estilo.H6.Color = texto(tema.FgFaint)
 	estilo.H6.Bold = nao()
 
 	// Citação com filete à esquerda, em itálico apagado.
 	estilo.BlockQuote.IndentToken = texto("┃ ")
-	estilo.BlockQuote.Color = texto("245")
+	estilo.BlockQuote.Color = texto(tema.FgMuted)
 	estilo.BlockQuote.Italic = sim()
 
 	// Régua: uma linha inteira, não oito traços.
-	estilo.HorizontalRule.Color = texto("240")
+	estilo.HorizontalRule.Color = texto(tema.LineDim)
 	estilo.HorizontalRule.Format = "\n" + strings.Repeat("─", medidaDeLeitura-4) + "\n"
 
 	// Listas com marcador redondo e espaço para respirar.
 	estilo.Item.BlockPrefix = "• "
-	estilo.Item.Color = texto("252")
+	estilo.Item.Color = texto(tema.FgDefault)
 	estilo.Enumeration.BlockPrefix = ". "
-	estilo.Enumeration.Color = texto("117")
+	estilo.Enumeration.Color = texto(tema.FluxCore)
 
 	// Código: fundo próprio, como caixa de código de livro técnico.
-	estilo.Code.Color = texto("203")
-	estilo.Code.BackgroundColor = texto("236")
+	estilo.Code.Color = texto(tema.FluxCore)
+	estilo.Code.BackgroundColor = texto(tema.BgRaised)
 	estilo.Code.Prefix = " "
 	estilo.Code.Suffix = " "
 	estilo.CodeBlock.Margin = numero(2)
-	estilo.CodeBlock.Theme = "catppuccin-mocha"
+	// Sem tema de terceiro: o realce de sintaxe usa a mesma paleta do resto.
+	estilo.CodeBlock.Theme = ""
+	estilo.CodeBlock.Chroma = realceDoCodigo()
 
 	// Links legíveis, sem virar ruído.
-	estilo.Link.Color = texto("81")
+	estilo.Link.Color = texto(tema.Flux)
 	estilo.Link.Underline = sim()
-	estilo.LinkText.Color = texto("117")
+	estilo.LinkText.Color = texto(tema.FluxCore)
 	estilo.LinkText.Bold = sim()
 
 	// Tabela com filete fino.
@@ -104,8 +110,59 @@ func montarEstiloDaPagina() ansi.StyleConfig {
 
 	estilo.Emph.Italic = sim()
 	estilo.Strong.Bold = sim()
-	estilo.Strong.Color = texto("231")
+	estilo.Strong.Color = texto(tema.FgBright)
 	return estilo
+}
+
+// realceDoCodigo é o realce de sintaxe dentro do bloco de código, na paleta do
+// Tesseract. É a mesma leitura do tema do editor: string em verde escuro,
+// função em azul, palavra-chave em roxo, tipo em amarelo, número em laranja.
+// Verde phosphor não entra — um bloco de código repetiria a cor de posse do
+// teclado dezenas de vezes.
+func realceDoCodigo() *ansi.Chroma {
+	cor := func(c string) ansi.StylePrimitive { return ansi.StylePrimitive{Color: &c} }
+	negrito := func(c string) ansi.StylePrimitive {
+		verdade := true
+		return ansi.StylePrimitive{Color: &c, Bold: &verdade}
+	}
+	italico := func(c string) ansi.StylePrimitive {
+		verdade := true
+		return ansi.StylePrimitive{Color: &c, Italic: &verdade}
+	}
+	fundo := func(c string) ansi.StylePrimitive { return ansi.StylePrimitive{BackgroundColor: &c} }
+	return &ansi.Chroma{
+		Text:                cor(tema.FgDefault),
+		Error:               cor(tema.StateDead),
+		Comment:             italico(tema.FgFaint),
+		CommentPreproc:      cor(tema.Flux),
+		Keyword:             cor(tema.StateOrphan),
+		KeywordReserved:     cor(tema.StateOrphan),
+		KeywordNamespace:    cor(tema.StateOrphan),
+		KeywordType:         cor(tema.CorAnsiAmarelo),
+		Operator:            cor(tema.FgMuted),
+		Punctuation:         cor(tema.FgMuted),
+		Name:                cor(tema.FgDefault),
+		NameBuiltin:         cor(tema.CorAnsiMagenta),
+		NameTag:             cor(tema.StateOrphan),
+		NameAttribute:       cor(tema.Flux),
+		NameClass:           negrito(tema.CorAnsiAmarelo),
+		NameConstant:        cor(tema.StateBlock),
+		NameDecorator:       cor(tema.Flux),
+		NameException:       cor(tema.StateDead),
+		NameFunction:        cor(tema.StateRead),
+		NameOther:           cor(tema.FgDefault),
+		Literal:             cor(tema.StateBlock),
+		LiteralNumber:       cor(tema.StateBlock),
+		LiteralDate:         cor(tema.StateBlock),
+		LiteralString:       cor(tema.BrandCore),
+		LiteralStringEscape: cor(tema.Flux),
+		GenericDeleted:      cor(tema.StateDead),
+		GenericEmph:         italico(tema.FgDefault),
+		GenericInserted:     cor(tema.BrandCore),
+		GenericStrong:       negrito(tema.FgBright),
+		GenericSubheading:   cor(tema.FluxCore),
+		Background:          fundo(tema.BgSurface),
+	}
 }
 
 // renderizarPagina desenha o markdown como página: medida de leitura para o
