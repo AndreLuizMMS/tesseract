@@ -149,3 +149,19 @@ O **badge de consumo** da janela de 5 horas aparece na barra de título quando o
 statusline do Claude Code escreve `~/.claude/tesseract-quota.json` (ou o antigo
 `squad-quota.json`) no formato `{"used_percentage": 59, "resets_at": 1786955400}`. Sem o
 arquivo, tudo funciona igual — só não aparece o badge.
+
+## Quem roda dentro de uma célula
+
+Todo processo que o Tesseract sobe recebe `TESSERACT=1` no ambiente. Ele não consegue
+pintar a interface de um agente — o que a célula mostra é o que o processo escreveu, e
+nada além disso. O que dá para fazer é dizer "você está aqui dentro", e deixar quem se
+importa se vestir de acordo.
+
+O statusline do Claude Code é o caso típico: ele é um comando seu, roda dentro do pty da
+célula, herda o ambiente e pode abrir a linha com `⧉` e usar a paleta do Tesseract quando
+a variável estiver de pé. Fora do Tesseract, nada muda — a marca se apresenta, não se
+impõe.
+
+```bash
+[ -n "${TESSERACT:-}" ] && echo "esta sessão está numa célula"
+```
