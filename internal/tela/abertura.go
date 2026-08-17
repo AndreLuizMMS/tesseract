@@ -22,11 +22,13 @@ import (
 // regra da marca continua valendo. O que se move aqui é a ordem em que as
 // coisas existem, não a textura delas.
 const (
-	passoDoTraco    = 10 * time.Millisecond
-	passoDaIgnicao  = 50 * time.Millisecond
-	passoDaLetra    = 35 * time.Millisecond
-	passoDoEstouro  = 50 * time.Millisecond
-	passoDaContagem = 90 * time.Millisecond
+	passoDoTraco    = 22 * time.Millisecond
+	passoDaIgnicao  = 90 * time.Millisecond
+	passoDoEstouro  = 130 * time.Millisecond
+	pausaDaMarca    = 260 * time.Millisecond
+	passoDaLetra    = 62 * time.Millisecond
+	pausaDoNome     = 200 * time.Millisecond
+	passoDaContagem = 170 * time.Millisecond
 )
 
 // caminhoDoTraco é a ordem em que o desenho nasce: o quadrado de trás inteiro,
@@ -108,6 +110,11 @@ func (a *Abertura) Montar() {
 	a.estouro = false
 	a.pintar()
 
+	// A marca fechada segura sozinha por um instante antes do nome entrar. É a
+	// pausa que separa as duas metades da abertura — sem ela, o wordmark
+	// atropela o desenho que acabou de nascer.
+	time.Sleep(pausaDaMarca)
+
 	// O nome: uma letra por vez, a última sempre acesa.
 	for a.nome < len([]rune(tema.Nome)) {
 		a.nome++
@@ -116,6 +123,7 @@ func (a *Abertura) Montar() {
 	}
 	a.assinado = true
 	a.pintar()
+	time.Sleep(pausaDoNome)
 }
 
 // Contar fecha a abertura com o que o motor devolveu, uma linha por vez.
