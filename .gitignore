@@ -1,0 +1,4 @@
+# binário compilado aqui mesmo
+/ts
+# estado local de quem roda o Tesseract
+*.log
