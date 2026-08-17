@@ -181,6 +181,7 @@ A pasta `themes/` traz o **Tesseract Neon** pronto para o resto da mesa:
 | `delta.gitconfig` | seção `[delta]` do git |
 | `nvim/tesseract.lua` | colorscheme do Neovim |
 | `eza-ls-colors.sh` | `LS_COLORS` e `EZA_COLORS` |
+| `claude-code.md` | como fazer o Claude Code parar de ter cor própria dentro da célula |
 
 Cada um deles segue as mesmas regras do painel: verde só onde há posse, ciano
 só onde há estrutura, estado em nenhum dos dois.

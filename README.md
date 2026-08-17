@@ -311,6 +311,12 @@ A pasta `themes/` traz o **Tesseract Neon** pronto para o terminal e as ferramen
 | `tmux.conf`, `starship.toml`, `fzf.env` | barra de status, prompt, busca |
 | `bat.tmTheme`, `delta.gitconfig` | leitura de arquivo e diff |
 | `nvim/tesseract.lua`, `eza-ls-colors.sh` | editor e listagem |
+| `claude-code.md` | o Claude Code dentro da célula, sem cor própria |
+
+**O agente dentro da célula.** O Claude Code pinta com paleta própria e briga com a grade —
+laranja no selo, rosa no logo. A correção é uma linha: `/config` → tema → **`dark-ansi`**.
+Nesse tema ele desenha só com as 16 cores ANSI, que são as do Tesseract Neon. Detalhes em
+[`themes/claude-code.md`](themes/claude-code.md).
 
 A marca em vetor está em `themes/logo.svg` (colorida) e `themes/logo-mono.svg` (traço único
 em `currentColor`, para favicon e 16px). Os detalhes de cada arquivo estão em
