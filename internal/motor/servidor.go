@@ -183,15 +183,7 @@ func (s *Servidor) atenderPedido(envelope protocolo.Mensagem, responder func(str
 			falhou(err)
 			return
 		}
-		falhou(s.motor.RenomearEPropagar(pedido.Celula, pedido.Nome))
-
-	case protocolo.TipoAdotar:
-		pedido, err := protocolo.Desempacotar[protocolo.Adotar](envelope)
-		if err != nil {
-			falhou(err)
-			return
-		}
-		falhou(s.motor.AdotarNomeDoAgente(pedido.Celula))
+		falhou(s.motor.RenomearAutomatico(pedido.Celula))
 
 	case protocolo.TipoAba:
 		pedido, err := protocolo.Desempacotar[protocolo.Aba](envelope)

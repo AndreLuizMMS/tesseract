@@ -1,6 +1,7 @@
 package motor
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,8 +61,9 @@ func TestPromptEmCelulaQueNaoRecebeFalhaClaro(t *testing.T) {
 	}
 }
 
-// TestRenomearPropagaParaDentroDoAgente — os dois nomes deixam de divergir.
-func TestRenomearPropagaParaDentroDoAgente(t *testing.T) {
+// TestRenomearAutomaticoMandaComandoPuro — o Ctrl+R não pergunta nome: manda o
+// /rename puro pro agente escolher, e arma a espera de adoção.
+func TestRenomearAutomaticoMandaComandoPuro(t *testing.T) {
 	dirEstado := t.TempDir()
 	dirProjeto := t.TempDir()
 	registro := filepath.Join(t.TempDir(), "recebido.txt")
@@ -79,38 +81,35 @@ func TestRenomearPropagaParaDentroDoAgente(t *testing.T) {
 	}
 	time.Sleep(300 * time.Millisecond)
 
-	if err := m.RenomearEPropagar(id, "fix do menu mobile"); err != nil {
-		t.Fatalf("renomear: %v", err)
+	nomeAntes := m.Retrato().Projetos[0].Celulas[0].Nome
+	if err := m.RenomearAutomatico(id); err != nil {
+		t.Fatalf("renomear automático: %v", err)
 	}
 
-	// O rótulo mudou na tela…
-	retrato := m.Retrato()
-	if retrato.Projetos[0].Celulas[0].Nome != "fix do menu mobile" {
-		t.Fatalf("o rótulo não mudou: %q", retrato.Projetos[0].Celulas[0].Nome)
-	}
-	// …e o nome foi para dentro do agente.
+	// O comando puro, sem nome nenhum, chegou ao agente…
 	if !esperarPor(t, 3*time.Second, func() bool {
 		conteudo, _ := os.ReadFile(registro)
-		return strings.Contains(string(conteudo), "/rename fix do menu mobile")
+		return strings.Contains(string(conteudo), "/rename\n")
 	}) {
 		conteudo, _ := os.ReadFile(registro)
-		t.Fatalf("o nome não foi propagado, recebido: %q", conteudo)
+		t.Fatalf("o comando não chegou puro, recebido: %q", conteudo)
+	}
+	// …e o rótulo não muda até o agente responder com um nome de verdade.
+	if m.Retrato().Projetos[0].Celulas[0].Nome != nomeAntes {
+		t.Fatal("o rótulo não podia mudar antes do agente responder")
 	}
 }
 
-// TestRenomearEmCelulaSemConversaSoTrocaORotulo — em bash, logs e md o nome é
-// só rótulo.
-func TestRenomearEmCelulaSemConversaSoTrocaORotulo(t *testing.T) {
+// TestRenomearAutomaticoEmCelulaSemConversaFalhaClaro — bash, logs e md não
+// têm conversa com nome, então não há o que pedir.
+func TestRenomearAutomaticoEmCelulaSemConversaFalhaClaro(t *testing.T) {
 	m := motorDeTeste(t)
 	id, err := m.Criar(protocolo.Criar{Caminho: t.TempDir(), Tipo: "bash"})
 	if err != nil {
 		t.Fatalf("criar: %v", err)
 	}
-	if err := m.RenomearEPropagar(id, "testes"); err != nil {
-		t.Fatalf("renomear: %v", err)
-	}
-	if m.Retrato().Projetos[0].Celulas[0].Nome != "testes" {
-		t.Fatal("o rótulo devia ter mudado")
+	if err := m.RenomearAutomatico(id); err == nil {
+		t.Fatal("célula sem conversa devia recusar")
 	}
 }
 
@@ -149,9 +148,7 @@ func TestRetomarSobeCelulaCaida(t *testing.T) {
 	if err != nil {
 		t.Fatalf("criar: %v", err)
 	}
-	if err := m.Tecla(protocolo.Tecla{Celula: id, Colar: "exit\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, m, id, "exit")
 	if !esperarPor(t, 5*time.Second, func() bool {
 		return m.Retrato().Projetos[0].Celulas[0].Estado == "caiu"
 	}) {
@@ -192,9 +189,7 @@ func TestBuscarNoHistoricoDaCelula(t *testing.T) {
 	if err != nil {
 		t.Fatalf("criar: %v", err)
 	}
-	if err := m.Tecla(protocolo.Tecla{Celula: id, Colar: "echo agulha-no-historico\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, m, id, "echo agulha-no-historico")
 	if !esperarPor(t, 3*time.Second, func() bool {
 		achados, _ := m.Buscar(id, "agulha-no-historico")
 		return len(achados) > 0
@@ -261,5 +256,31 @@ func TestDockerRecusaAcaoDesconhecida(t *testing.T) {
 	resposta, err := m.Docker(protocolo.Docker{Projeto: idProjeto, Acao: "down -v"})
 	if err == nil && resposta.Erro == "" {
 		t.Fatal("ação destrutiva não pode passar")
+	}
+}
+
+// TestJanelaVivaIgnoraSocketMorto garante que o socket largado por uma janela
+// que já fechou não é escolhido: só entra o que ainda aceita conexão.
+func TestJanelaVivaIgnoraSocketMorto(t *testing.T) {
+	dir := t.TempDir()
+
+	morto := filepath.Join(dir, "vscode-ipc-morto.sock")
+	if err := os.WriteFile(morto, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	vivo := filepath.Join(dir, "vscode-ipc-vivo.sock")
+	escuta, err := net.Listen("unix", vivo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer escuta.Close()
+
+	if achado := janelaViva(dir); achado != vivo {
+		t.Fatalf("esperava o socket vivo %s, veio %q", vivo, achado)
+	}
+
+	if achado := janelaViva(t.TempDir()); achado != "" {
+		t.Fatalf("sem janela aberta não há socket, veio %q", achado)
 	}
 }

@@ -391,7 +391,7 @@ dentro do agente; `ctrl-r` puxa para a célula o nome que o agente escolheu sozi
 |---|---|
 | `p` | manda prompt para a célula focada sem entrar nela — vale para `claude` e para `cursor`, conforme o tipo da célula |
 | `d` | abre o painel Docker do projeto focado |
-| `ctrl-e` | abre o diretório do projeto no editor configurado |
+| `ctrl-e` | abre o diretório do projeto na IDE configurada (`cursor /caminho`) |
 
 **Ler**
 

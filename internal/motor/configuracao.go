@@ -23,7 +23,8 @@ type PerfilAgente struct {
 
 // Configuracao é o que o usuário pode mudar sem tocar em código.
 type Configuracao struct {
-	// Editor é o comando que `ctrl-e` abre no diretório do projeto.
+	// Editor é o comando que `ctrl-e` roda no diretório do projeto: `cursor
+	// /caminho/do/projeto` abre a IDE ali.
 	Editor string `json:"editor,omitempty"`
 	// Som e Notificar ligam e desligam os dois avisos, separadamente.
 	Som       bool `json:"som"`
@@ -41,7 +42,7 @@ type Configuracao struct {
 // que vale para cada campo que o arquivo não trouxer.
 func ConfiguracaoPadrao() Configuracao {
 	return Configuracao{
-		Editor:        "code",
+		Editor:        "cursor",
 		Som:           true,
 		Notificar:     true,
 		TetoHistorico: historico.TetoPadrao,
