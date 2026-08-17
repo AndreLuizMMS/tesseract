@@ -3,6 +3,7 @@ package tela
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -12,6 +13,15 @@ import (
 
 // linhasPorGiro é quanto a roda do mouse anda de cada vez.
 const linhasPorGiro = 3
+
+// cadenciaDoGiro é de quanto em quanto tempo o desenho de trabalho em andamento
+// anda um quadro.
+const cadenciaDoGiro = 120 * time.Millisecond
+
+// giroPorConferida é de quantos quadros em quantos quadros a tela pergunta ao
+// motor como está a stack, enquanto o Docker trabalha. Assim os serviços vão
+// ficando verdes na tela, em vez de tudo mudar de uma vez no fim.
+const giroPorConferida = 10
 
 const (
 	visaoMosaico = "mosaico"
@@ -29,6 +39,9 @@ type chegouServicos protocolo.Servicos
 type chegouErro string
 
 type morreuMotor struct{}
+
+// tiqueDoPainel move o desenho de trabalho em andamento do painel Docker.
+type tiqueDoPainel struct{ contagem int }
 
 // Modelo é a tela. Ela guarda o que o motor mandou desenhar, o modo do teclado
 // e onde está o foco — nenhuma regra de negócio mora aqui.
@@ -135,6 +148,9 @@ func (m *Modelo) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case morreuMotor:
 		return m, tea.Quit
+
+	case tiqueDoPainel:
+		return m, m.girarOPainel(msg)
 
 	case tea.MouseWheelMsg:
 		return m, m.rolar(msg)
@@ -318,13 +334,42 @@ func (m *Modelo) telaNavegando(tecla string) (tea.Model, tea.Cmd) {
 // enquanto está aberto.
 func (m *Modelo) telaDoPainel(tecla string) tea.Cmd {
 	pedido, aberto := m.painel.Tecla(tecla)
-	if pedido != nil {
-		m.enviar(protocolo.TipoDocker, *pedido)
+	if pedido == nil {
+		if !aberto {
+			m.painel = nil
+		}
+		return nil
 	}
+
+	m.enviar(protocolo.TipoDocker, *pedido)
 	if !aberto {
 		m.painel = nil
+		return nil
+	}
+	// Ação de verdade: o painel passa a dizer que está trabalhando, e a tela
+	// volta a desenhar sozinha enquanto isso.
+	if pedido.Acao != "listar" {
+		m.painel.Comecou(pedido.Acao, pedido.Servico)
+		return tiqueDaqui(0)
 	}
 	return nil
+}
+
+// girarOPainel anda o desenho de trabalho e, de tempos em tempos, pergunta ao
+// motor como a stack está indo.
+func (m *Modelo) girarOPainel(tique tiqueDoPainel) tea.Cmd {
+	if m.painel == nil || !m.painel.EmTrabalho() {
+		return nil
+	}
+	m.painel.Girar()
+	if tique.contagem%giroPorConferida == giroPorConferida-1 {
+		m.enviar(protocolo.TipoDocker, protocolo.Docker{Projeto: m.painel.Projeto, Acao: "listar"})
+	}
+	return tiqueDaqui(tique.contagem + 1)
+}
+
+func tiqueDaqui(contagem int) tea.Cmd {
+	return tea.Tick(cadenciaDoGiro, func(time.Time) tea.Msg { return tiqueDoPainel{contagem: contagem} })
 }
 
 func (m *Modelo) telaDoFormulario(tecla, texto string, apagou bool) tea.Cmd {

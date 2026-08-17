@@ -180,7 +180,10 @@ func (m *Motor) Docker(pedido protocolo.Docker) (protocolo.Servicos, error) {
 		return protocolo.Servicos{}, fmt.Errorf("o projeto %s não tem arquivo de compose na raiz", alvo.caminho)
 	}
 
-	resposta := protocolo.Servicos{Projeto: alvo.id, Arquivo: alvo.compose}
+	resposta := protocolo.Servicos{
+		Projeto: alvo.id, Arquivo: alvo.compose,
+		Acao: pedido.Acao, Servico: pedido.Servico,
+	}
 	switch pedido.Acao {
 	case "listar":
 	case "log":

@@ -159,10 +159,14 @@ type Servico struct {
 	Uptime string `json:"uptime,omitempty"`
 }
 
-// Servicos é a resposta do motor ao pedido de listar a stack do projeto.
+// Servicos é a resposta do motor ao pedido de listar a stack do projeto. Acao
+// diz de qual pedido esta resposta veio, para a tela saber quando o trabalho
+// que ela mostrou como em andamento terminou.
 type Servicos struct {
 	Projeto string    `json:"projeto"`
 	Arquivo string    `json:"arquivo"`
+	Acao    string    `json:"acao,omitempty"`
+	Servico string    `json:"servico,omitempty"`
 	Lista   []Servico `json:"lista"`
 	Erro    string    `json:"erro,omitempty"`
 }

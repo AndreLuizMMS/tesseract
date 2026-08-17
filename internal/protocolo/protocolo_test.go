@@ -34,7 +34,7 @@ func casos() []caso {
 		{"buscar", TipoBuscar, Buscar{Celula: "c1", Termo: "erro"}, func() any { return new(Buscar) }},
 		{"achados", TipoAchados, Achados{Celula: "c1", Termo: "erro", Linhas: []Achado{{Linha: 12, Texto: "erro: x"}}}, func() any { return new(Achados) }},
 		{"servicos", TipoServicos, Servicos{
-			Projeto: "p1", Arquivo: "/dev/cortz/docker-compose.yml",
+			Projeto: "p1", Arquivo: "/dev/cortz/docker-compose.yml", Acao: "sobe", Servico: "api",
 			Lista: []Servico{{Nome: "api", Estado: "up", Porta: ":3000", Saude: "saudável", Uptime: "2h14m"}},
 		}, func() any { return new(Servicos) }},
 		{"editor", TipoEditor, Editor{Projeto: "p1"}, func() any { return new(Editor) }},
