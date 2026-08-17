@@ -1,4 +1,19 @@
-# Tesseract
+```
+     ┌────┐
+     │┌───┼┐    T E S S E R A C T
+     ││ ▓ ││    o mosaico não desmonta
+     └┼───┘│
+      └────┘    ts 0.1.0 // MIT
+```
+
+[![licença](https://img.shields.io/badge/licen%C3%A7a-MIT-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](LICENSE)
+[![versão](https://img.shields.io/badge/vers%C3%A3o-0.1.0-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](https://github.com/AndreLuizMMS/tesseract/releases)
+[![plataforma](https://img.shields.io/badge/plataforma-Linux%20%7C%20WSL%20%7C%20macOS-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](#instalar)
+
+O símbolo é um tesserato achatado: dois quadrados, um atrás do outro, deslocados, e uma
+tessera acesa no meio — a célula que está com o seu teclado. Em um caractere só, ele é `⧉`.
+O banner é feito só de traço e sombreado: **nada nele depende de cor**, então ele lê igual
+no tema claro e no escuro do GitHub, no `cat`, no `less` e com `NO_COLOR=1`.
 
 **Um mosaico de agentes em terminal.** Vários Claude Code, Cursor CLI, shells, logs de
 Docker e arquivos markdown vivendo lado a lado, num painel só, com um motor que continua
@@ -45,21 +60,24 @@ O Tesseract resolve os dois:
 
 ## Instalar
 
-Precisa de Go 1.25+, WSL com systemd, e os agentes que você usa (`claude`, `cursor-agent`).
-
 ```bash
-git clone git@github.com:AndreLuizMMS/tesseract.git
-cd tesseract
-./instalar.sh
+curl -fsSL https://raw.githubusercontent.com/AndreLuizMMS/tesseract/main/install.sh | bash
 ```
 
-O script compila o comando `ts` em `~/.local/bin`, instala o serviço de usuário e liga ele.
+Uma linha, e acabou. O instalador baixa o código, baixa o Go se a máquina não tiver um que
+sirva, compila o comando `ts` em `~/.local/bin`, põe o diretório no PATH, instala o serviço
+de usuário e sobe o motor. **Atualizar é rodar a mesma linha** — ela reinicia o motor no
+código novo, que é o passo que ninguém lembra de fazer na mão.
+
 Depois é só:
 
 ```bash
 cd ~/meu-projeto
 ts
 ```
+
+Só o que o Tesseract não instala por você: WSL com systemd ligado e os agentes que você
+usa (`claude`, `cursor-agent`).
 
 ## Como funciona
 
@@ -104,16 +122,22 @@ Existem ainda duas células que não são sessão:
 | `logs` | log ao vivo de um serviço do compose, criado pelo painel Docker |
 | `md` | um markdown específico, quando você preenche o campo MD na criação |
 
-Cada célula tem um estado, e é ele que aparece no marcador:
+Cada célula tem um estado, e é ele que aparece no marcador. Todo estado tem **três** sinais
+ao mesmo tempo — um glifo, uma cor e uma forma — para que nenhum deles seja indispensável:
 
-| Marcador | Significado |
-|---|---|
-| `▸ trabalhando` | processo vivo produzindo |
-| `⬤ respondeu` | devolveu a vez, tem resposta esperando leitura |
-| `⏵ aprovar` | travou numa pergunta e **não anda** sem resposta |
-| `✖ caiu` | o processo morreu sozinho |
-| `○ parada` | sem processo, célula preservada |
-| `⚠ órfã` | o diretório do projeto sumiu do disco |
+| Sinal | Estado | O que fazer |
+|---|---|---|
+| `▸ TRABALHANDO` | processo vivo produzindo | nada — deixe trabalhar |
+| `⬤ RESPONDEU` | devolveu a vez, tem resposta esperando leitura | leia quando puder; não trava nada |
+| `⏵ APROVAR` | travou numa pergunta e **não anda** sem resposta | responda: o trabalho parou nisso |
+| `✖ CAIU` | o processo morreu sozinho | `r` sobe de novo |
+| `○ PARADA` | sem processo, célula preservada | `r` retoma de onde parou |
+| `⚠ ÓRFÃ` | o diretório do projeto sumiu do disco | recrie o caminho ou mate a célula |
+
+`⏵ APROVAR` é o único que vira **barra sólida invertida ocupando a linha inteira** do
+cabeçalho da célula. Os outros cinco são um glifo e um rótulo. É de propósito: urgência
+aqui é área preenchida, não matiz — funciona de longe, funciona no canto do olho e funciona
+sem cor nenhuma.
 
 **Respondeu ≠ aprovar.** É a distinção que faz o alarme valer alguma coisa: agente parado
 numa pergunta bloqueia o trabalho; agente que terminou o turno apenas tem algo para ler.
@@ -142,9 +166,32 @@ Por padrão você está em **NAVEGAR**: toda tecla é do aplicativo.
 `↵` entra em **DIGITAR**: toda tecla é da célula, **sem nenhuma exceção**. Nem `q`, nem `D`,
 nem `tab`, nem as setas. `ctrl-l` devolve o teclado.
 
+Colar (`ctrl-v`, ou o que o seu terminal usar) funciona em DIGITAR e nos campos de texto.
+O texto vai **marcado como colagem**: um prompt de várias linhas entra inteiro na caixa do
+agente, em vez de cada quebra de linha virar um envio. Em campo de uma linha só — caminho
+do projeto, prompt do `p` — a colagem é achatada numa linha.
+
 Nunca há dois donos do teclado ao mesmo tempo — então colisão de atalho é estruturalmente
-impossível. E o modo é impossível de errar: em DIGITAR o resto da tela apaga, aparece o
-selo `▓ DIGITAR ▓`, e a célula que tem o teclado fica **verde e com a borda grossa**.
+impossível. E o modo é impossível de errar, porque ele muda **quatro** coisas de uma vez:
+
+1. o fundo da tela escurece e o resto apaga;
+2. a borda da célula focada engrossa e vira dupla;
+3. o selo `▓ DIGITAR ▓` aparece invertido;
+4. a célula que tem o teclado fica **verde phosphor** — e é o único verde phosphor da tela.
+
+Com `NO_COLOR=1` os sinais 1 e 4 somem, e os sinais 2 e 3 continuam: borda dupla e selo
+invertido não dependem de cor nenhuma.
+
+## Copiar o que o agente escreveu
+
+Com o mosaico, a seleção do terminal não serve: ela pega os vizinhos e as bordas junto.
+Então a marca é do próprio Tesseract. **Arraste o mouse por cima da célula** — o trecho
+acende — e **solte**: o texto vai para a área de transferência, sem cor e sem os espaços do
+fim das linhas. Vale nos dois modos e nos dois sentidos do arrasto. `esc` apaga a marca.
+
+Clicar sem arrastar só escolhe a célula; não encosta no que você tinha copiado antes. Para
+pegar o que já saiu da tela, **role primeiro** (roda do mouse) e depois arraste — a marca
+vale sobre o que está à vista.
 
 ## Teclado
 
@@ -183,8 +230,9 @@ selo `▓ DIGITAR ▓`, e a célula que tem o teclado fica **verde e com a borda
 |---|---|
 | `p` | manda prompt para a célula focada sem entrar nela |
 | `d` | abre o painel Docker do projeto focado |
-| `ctrl-e` | abre o diretório do projeto no editor configurado |
+| `ctrl-e` | abre o diretório do projeto na IDE configurada (`cursor /caminho`) |
 | roda do mouse | rola o histórico da célula |
+| arrastar com o mouse | marca um trecho da célula e **copia ao soltar** |
 | `/` | busca no histórico da célula focada |
 | `esc` | sai da rolagem / fecha o que estiver aberto |
 | `?` | ajuda |
@@ -224,13 +272,57 @@ projeto, mesmo com a tela fechada. Na WSL, o toast sai pelo PowerShell do Window
 tiver `wsl-notify-send.exe` ou `notify-send`, eles são usados no lugar. Os dois avisos são
 desligáveis, separadamente.
 
+## Tema
+
+A cor aqui não é enfeite, é gramática. Ela tem três leis, e nenhuma delas é estética:
+
+- **Verde é posse do teclado.** Nunca é estado. O verde phosphor aparece no máximo uma vez
+  por tela: na célula que está com o seu teclado, e em mais nada.
+- **Ciano é estrutura.** Grade, cantos, numeração, rótulos. Nunca é estado.
+- **Estado não usa verde nem ciano**, e urgência é área preenchida, não matiz.
+
+Fora isso: sem brilho, sem scanline, sem ligadura, sem emoji, sem canto arredondado dentro
+do terminal. Esses efeitos existem só na superfície de marca — este README, o site, o
+banner.
+
+A paleta inteira mora em **um arquivo só**, `internal/tema/tema.go`. Nenhum outro arquivo do
+projeto escreve hex: quem desenha pede o token pelo nome (`tema.BrandPhosphor`,
+`tema.FluxCore`, `tema.StateBlock`). O guarda dessa regra é executável:
+
+```bash
+./scripts/check-theme.sh
+```
+
+Ele imprime a paleta inteira em blocos ANSI para conferência a olho, e **falha** se alguém
+usar verde ou ciano como cor de estado, ou escrever hex fora do arquivo de tema.
+
+O tema tem três perfis e escolhe sozinho: cor cheia, 16 cores, ou nenhuma (`NO_COLOR=1` ou
+`TERM=dumb`). Nos três o alfabeto de estados continua legível, porque o glifo e a forma
+carregam o significado e a cor só reforça.
+
+### O mesmo tema no resto da mesa
+
+A pasta `themes/` traz o **Tesseract Neon** pronto para o terminal e as ferramentas do dia:
+
+| Arquivo | Para |
+|---|---|
+| `windows-terminal.json`, `wezterm.toml`, `alacritty.toml`, `kitty.conf`, `ghostty` | emuladores de terminal |
+| `tesseract-neon.yaml` | esquema base16/base24 (tinted-theming) |
+| `tmux.conf`, `starship.toml`, `fzf.env` | barra de status, prompt, busca |
+| `bat.tmTheme`, `delta.gitconfig` | leitura de arquivo e diff |
+| `nvim/tesseract.lua`, `eza-ls-colors.sh` | editor e listagem |
+
+A marca em vetor está em `themes/logo.svg` (colorida) e `themes/logo-mono.svg` (traço único
+em `currentColor`, para favicon e 16px). Os detalhes de cada arquivo estão em
+[`themes/README.md`](themes/README.md).
+
 ## Configuração
 
 Opcional, em `~/.config/tesseract/config.json`. Sem o arquivo, tudo funciona com o padrão.
 
 ```json
 {
-  "editor": "code",
+  "editor": "cursor",
   "som": true,
   "notificar": true,
   "comandoNotificacao": "",
