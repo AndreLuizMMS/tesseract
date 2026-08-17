@@ -31,6 +31,7 @@ func TestSpinnerNaoDisparaResposta(t *testing.T) {
 // TestTrabalhoSeguidoDeSilencioDisparaResposta é o caminho feliz.
 func TestTrabalhoSeguidoDeSilencioDisparaResposta(t *testing.T) {
 	turno := NovoTurno(marcadoresDeTeste)
+	turno.Interagir()
 
 	for i := range leiturasParaArmar {
 		estado := turno.Observar("escrevendo o arquivo…\nesc to interrupt")
@@ -52,6 +53,7 @@ func TestTrabalhoSeguidoDeSilencioDisparaResposta(t *testing.T) {
 // TestTrabalhoCurtoNaoArma — um piscar de trabalho não conta como turno.
 func TestTrabalhoCurtoNaoArma(t *testing.T) {
 	turno := NovoTurno(marcadoresDeTeste)
+	turno.Interagir()
 	turno.Observar("esc to interrupt")
 	for range 20 {
 		if estado := turno.Observar("nada acontecendo aqui"); estado == Respondeu {
@@ -64,6 +66,7 @@ func TestTrabalhoCurtoNaoArma(t *testing.T) {
 // o trabalho; agente que terminou o turno só tem algo para ler.
 func TestPerguntaViraAprovarENaoRespondeu(t *testing.T) {
 	turno := NovoTurno(marcadoresDeTeste)
+	turno.Interagir()
 	for range leiturasParaArmar {
 		turno.Observar("editando…\nesc to interrupt")
 	}
@@ -91,6 +94,7 @@ func TestPerguntaViraAprovarENaoRespondeu(t *testing.T) {
 // TestVistoLimpaOChamado — quem foi lido para de chamar.
 func TestVistoLimpaOChamado(t *testing.T) {
 	turno := NovoTurno(marcadoresDeTeste)
+	turno.Interagir()
 	for range leiturasParaArmar {
 		turno.Observar("esc to interrupt")
 	}
@@ -111,6 +115,7 @@ func TestVistoLimpaOChamado(t *testing.T) {
 func TestQualquerMarcadorDeTrabalhoServe(t *testing.T) {
 	for _, marcador := range []string{"esc to interrupt", "Cogitating… (4s · ↓ 18 tokens)"} {
 		turno := NovoTurno(marcadoresDeTeste)
+		turno.Interagir()
 		for range leiturasParaArmar {
 			if estado := turno.Observar("trabalhando\n" + marcador); estado != Trabalhando {
 				t.Fatalf("o marcador %q não foi reconhecido", marcador)
@@ -128,6 +133,7 @@ func TestQualquerMarcadorDeTrabalhoServe(t *testing.T) {
 // TestSemMarcadorUsaATelaMudando cobre o agente que não fala nada sobre si.
 func TestSemMarcadorUsaATelaMudando(t *testing.T) {
 	turno := NovoTurno(Marcadores{})
+	turno.Interagir()
 	for i := range leiturasParaArmar {
 		if estado := turno.Observar("linha " + string(rune('a'+i))); estado != Trabalhando {
 			t.Fatalf("tela mudando é o único sinal que sobra: veio %q", estado)
@@ -140,5 +146,32 @@ func TestSemMarcadorUsaATelaMudando(t *testing.T) {
 	}
 	if estado := turno.Estado(); estado != Respondeu {
 		t.Fatalf("tela que parou de mudar encerra o turno, veio %q", estado)
+	}
+}
+
+// TestAgenteSubindoNaoViraResposta — o agente abrindo a própria interface faz a
+// tela mudar muito, e isso não é resposta a ninguém: sem pedido, não há turno.
+func TestAgenteSubindoNaoViraResposta(t *testing.T) {
+	turno := NovoTurno(Marcadores{})
+	for quadro := range 30 {
+		turno.Observar("desenhando a interface " + string(rune('a'+quadro%26)))
+	}
+	for range leiturasParaEncerrar * 3 {
+		turno.Observar("interface pronta, esperando")
+	}
+	if estado := turno.Estado(); estado == Respondeu {
+		t.Fatal("agente que só subiu não pode aparecer como quem respondeu")
+	}
+
+	// Depois de um pedido, o turno seguinte conta normalmente.
+	turno.Interagir()
+	for range leiturasParaArmar {
+		turno.Observar("trabalhando " + string(rune('a'+turno.trabalho)))
+	}
+	for range leiturasParaEncerrar + 1 {
+		turno.Observar("terminei")
+	}
+	if estado := turno.Estado(); estado != Respondeu {
+		t.Fatalf("depois de um pedido, o turno encerra normalmente: %q", estado)
 	}
 }

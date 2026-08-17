@@ -56,7 +56,11 @@ type Turno struct {
 	trabalho   int
 	silencio   int
 	armado     bool
-	estado     Estado
+	// interagiu marca que alguém já pediu alguma coisa a este agente. Antes
+	// disso não existe turno para encerrar: o que a tela mostra é o agente
+	// abrindo a própria interface, e isso não é resposta a ninguém.
+	interagiu bool
+	estado    Estado
 }
 
 // NovoTurno prepara o acompanhamento de um agente com os marcadores dele.
@@ -75,6 +79,13 @@ func (t *Turno) Observar(tela string) Estado {
 	trabalhando := mudou
 	if len(t.marcadores.Trabalho) > 0 {
 		trabalhando = algumPresente(tela, t.marcadores.Trabalho)
+	}
+
+	if trabalhando && !t.interagiu {
+		// O agente subindo e se desenhando não é um turno. Sem isso, abrir uma
+		// aba já acendia o marcador de respondeu.
+		t.estado = Trabalhando
+		return t.estado
 	}
 
 	if trabalhando {
@@ -105,6 +116,14 @@ func (t *Turno) Observar(tela string) Estado {
 		t.estado = Respondeu
 	}
 	return t.estado
+}
+
+// Interagir marca que alguém pediu alguma coisa ao agente. É daí em diante que
+// existe turno para acompanhar.
+func (t *Turno) Interagir() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.interagiu = true
 }
 
 // Visto marca que alguém olhou a célula: o que estava esperando leitura já foi
