@@ -13,7 +13,7 @@ test:
 	go test ./...
 
 instalar:
-	./instalar.sh
+	./install.sh
 
 desinstalar:
 	-systemctl --user disable --now tesseract.service
