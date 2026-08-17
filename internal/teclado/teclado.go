@@ -44,6 +44,8 @@ const (
 	ProjetoProximo  Acao = "projeto-proximo"
 	PularChamado    Acao = "pular-chamado"
 	IrParaProjeto   Acao = "ir-para-projeto"
+	ProximaAba      Acao = "proxima-aba"
+	AbaAnterior     Acao = "aba-anterior"
 
 	// Teclado e tela.
 	EntrarDigitar Acao = "entrar-digitar"
@@ -109,11 +111,13 @@ type Atalho struct {
 var mapa = map[Modo][]Atalho{
 	Navegar: {
 		// Navegação é exclusivamente direcional: letra nenhuma anda pela grade.
-		{Tecla: "up", Acao: CelulaAnterior, Ajuda: "anda entre as células da coluna", Grupo: "↑↓ célula", Rodape: true, Curto: "↑↓ célula"},
-		{Tecla: "down", Acao: CelulaProxima, Ajuda: "próxima célula na coluna", Grupo: "↑↓ célula"},
-		{Tecla: "left", Acao: ProjetoAnterior, Ajuda: "anda entre os projetos — a coluna vizinha engorda", Grupo: "←→ projeto", Rodape: true, Curto: "←→ projeto"},
+		{Tecla: "up", Acao: CelulaAnterior, Ajuda: "anda entre as células, atravessando projeto", Grupo: "↑↓ célula", Rodape: true, Curto: "↑↓ célula"},
+		{Tecla: "down", Acao: CelulaProxima, Ajuda: "próxima célula", Grupo: "↑↓ célula"},
+		{Tecla: "left", Acao: ProjetoAnterior, Ajuda: "anda entre os projetos", Grupo: "←→ projeto", Rodape: true, Curto: "←→ projeto"},
 		{Tecla: "right", Acao: ProjetoProximo, Ajuda: "próximo projeto", Grupo: "←→ projeto"},
 		{Tecla: "space", Acao: PularChamado, Ajuda: "pula para a próxima célula que pede atenção, atravessando projeto"},
+		{Tecla: "tab", Acao: ProximaAba, Ajuda: "troca a aba da célula: claude, cursor, shell", Grupo: "tab ⇥ aba", Rodape: true, Curto: "tab aba"},
+		{Tecla: "shift+tab", Acao: AbaAnterior, Ajuda: "aba anterior", Grupo: "tab ⇥ aba"},
 
 		{Tecla: "enter", Acao: EntrarDigitar, Ajuda: "entra em DIGITAR na célula focada", Rodape: true, Curto: "↵ digitar"},
 		{Tecla: "o", Acao: TelaCheia, Ajuda: "célula focada em tela cheia (liga e desliga)"},
