@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"charm.land/glamour/v2"
 	"github.com/charmbracelet/x/vt"
 	"github.com/fsnotify/fsnotify"
 )
@@ -273,31 +272,14 @@ func (m *Md) reler() {
 		return
 	}
 
-	texto := renderizarMarkdown(string(bruto), colunas)
+	pagina := renderizarPagina(string(bruto), colunas)
 	m.mu.Lock()
 	m.estado = Parada
-	m.conteudo = strings.Split(strings.TrimRight(texto, "\n"), "\n")
+	m.conteudo = pagina
 	if m.rolagem > len(m.conteudo) {
 		m.rolagem = 0
 	}
 	m.mu.Unlock()
-}
-
-// renderizarMarkdown desenha o markdown para o terminal. Se o renderizador não
-// der conta, o texto cru é melhor do que nada.
-func renderizarMarkdown(bruto string, colunas int) string {
-	desenhista, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle("dark"),
-		glamour.WithWordWrap(max(colunas-2, 20)),
-	)
-	if err != nil {
-		return bruto
-	}
-	saida, err := desenhista.Render(bruto)
-	if err != nil {
-		return bruto
-	}
-	return saida
 }
 
 func erroLegivel(err error) string {
@@ -320,7 +302,7 @@ func (m *Md) Desenhar() Quadro {
 		return quadro
 	}
 
-	quadro.Linhas = append(quadro.Linhas, corDoCaminho+relativoA(m.diretorio, m.aberto)+resetDeCor+"   esc volta à lista")
+	quadro.Linhas = append(quadro.Linhas, m.cabecalhoDaPagina())
 	for i := range max(m.linhas-1, 1) {
 		linha := m.rolagem + i
 		if linha >= len(m.conteudo) {
@@ -331,37 +313,59 @@ func (m *Md) Desenhar() Quadro {
 	return quadro
 }
 
+// cabecalhoDaPagina é a lombada do documento: o arquivo, onde a leitura está e
+// como voltar. Chamado com o cadeado.
+func (m *Md) cabecalhoDaPagina() string {
+	arquivo := relativoA(m.diretorio, m.aberto)
+	daqui := m.rolagem + 1
+	ate := min(m.rolagem+max(m.linhas-1, 1), len(m.conteudo))
+	posicao := strconv.Itoa(daqui) + "–" + strconv.Itoa(ate) + " de " + strconv.Itoa(len(m.conteudo))
+	volta := "esc volta à lista"
+
+	esquerda := " " + arquivo + " "
+	direita := " " + posicao + " · " + volta + " "
+	enfeite := max(m.colunas-len([]rune(esquerda))-len([]rune(direita)), 1)
+	return corDoCaminho + esquerda + corApagadaDoMd + strings.Repeat("─", enfeite) + direita + resetDeCor
+}
+
 // desenharLista monta a busca em cima e os arquivos embaixo. Chamado com o
 // cadeado.
 func (m *Md) desenharLista() []string {
 	casaram := m.filtrados()
 	linhas := []string{
-		corDaBusca + "buscar: " + resetDeCor + m.filtro + "▏",
-		corApagadaDoMd + strconv.Itoa(len(casaram)) + " de " + strconv.Itoa(len(m.arquivos)) + " arquivos · ↑↓ escolhe · ↵ abre" + resetDeCor,
+		corDaBusca + " buscar: " + resetDeCor + m.filtro + "▏",
+		corApagadaDoMd + " " + strings.Repeat("─", max(m.colunas-2, 1)) + resetDeCor,
+		corApagadaDoMd + " " + strconv.Itoa(len(casaram)) + " de " + strconv.Itoa(len(m.arquivos)) +
+			" documentos · ↑↓ escolhe · ↵ abre" + resetDeCor,
 		"",
 	}
 
 	cabem := max(m.linhas-len(linhas), 1)
 	primeiro := min(max(m.escolhido-cabem/2, 0), max(len(casaram)-cabem, 0))
 	for i := primeiro; i < len(casaram) && i-primeiro < cabem; i++ {
-		marca := "  "
-		nome := casaram[i]
-		if i == m.escolhido {
-			marca = "▸ "
-			nome = corEscolhido + nome + resetDeCor
-		}
-		linhas = append(linhas, marca+nome)
+		linhas = append(linhas, m.linhaDaLista(casaram[i], i == m.escolhido))
 	}
 	if len(casaram) == 0 {
-		linhas = append(linhas, corApagadaDoMd+"  nenhum markdown casa com a busca"+resetDeCor)
+		linhas = append(linhas, corApagadaDoMd+"  nenhum documento casa com a busca"+resetDeCor)
 	}
 	return linhas
+}
+
+// linhaDaLista escreve um arquivo: a pasta apagada, o nome em destaque.
+func (m *Md) linhaDaLista(arquivo string, escolhido bool) string {
+	pasta, nome := filepath.Split(arquivo)
+	marca, corDoNome := "   ", corBrancoDoMd
+	if escolhido {
+		marca, corDoNome = " ▸ ", corEscolhido
+	}
+	return marca + corApagadaDoMd + pasta + corDoNome + nome + resetDeCor
 }
 
 // Cores da aba de markdown. Escritas aqui em vez de na tela porque a célula
 // desenha o próprio conteúdo — a tela só recebe linhas prontas.
 const (
 	corDaBusca     = "\x1b[1;38;5;252m"
+	corBrancoDoMd  = "\x1b[38;5;252m"
 	corEscolhido   = "\x1b[1;38;5;42m"
 	corDoCaminho   = "\x1b[38;5;39m"
 	corApagadaDoMd = "\x1b[38;5;240m"

@@ -100,7 +100,7 @@ func TestMdBuscaFiltraPeloNome(t *testing.T) {
 	if strings.Contains(tela, "spec-m8.md") || strings.Contains(tela, "README.md") {
 		t.Errorf("a busca devia esconder o que não casa:\n%s", tela)
 	}
-	if !strings.Contains(tela, "1 de 4 arquivos") {
+	if !strings.Contains(tela, "1 de 4 documentos") {
 		t.Errorf("a lista devia contar o que casou:\n%s", tela)
 	}
 
@@ -120,7 +120,8 @@ func TestMdEnterAbreOArquivoEscolhido(t *testing.T) {
 	celula.Tecla(Toque{Codigo: vt.KeyEnter})
 
 	tela := telaLimpaDe(celula)
-	if !strings.Contains(tela, "Como rodar") || !strings.Contains(tela, "pnpm dev") {
+	// O título vira caixa alta na página, como capítulo.
+	if !strings.Contains(tela, "COMO RODAR") || !strings.Contains(tela, "pnpm dev") {
 		t.Errorf("o arquivo devia estar aberto e renderizado:\n%s", tela)
 	}
 	if !strings.Contains(tela, "esc volta à lista") {
@@ -143,7 +144,7 @@ func TestMdSetasAndamPelaLista(t *testing.T) {
 	celula.Tecla(Toque{Codigo: vt.KeyDown})
 	celula.Tecla(Toque{Codigo: vt.KeyEnter})
 
-	if tela := telaLimpaDe(celula); !strings.Contains(tela, "Módulo 8") {
+	if tela := telaLimpaDe(celula); !strings.Contains(tela, "MÓDULO 8") {
 		t.Errorf("a seta devia ter movido a escolha para o segundo:\n%s", tela)
 	}
 }
@@ -241,7 +242,7 @@ func TestMdNasceSemAlvo(t *testing.T) {
 		t.Fatalf("a aba de markdown nasce sem alvo: %v", err)
 	}
 	defer celula.Matar()
-	if tela := telaLimpaDe(celula); !strings.Contains(tela, "0 de 0 arquivos") {
+	if tela := telaLimpaDe(celula); !strings.Contains(tela, "0 de 0 documentos") {
 		t.Errorf("projeto sem markdown mostra a lista vazia:\n%s", tela)
 	}
 }
@@ -277,5 +278,76 @@ func TestMdRolaPeloTexto(t *testing.T) {
 	celula.Rolar(0, true)
 	if telaLimpaDe(celula) != topo {
 		t.Fatal("voltar ao vivo tinha que trazer o começo do arquivo de volta")
+	}
+}
+
+// TestPaginaTemMargemEMedidaDeLeitura — o markdown é desenhado como página, não
+// como saída de terminal: texto centralizado, medida de leitura e margem.
+func TestPaginaTemMargemEMedidaDeLeitura(t *testing.T) {
+	texto := "# Título\n\n" + strings.Repeat("palavra ", 200) + "\n"
+	linhas := renderizarPagina(texto, 160)
+
+	maior := 0
+	comRecuo := 0
+	for _, linha := range linhas {
+		limpa := historico.LimparCodigos(linha)
+		if comprimento := len([]rune(strings.TrimRight(limpa, " "))); comprimento > maior {
+			maior = comprimento
+		}
+		if strings.HasPrefix(limpa, "  ") && strings.TrimSpace(limpa) != "" {
+			comRecuo++
+		}
+	}
+	if maior > 160 {
+		t.Fatalf("a página passou da largura da célula: %d colunas", maior)
+	}
+	if maior > medidaDeLeitura+40 {
+		t.Fatalf("o texto devia respeitar a medida de leitura, veio com %d colunas", maior)
+	}
+	if comRecuo == 0 {
+		t.Fatal("a página devia ter margem à esquerda")
+	}
+}
+
+// TestPaginaNaoQuebraCodigoLargo — diagrama e tela de terminal são cortados, não
+// embaralhados em várias linhas.
+func TestPaginaNaoQuebraCodigoLargo(t *testing.T) {
+	larga := strings.Repeat("─", 200)
+	texto := "# Doc\n\n```\n" + larga + "\n```\n"
+	linhas := renderizarPagina(texto, 80)
+
+	for _, linha := range linhas {
+		limpa := strings.TrimRight(historico.LimparCodigos(linha), " ")
+		if len([]rune(limpa)) > 80 {
+			t.Fatalf("linha maior que a célula: %d colunas", len([]rune(limpa)))
+		}
+	}
+	juntas := strings.Join(linhas, "\n")
+	if !strings.Contains(juntas, "›") {
+		t.Fatalf("o corte do código devia estar marcado:\n%s", juntas)
+	}
+	comCodigo := 0
+	for _, linha := range linhas {
+		if strings.Contains(historico.LimparCodigos(linha), "──") {
+			comCodigo++
+		}
+	}
+	if comCodigo > 1 {
+		t.Fatalf("a linha de código foi quebrada em %d linhas em vez de cortada:\n%s", comCodigo, juntas)
+	}
+}
+
+// TestPaginaDesenhaTituloComoCapitulo — o H1 vira uma faixa, não um "#".
+func TestPaginaDesenhaTituloComoCapitulo(t *testing.T) {
+	linhas := renderizarPagina("# Módulo 7\n\ntexto\n", 100)
+	juntas := strings.Join(linhas, "\n")
+	if strings.Contains(historico.LimparCodigos(juntas), "# Módulo") {
+		t.Fatalf("o sustenido não pode sobrar na página:\n%s", juntas)
+	}
+	if !strings.Contains(historico.LimparCodigos(juntas), "MÓDULO 7") {
+		t.Fatalf("o título devia virar faixa em caixa alta:\n%s", juntas)
+	}
+	if !strings.Contains(juntas, "48;5;") {
+		t.Fatalf("a faixa do título devia ter fundo próprio:\n%q", juntas)
 	}
 }
