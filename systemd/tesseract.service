@@ -1,0 +1,21 @@
+[Unit]
+Description=Tesseract — motor das células de agentes
+Documentation=https://github.com/AndreLuizMMS/tesseract
+After=default.target
+
+[Service]
+Type=simple
+# O serviço não herda o PATH do shell do usuário, e é dele que saem os agentes
+# instalados na conta (claude, cursor-agent).
+Environment=PATH=%h/.local/bin:%h/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/snap/bin
+ExecStart=%h/.local/bin/ts motor
+# Nada reinicia sozinho por dentro do Tesseract, mas o serviço em si volta
+# quando morre por acidente — é o que faz a grade reaparecer depois de um
+# `wsl --shutdown`.
+Restart=on-failure
+RestartSec=2
+KillMode=mixed
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target
