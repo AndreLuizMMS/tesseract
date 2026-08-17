@@ -304,6 +304,11 @@ func uptime(b bruto) string {
 // encurtarTempo troca "2 hours 14 minutes" por "2h14m", que é o que cabe na
 // coluna.
 func encurtarTempo(texto string) string {
+	// O Docker escreve "Less than a second" para o container que acabou de
+	// subir, e isso não tem número nenhum para encurtar.
+	if strings.HasPrefix(strings.ToLower(texto), "less than") {
+		return "0s"
+	}
 	partes := strings.Fields(texto)
 	var curto strings.Builder
 	for i := 0; i+1 < len(partes); i += 2 {
@@ -323,7 +328,9 @@ func encurtarTempo(texto string) string {
 		case strings.HasPrefix(unidade, "month"):
 			curto.WriteString(numero + "mes")
 		default:
-			curto.WriteString(numero + unidade)
+			// Formato que não conhecemos: melhor devolver o texto como veio do
+			// que embaralhar as palavras.
+			return texto
 		}
 	}
 	if curto.Len() == 0 {

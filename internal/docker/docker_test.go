@@ -62,6 +62,23 @@ func TestLerServicosVazio(t *testing.T) {
 	}
 }
 
+// TestUptimeDeContainerRecemSubido — "Less than a second" não pode virar
+// palavra embaralhada na coluna.
+func TestUptimeDeContainerRecemSubido(t *testing.T) {
+	saida := `{"Service":"web","State":"running","Status":"Up Less than a second","ExitCode":0}
+{"Service":"api","State":"running","Status":"Up About a minute","ExitCode":0}`
+	servicos, err := LerServicos([]byte(saida))
+	if err != nil {
+		t.Fatalf("ler: %v", err)
+	}
+	if servicos[0].Uptime != "0s" {
+		t.Fatalf("recém-subido devia virar \"0s\", veio %q", servicos[0].Uptime)
+	}
+	if servicos[1].Uptime != "About a minute" {
+		t.Fatalf("formato desconhecido volta como veio, veio %q", servicos[1].Uptime)
+	}
+}
+
 func TestResumo(t *testing.T) {
 	servicos, _ := LerServicos(lerExemplo(t, "ps.ndjson"))
 	if veio := Resumo(servicos); veio != "3/4" {
