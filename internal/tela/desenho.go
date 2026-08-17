@@ -22,10 +22,17 @@ var (
 	corBorda       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	corBordaFocada = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	corRolagem     = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	corErro        = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	corQuota       = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	corQuotaAlta   = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	// Em DIGITAR a célula que tem o teclado fica verde: é o quarto sinal do
+	// modo, e o único aceso na tela.
+	corDigitando = lipgloss.NewStyle().Foreground(lipgloss.Color(corDigitandoNumero))
+	corErro      = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	corQuota     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	corQuotaAlta = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
+
+// corDigitandoNumero é o verde do modo DIGITAR, num lugar só para o teste
+// poder cobrar a cor.
+const corDigitandoNumero = "42"
 
 // paletaDeProjetos dá a cada coluna uma cor própria, para o olho achar o
 // projeto sem ler o nome.
@@ -254,3 +261,20 @@ var casaDoUsuario = sync.OnceValue(func() string {
 })
 
 func lar() string { return casaDoUsuario() }
+
+// rotuloDaCelula é o que aparece na borda de cima: o tipo e o nome. Quando a
+// célula tem abas, as abas viram o rótulo — a ativa em destaque.
+func rotuloDaCelula(celula protocolo.Celula) string {
+	if len(celula.Abas) == 0 {
+		return celula.Tipo + " · " + celula.Nome
+	}
+	var abas []string
+	for _, aba := range celula.Abas {
+		if aba == celula.Aba {
+			abas = append(abas, corSelo.Render(" "+aba+" "))
+			continue
+		}
+		abas = append(abas, corApagada.Render(" "+aba+" "))
+	}
+	return strings.Join(abas, "") + " " + celula.Nome
+}
