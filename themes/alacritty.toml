@@ -1,0 +1,77 @@
+# themes/alacritty.toml
+# Importe no alacritty.toml:
+#   [general]
+#   import = ["~/.config/alacritty/themes/tesseract-neon.toml"]
+
+[colors.primary]
+background = "#070B0C"
+foreground = "#BFD1C6"
+dim_foreground = "#6C8076"
+bright_foreground = "#E8F4EC"
+
+[colors.cursor]
+text = "#030507"
+cursor = "#55FFA6"
+
+# Cursor do modo vi: sem cor própria na paleta. Repete o cursor normal em vez
+# de inventar matiz. (Decisão conservadora.)
+[colors.vi_mode_cursor]
+text = "#030507"
+cursor = "#55FFA6"
+
+[colors.selection]
+text = "#E8F4EC"
+background = "#121C1F"
+
+[colors.search.matches]
+foreground = "#030507"
+background = "#22E0D0"
+
+[colors.search.focused_match]
+foreground = "#030507"
+background = "#55FFA6"
+
+[colors.footer_bar]
+foreground = "#BFD1C6"
+background = "#121C1F"
+
+[colors.hints.start]
+foreground = "#030507"
+background = "#FFB454"
+
+[colors.hints.end]
+foreground = "#030507"
+background = "#C9A227"
+
+[colors.normal]
+black   = "#070B0C"
+red     = "#C22F38"
+green   = "#1F7A4C"
+yellow  = "#C9A227"
+blue    = "#3E7FA8"
+magenta = "#8B4FC4"
+cyan    = "#128C86"
+white   = "#BFD1C6"
+
+[colors.bright]
+black   = "#3E534E"
+red     = "#FF3B47"
+green   = "#55FFA6"
+yellow  = "#FFB454"
+blue    = "#7DB7E8"
+magenta = "#C77DFF"
+cyan    = "#22E0D0"
+white   = "#E8F4EC"
+
+# Alacritty pede a família "dim" completa. A paleta não tem uma terceira
+# rampa, então dim reusa as cores normais e escuras já definidas — nenhuma
+# cor nova foi criada.
+[colors.dim]
+black   = "#030507"
+red     = "#C22F38"
+green   = "#0B3322"
+yellow  = "#C9A227"
+blue    = "#3E7FA8"
+magenta = "#8B4FC4"
+cyan    = "#082F31"
+white   = "#6C8076"

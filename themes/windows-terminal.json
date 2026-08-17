@@ -1,0 +1,40 @@
+// themes/windows-terminal.json
+// Fragmento do array "schemes" do settings.json do Windows Terminal.
+// Cole os objetos dentro do "schemes" que já existe no seu settings.json.
+//
+// Decisões não cobertas pela paleta:
+// - O Windows Terminal não tem chave para a cor do TEXTO sob o cursor
+//   (cursor_text #030507). O cursor é sólido #55FFA6 e o terminal inverte o
+//   glifo sozinho. Nada foi inventado.
+// - "selectionForeground" não existe no schema do Windows Terminal; só
+//   "selectionBackground". O fg da seleção (#E8F4EC) fica sem destino aqui.
+{
+  "schemes": [
+    {
+      "name": "Tesseract Neon",
+
+      "background": "#070B0C",
+      "foreground": "#BFD1C6",
+      "cursorColor": "#55FFA6",
+      "selectionBackground": "#121C1F",
+
+      "black": "#070B0C",
+      "red": "#C22F38",
+      "green": "#1F7A4C",
+      "yellow": "#C9A227",
+      "blue": "#3E7FA8",
+      "purple": "#8B4FC4",
+      "cyan": "#128C86",
+      "white": "#BFD1C6",
+
+      "brightBlack": "#3E534E",
+      "brightRed": "#FF3B47",
+      "brightGreen": "#55FFA6",
+      "brightYellow": "#FFB454",
+      "brightBlue": "#7DB7E8",
+      "brightPurple": "#C77DFF",
+      "brightCyan": "#22E0D0",
+      "brightWhite": "#E8F4EC"
+    }
+  ]
+}

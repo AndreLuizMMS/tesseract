@@ -1,0 +1,40 @@
+# themes/ghostty
+# Tema do Ghostty. Copie para ~/.config/ghostty/themes/tesseract-neon e use:
+#   theme = tesseract-neon
+#
+# O Ghostty aceita hex com ou sem "#". Mantido sem "#" por ser a forma dos
+# temas embutidos.
+
+palette = 0=#070B0C
+palette = 1=#C22F38
+palette = 2=#1F7A4C
+palette = 3=#C9A227
+palette = 4=#3E7FA8
+palette = 5=#8B4FC4
+palette = 6=#128C86
+palette = 7=#BFD1C6
+palette = 8=#3E534E
+palette = 9=#FF3B47
+palette = 10=#55FFA6
+palette = 11=#FFB454
+palette = 12=#7DB7E8
+palette = 13=#C77DFF
+palette = 14=#22E0D0
+palette = 15=#E8F4EC
+
+background = 070B0C
+foreground = BFD1C6
+
+cursor-color = 55FFA6
+cursor-text = 030507
+
+selection-background = 121C1F
+selection-foreground = E8F4EC
+
+# Divisória entre splits: estrutura, ciano. A paleta não define uma cor de
+# split inativo, então só a ativa é declarada.
+split-divider-color = 128C86
+
+# Sem efeito de superfície dentro do terminal.
+background-opacity = 1
+unfocused-split-opacity = 1

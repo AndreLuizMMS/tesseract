@@ -1,0 +1,75 @@
+# themes/tesseract-neon.yaml
+# Esquema tinted-theming (base16), com extensão base24 opcional no fim.
+#
+# Regra que governa o mapeamento: a rampa neutra base00→base07 vem inteira da
+# rampa de base/fg da paleta, e as oito cores base08→base0F saem das cores de
+# estado e dos ANSI 16. Nenhum hex foi criado, alterado ou aproximado.
+
+system: "base16"
+name: "Tesseract Neon"
+author: "Tesseract (github.com/andreluiz/tesseract)"
+variant: "dark"
+
+palette:
+  # base00 — fundo padrão. É o bg.base, o fundo de tudo fora do modo DIGITAR.
+  base00: "#070B0C"
+  # base01 — fundo elevado leve (linha atual, gutter). É o bg.surface, o mesmo
+  # tom do corpo da célula.
+  base01: "#0C1315"
+  # base02 — fundo de seleção. É o bg.raised, o mesmo do cabeçalho e da
+  # seleção da grade: seleção no editor e seleção na grade têm o mesmo peso.
+  base02: "#121C1F"
+  # base03 — comentários e invisíveis. É o fg.faint, o tom de "desligado".
+  base03: "#3E534E"
+  # base04 — texto secundário (status bar). É o fg.muted.
+  base04: "#6C8076"
+  # base05 — texto padrão. É o fg.default.
+  base05: "#BFD1C6"
+  # base06 — texto claro (ênfase). É o fg.bright, o tom dos títulos.
+  base06: "#E8F4EC"
+  # base07 — o mais claro de todos. A paleta não tem nada acima de fg.bright,
+  # e inventar um tom mais claro é proibido — então base07 repete #E8F4EC.
+  # Consequência prática: nenhum tema deve usar base06 e base07 lado a lado.
+  base07: "#E8F4EC"
+  # base08 — variáveis, deletado, erro. É o state.dead: a mesma cor que grita
+  # "caiu" na grade grita "quebrou" no código.
+  base08: "#FF3B47"
+  # base09 — números, constantes, booleanos. É o state.block, a cor de
+  # "precisa da sua mão".
+  base09: "#FFB454"
+  # base0A — classes, títulos, busca. É o amarelo do ANSI 3: fica entre o
+  # laranja do bloqueio e o vermelho do erro sem se confundir com nenhum.
+  base0A: "#C9A227"
+  # base0B — strings, adicionado. É o brand.core, o verde escuro. Não é o
+  # phosphor: dentro de um buffer aparecem centenas de strings, e o #55FFA6
+  # existe uma vez por tela só.
+  base0B: "#1F7A4C"
+  # base0C — suporte, regex, escape. É o flux, o ciano de estrutura.
+  base0C: "#22E0D0"
+  # base0D — funções, métodos. É o azul claro (ANSI 12), a única família fria
+  # que não é ciano.
+  base0D: "#7DB7E8"
+  # base0E — palavras-chave. É o roxo claro (ANSI 13).
+  base0E: "#C77DFF"
+  # base0F — depreciado, delimitador embutido. Base16 pede um marrom aqui e a
+  # paleta não tem marrom. Escolha conservadora: o roxo escuro do ANSI 5, que
+  # é o único tom da paleta ainda não usado e lê como "apagado" ao lado do
+  # base0E.
+  base0F: "#8B4FC4"
+
+  # --- Extensão base24 (opcional) -------------------------------------------
+  # Ferramentas base16 ignoram estas chaves. Ferramentas base24 ganham os
+  # fundos mais fundos e a rampa "bright" do ANSI 16, que a paleta já define.
+
+  # base10 — fundo mais escuro que o padrão. É o bg.void, o fundo do DIGITAR.
+  base10: "#030507"
+  # base11 — o fundo mais fundo. A paleta não tem nada abaixo do bg.void, e
+  # base11 repete #030507 em vez de inventar preto.
+  base11: "#030507"
+  # base12–base17 — a metade brilhante do ANSI 16, na ordem do base24.
+  base12: "#FF3B47" # vermelho brilhante
+  base13: "#FFB454" # amarelo brilhante
+  base14: "#55FFA6" # verde brilhante — brand.phosphor
+  base15: "#22E0D0" # ciano brilhante — flux
+  base16: "#7DB7E8" # azul brilhante
+  base17: "#C77DFF" # magenta brilhante
