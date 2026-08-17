@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  themes/bat.tmTheme
+  Tema de sintaxe do Tesseract Neon, para bat e delta.
+
+  Instalação: veja "Configuração de tema" em themes/README.md. (Os comandos
+  não cabem aqui: comentário XML não aceita hífen duplo, e as flags do bat
+  são todas de hífen duplo.)
+
+  Mapeamento (mesmo do base16 em themes/tesseract-neon.yaml):
+    string / adicionado -> #1F7A4C  (brand.core, nunca o phosphor: um buffer
+                                     tem centenas de strings e o #55FFA6 é
+                                     um por tela)
+    função              -> #7DB7E8
+    palavra-chave       -> #C77DFF
+    tipo / classe       -> #C9A227
+    constante / número  -> #FFB454
+    suporte / regex     -> #22E0D0  (flux, estrutura)
+    inválido / removido -> #FF3B47
+    comentário          -> #3E534E  (fg.faint)
+-->
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>Tesseract Neon</string>
+	<key>semanticClass</key>
+	<string>theme.dark.tesseract_neon</string>
+	<key>uuid</key>
+	<string>7e55ffa6-1f7a-4c22-e0d0-070b0c128c86</string>
+	<key>colorSpaceName</key>
+	<string>sRGB</string>
+	<key>settings</key>
+	<array>
+
+		<dict>
+			<key>settings</key>
+			<dict>
+				<key>background</key>
+				<string>#070B0C</string>
+				<key>foreground</key>
+				<string>#BFD1C6</string>
+				<key>caret</key>
+				<string>#55FFA6</string>
+				<key>lineHighlight</key>
+				<string>#0C1315</string>
+				<key>selection</key>
+				<string>#121C1F</string>
+				<key>selectionForeground</key>
+				<string>#E8F4EC</string>
+				<key>invisibles</key>
+				<string>#3E534E</string>
+				<key>gutter</key>
+				<string>#070B0C</string>
+				<key>gutterForeground</key>
+				<string>#3E534E</string>
+				<key>findHighlight</key>
+				<string>#22E0D0</string>
+				<key>findHighlightForeground</key>
+				<string>#030507</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Comentário</string>
+			<key>scope</key>
+			<string>comment, punctuation.definition.comment</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#3E534E</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>String</string>
+			<key>scope</key>
+			<string>string, string.quoted, punctuation.definition.string</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#1F7A4C</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Escape e interpolação dentro de string</string>
+			<key>scope</key>
+			<string>constant.character.escape, string.regexp, punctuation.section.embedded</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#22E0D0</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Número, constante, booleano</string>
+			<key>scope</key>
+			<string>constant.numeric, constant.language, constant.other</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FFB454</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Variável</string>
+			<key>scope</key>
+			<string>variable, variable.parameter, meta.definition.variable</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#BFD1C6</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Palavra-chave e operador</string>
+			<key>scope</key>
+			<string>keyword, keyword.control, keyword.operator, storage.modifier</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#C77DFF</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Storage e tipo</string>
+			<key>scope</key>
+			<string>storage, storage.type, support.type, entity.name.type</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#C9A227</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Função e método</string>
+			<key>scope</key>
+			<string>entity.name.function, support.function, meta.function-call, variable.function</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#7DB7E8</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Classe, tag, entidade</string>
+			<key>scope</key>
+			<string>entity.name.class, entity.name.tag, entity.other.inherited-class</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#C9A227</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Atributo</string>
+			<key>scope</key>
+			<string>entity.other.attribute-name, support.variable</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#22E0D0</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Pontuação e separador</string>
+			<key>scope</key>
+			<string>punctuation, meta.brace, meta.delimiter</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#6C8076</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Inválido</string>
+			<key>scope</key>
+			<string>invalid, invalid.illegal</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FF3B47</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Depreciado</string>
+			<key>scope</key>
+			<string>invalid.deprecated</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#8B4FC4</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Diff — cabeçalho</string>
+			<key>scope</key>
+			<string>meta.diff, meta.diff.header, source.diff meta.diff.range</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#128C86</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Diff — inserido</string>
+			<key>scope</key>
+			<string>markup.inserted, source.diff markup.inserted</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#1F7A4C</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Diff — removido</string>
+			<key>scope</key>
+			<string>markup.deleted, source.diff markup.deleted</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FF3B47</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Diff — alterado</string>
+			<key>scope</key>
+			<string>markup.changed</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#FFB454</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Markdown — título</string>
+			<key>scope</key>
+			<string>markup.heading, entity.name.section</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#E8F4EC</string>
+				<key>fontStyle</key>
+				<string>bold</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Markdown — ênfase</string>
+			<key>scope</key>
+			<string>markup.bold</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#E8F4EC</string>
+				<key>fontStyle</key>
+				<string>bold</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Markdown — itálico</string>
+			<key>scope</key>
+			<string>markup.italic</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#BFD1C6</string>
+				<key>fontStyle</key>
+				<string>italic</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Markdown — link</string>
+			<key>scope</key>
+			<string>markup.underline.link, string.other.link</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#22E0D0</string>
+				<key>fontStyle</key>
+				<string>underline</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
+			<string>Markdown — código literal</string>
+			<key>scope</key>
+			<string>markup.raw, markup.inline.raw</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#128C86</string>
+			</dict>
+		</dict>
+
+	</array>
+</dict>
+</plist>

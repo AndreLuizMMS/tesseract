@@ -1,0 +1,91 @@
+# themes/delta.gitconfig
+# Seção [delta] do Tesseract Neon.
+#
+# Inclua no ~/.gitconfig:
+#   [include]
+#       path = ~/caminho/para/tesseract/themes/delta.gitconfig
+#
+# Depende do tema de sintaxe instalado a partir de themes/bat.tmTheme.
+#
+# Regra do diff: linha adicionada usa o verde escuro brand.core, nunca o
+# phosphor — um diff longo repetiria o #55FFA6 centenas de vezes, e ele existe
+# uma vez por tela. Cabeçalho de arquivo e moldura são ciano, porque são
+# estrutura. Conflito é laranja de bloqueio: pede a sua mão.
+
+[core]
+	pager = delta
+
+[interactive]
+	diffFilter = delta --color-only
+
+[merge]
+	conflictstyle = zdiff3
+
+[diff]
+	colorMoved = default
+
+[delta]
+	syntax-theme = Tesseract Neon
+	navigate = true
+	line-numbers = true
+	hyperlinks = true
+	true-color = always
+	tabs = 4
+
+	# Sem canto arredondado: só traço reto.
+	file-style = "#E8F4EC" bold
+	file-decoration-style = "#128C86" ul
+	hunk-header-style = syntax
+	hunk-header-decoration-style = "#16282A" box
+	hunk-header-file-style = "#22E0D0"
+	hunk-header-line-number-style = "#128C86"
+
+	minus-style = syntax "#0C1315"
+	minus-emph-style = "#E8F4EC" "#C22F38"
+	minus-non-emph-style = syntax "#0C1315"
+
+	plus-style = syntax "#0C1315"
+	plus-emph-style = "#030507" "#1F7A4C"
+	plus-non-emph-style = syntax "#0C1315"
+
+	zero-style = syntax
+
+	line-numbers-minus-style = "#C22F38"
+	line-numbers-plus-style = "#1F7A4C"
+	line-numbers-zero-style = "#3E534E"
+	line-numbers-left-style = "#16282A"
+	line-numbers-right-style = "#16282A"
+
+	whitespace-error-style = "#030507" "#FF3B47"
+
+	# Blocos movidos: azul e roxo, as duas famílias que não são estado, não são
+	# posse e não são estrutura.
+	map-styles = \
+		bold purple => syntax "#121C1F", \
+		bold blue => syntax "#0C1315"
+
+	merge-conflict-begin-symbol = "▓"
+	merge-conflict-end-symbol = "▓"
+	merge-conflict-ours-diff-header-style = "#FFB454" bold
+	merge-conflict-ours-diff-header-decoration-style = "#16282A" box
+	merge-conflict-theirs-diff-header-style = "#FFB454" bold
+	merge-conflict-theirs-diff-header-decoration-style = "#16282A" box
+
+	blame-palette = "#070B0C" "#0C1315" "#121C1F" "#16282A"
+
+	# grep e busca
+	grep-file-style = "#22E0D0"
+	grep-line-number-style = "#128C86"
+
+[delta "no-color"]
+	# Perfil para NO_COLOR=1 / terminal burro: use com
+	#   git -c delta.features=no-color diff
+	# Tudo em texto puro; o sinal continua sendo o +/- da coluna e o negrito.
+	syntax-theme = none
+	line-numbers = true
+	minus-style = normal
+	plus-style = bold
+	minus-emph-style = reverse
+	plus-emph-style = reverse
+	file-style = bold
+	hunk-header-style = normal

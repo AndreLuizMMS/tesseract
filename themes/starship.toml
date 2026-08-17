@@ -1,0 +1,92 @@
+# themes/starship.toml
+# Prompt do Tesseract Neon.  export STARSHIP_CONFIG=~/.config/starship.toml
+#
+# Regra do prompt: o ⧉ é o único elemento em verde phosphor — ele marca que o
+# teclado é seu. Tudo que é estrutura (caminho, host, branch) é ciano. Nenhum
+# estado do prompt (erro, jobs, duração) usa verde nem ciano.
+
+add_newline = true
+
+format = """
+[⧉ ](bold #55FFA6)$username$hostname$directory$git_branch$git_state$git_status$cmd_duration$jobs
+$character"""
+
+right_format = """$time"""
+
+[character]
+# Sem verde no sucesso: verde é posse do teclado, não resultado do comando.
+success_symbol = "[▸](bold #BFD1C6)"
+error_symbol = "[▸](bold #FF3B47)"
+vimcmd_symbol = "[◂](bold #FFB454)"
+
+[username]
+style_user = "#6C8076"
+style_root = "bold #FF3B47"
+format = "[$user]($style)[@](#3E534E)"
+show_always = false
+
+[hostname]
+ssh_only = true
+style = "#128C86"
+format = "[$hostname]($style) "
+
+[directory]
+style = "bold #128C86"
+truncation_length = 3
+truncate_to_repo = true
+read_only = " ▓"
+read_only_style = "#FFB454"
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+symbol = ""
+style = "#22E0D0"
+format = "[$branch]($style)"
+
+[git_state]
+style = "#FFB454"
+format = "[ \\($state( $progress_current/$progress_total)\\)]($style)"
+
+[git_status]
+style = "#6C8076"
+format = "[ $all_status$ahead_behind]($style)"
+conflicted = "[!](bold #FF3B47)"
+untracked = "?"
+modified = "*"
+staged = "+"
+renamed = "»"
+deleted = "[x](#FF3B47)"
+stashed = "▓"
+ahead = "↑${count}"
+behind = "↓${count}"
+diverged = "[↕${ahead_count}/${behind_count}](#FFB454)"
+
+[cmd_duration]
+min_time = 2000
+style = "#6C8076"
+format = " [$duration]($style)"
+
+[jobs]
+symbol = "▸"
+style = "#7DB7E8"
+number_threshold = 1
+format = " [$symbol$number]($style)"
+
+[time]
+disabled = false
+style = "#3E534E"
+time_format = "%H:%M"
+format = "[$time]($style)"
+
+# Módulos de linguagem desligados por padrão: o prompt do Tesseract diz onde
+# você está e de quem é o teclado, não o que está instalado na máquina.
+[nodejs]
+disabled = true
+[golang]
+disabled = true
+[python]
+disabled = true
+[rust]
+disabled = true
+[package]
+disabled = true
