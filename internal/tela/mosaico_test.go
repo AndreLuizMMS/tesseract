@@ -356,15 +356,17 @@ func TestCelulaNaoFocadaPerdeACor(t *testing.T) {
 // ele mora onde o olho procura estado de janela.
 func TestSeloDoModoFicaNoCantoDireito(t *testing.T) {
 	estado := gradeDeTeste()
-	linha := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Digitar, 120, 30, ""))
-	primeira := strings.SplitN(linha, "\n", 2)[0]
+	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Digitar, 120, 30, ""))
+	// O selo mora na linha de estado, que é a segunda do cabeçalho — a
+	// primeira é a faixa da marca.
+	estado_ := strings.Split(desenho, "\n")[alturaDaBarra-1]
 
-	selo := strings.Index(primeira, "▓ DIGITAR ▓")
+	selo := strings.Index(estado_, "▓ DIGITAR ▓")
 	if selo < 0 {
-		t.Fatalf("o selo do modo sumiu da barra: %q", primeira)
+		t.Fatalf("o selo do modo sumiu da linha de estado: %q", estado_)
 	}
-	if selo < len([]rune(primeira))/2 {
-		t.Fatalf("o selo devia estar na metade direita da barra, e está na coluna %d de %d", selo, len(primeira))
+	if selo < len([]rune(estado_))/2 {
+		t.Fatalf("o selo devia estar na metade direita, e está na coluna %d de %d", selo, len(estado_))
 	}
 }
 
@@ -410,5 +412,28 @@ func TestBarraDeAvisoMudaEntreOsQuadros(t *testing.T) {
 	}
 	if semEstilo(aceso) != semEstilo(apagado) {
 		t.Fatal("a piscada é só de cor: o texto da tela não pode mudar")
+	}
+}
+
+// TestCabecalhoTemAMarcaNoMeio — a faixa é o topo da tela e o eixo do olho: a
+// marca fica no meio dela, com a régua atravessando dos dois lados.
+func TestCabecalhoTemAMarcaNoMeio(t *testing.T) {
+	faixa := semEstilo(faixaDaMarca(teclado.Navegar, 120))
+	if lipgloss.Width(faixa) != 120 {
+		t.Fatalf("a faixa tem que ocupar a largura inteira, e tem %d", lipgloss.Width(faixa))
+	}
+	// Em runas, não em bytes: a régua é feita de caracteres de três bytes, e
+	// contar errado aqui daria um desvio inventado.
+	marca := len([]rune(faixa[:max(strings.Index(faixa, tema.Glifo), 0)]))
+	if !strings.Contains(faixa, tema.Glifo) {
+		t.Fatalf("a marca sumiu da faixa: %q", faixa)
+	}
+	// Centro com folga de uma casa para cada lado, porque a sobra ímpar da
+	// divisão cai num dos lados.
+	if desvio := marca - len([]rune(faixa))/2; desvio > 12 || desvio < -12 {
+		t.Fatalf("a marca devia estar no meio, e está %d colunas fora", desvio)
+	}
+	if !strings.HasPrefix(faixa, "─") || !strings.HasSuffix(faixa, "─") {
+		t.Fatalf("a régua devia atravessar a faixa de ponta a ponta: %q", faixa)
 	}
 }

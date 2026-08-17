@@ -11,6 +11,8 @@ import (
 
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
+
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
 var (
@@ -274,7 +276,7 @@ func TestTelaAbreDesenhaEFecha(t *testing.T) {
 
 	// A tela abre com uma célula bash em tela cheia.
 	esperarAte(t, 10*time.Second, func() bool {
-		return strings.Contains(tela.Render(), "TESSERACT") && strings.Contains(tela.Render(), "claude")
+		return strings.Contains(tela.Render(), tema.Nome) && strings.Contains(tela.Render(), "claude")
 	})
 	desenho := tela.Render()
 	if !strings.Contains(desenho, "NAVEGAR") {
@@ -617,7 +619,7 @@ func TestFormularioComecaNaCasaDoUsuario(t *testing.T) {
 	go func() { _, _ = copiar(tela, terminal) }()
 	go func() { _, _ = copiar(terminal, tela) }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "TESSERACT") })
+	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), tema.Nome) })
 	_, _ = terminal.Write([]byte("n"))
 	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NOVA") })
 
