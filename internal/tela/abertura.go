@@ -55,6 +55,25 @@ var posicaoDaTessera = [2]int{2, 3}
 // branco e as três linhas da contagem.
 const alturaDaAbertura = 9
 
+// LarguraNecessaria é a largura, em colunas, da linha mais comprida que a
+// abertura chega a desenhar. Abaixo disso o terminal quebra a linha (wrap),
+// o cursor-up fixo da animação erra a conta e sobra lixo na tela — por isso
+// quem decide animar precisa checar contra isto antes.
+func LarguraNecessaria() int {
+	assinatura := []string{"", tema.Nome, tema.Tagline, "", tema.Versao}
+	maior := 0
+	for i := range tema.Simbolo {
+		lado := ""
+		if i < len(assinatura) {
+			lado = assinatura[i]
+		}
+		if largura := len([]rune("   " + tema.Simbolo[i] + "    " + lado)); largura > maior {
+			maior = largura
+		}
+	}
+	return maior
+}
+
 // Abertura é a animação de partida. Ela pinta sempre o bloco inteiro e o
 // reescreve por cima de si mesmo, então não deixa rastro na rolagem.
 type Abertura struct {

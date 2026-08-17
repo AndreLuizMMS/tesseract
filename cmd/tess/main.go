@@ -14,6 +14,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	term "github.com/charmbracelet/x/term"
 
 	_ "github.com/andreluiz/tesseract/internal/celula"
 	"github.com/andreluiz/tesseract/internal/motor"
@@ -133,13 +134,20 @@ func abrirTela() error {
 
 // animarAbertura diz se a abertura roda como animação. Sem terminal de
 // verdade ela viraria lixo de escape num arquivo de log, e quem não quer
-// esperar por ela desliga no ambiente.
+// esperar por ela desliga no ambiente. Num painel estreito demais para a
+// linha mais larga do bloco, a animação também some: o terminal quebraria a
+// linha (wrap), o cursor-up fixo erraria a conta e sobraria lixo acumulado
+// quadro a quadro — melhor o banner estático de sempre.
 func animarAbertura() bool {
 	if _, desligado := os.LookupEnv("TESSERACT_SEM_ABERTURA"); desligado {
 		return false
 	}
 	info, err := os.Stderr.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
+		return false
+	}
+	largura, _, err := term.GetSize(os.Stderr.Fd())
+	return err != nil || largura >= tela.LarguraNecessaria()
 }
 
 // contagemDoMotor é o que o motor devolveu: a prova de que a grade voltou
