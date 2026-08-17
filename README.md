@@ -52,8 +52,6 @@ passa a ser dela; `ctrl-l` devolve o teclado. `?` abre o mapa na tela.
 |---|---|
 | [Manual](docs/manual.md) | projetos, células, os dois modos, Docker, configuração |
 | [Atalhos](docs/atalhos.md) | o teclado inteiro e os comandos de linha |
-| [Tema](docs/tema.md) | a paleta, a marca e como vesti-la no resto da mesa |
-| [Arquitetura](docs/arquitetura.md) | como o motor sobrevive à tela e por que isso é pouco código |
 
 ## Licença
 
