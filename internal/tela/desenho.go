@@ -36,23 +36,12 @@ var (
 	corGradeAtiva = tema.Pintar(tema.LineActive, "")
 )
 
-// paletaDeProjetos dá a cada coluna uma cor própria, para o olho achar o
-// projeto sem ler o nome. Sem verde: verde é posse do teclado, e um projeto
-// verde competiria com a célula que está digitando.
-var paletaDeProjetos = []lipgloss.Style{
-	tema.Pintar(tema.StateRead, ""),
-	tema.Pintar(tema.StateOrphan, ""),
-	tema.Pintar(tema.Flux, ""),
-	tema.Pintar(tema.StateBlock, ""),
-	tema.Pintar(tema.CorAnsiMagenta, ""),
-	tema.Pintar(tema.CorAnsiAmarelo, ""),
-}
-
-func corProjeto(cor int) lipgloss.Style {
-	if cor < 0 {
-		cor = 0
-	}
-	return paletaDeProjetos[cor%len(paletaDeProjetos)]
+// corProjeto é o nome do projeto na tira. Um ciano só para todos: o nome do
+// projeto é estrutura, não decoração. Uma cor por projeto virava arco-íris na
+// tela e brigava com o único sinal que precisa gritar — a célula que está com
+// o teclado. Quem separa um projeto do outro é a tira, o nome e a posição.
+func corProjeto(int) lipgloss.Style {
+	return tema.Pintar(tema.FluxCore, "")
 }
 
 type marcador struct {
@@ -102,6 +91,15 @@ func marcadorDe(estado string) marcador {
 	return marcadores["parada"]
 }
 
+// corMarca é o glifo da marca na barra. Em DIGITAR ele apaga junto com o
+// resto: o aplicativo está mudo, e a marca também.
+func corMarca(modo teclado.Modo) lipgloss.Style {
+	if modo == teclado.Digitar {
+		return corApagada
+	}
+	return tema.Pintar(tema.Flux, "")
+}
+
 // MioloDaCelulaCheia é o espaço útil de uma célula ocupando a tela toda:
 // desconta a barra de título, o rodapé e as bordas da caixa.
 func MioloDaCelulaCheia(largura, altura int) Geometria {
@@ -125,7 +123,9 @@ func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quot
 		nome, pintarNome, pintarSinais = "tesseract", corApagada, corApagada
 	}
 
-	esquerda := " " + pintarNome.Render(nome)
+	// A marca fica na tela o tempo todo, à esquerda do nome, em ciano: é
+	// estrutura, e é o único lugar em que ela aparece.
+	esquerda := " " + corMarca(modo).Render(tema.Glifo) + " " + pintarNome.Render(nome)
 	var sinais []string
 	for _, estado := range []string{"respondeu", "aprovar"} {
 		if chamados[estado] > 0 {

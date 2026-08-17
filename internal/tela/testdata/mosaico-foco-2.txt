@@ -1,4 +1,4 @@
- TESSERACT   ⬤ 1   ⏵ 1                                  NAVEGAR
+ ⧉ TESSERACT   ⬤ 1   ⏵ 1                                NAVEGAR
 ── DOXAR-API  /home/dev/doxar-api ─────────────────────────────────────────────────────────────────────────── ⬤1  ● 4/5
 ┌  claude  cursor  bash  refatora auth ─────── ⬤ RESPONDEU ┐┌  claude  cursor  bash  testes ──────────── ▸ TRABALHANDO ┐
 │Movi a validação de token                                 ││$ go test ./...                                           │
