@@ -15,7 +15,7 @@ const larguraDoIndice = 30
 func MioloDaPrevia(largura, altura int) Geometria {
 	return Geometria{
 		Colunas: max(largura-larguraDoIndice-3, 1),
-		Linhas:  max(altura-4, 1),
+		Linhas:  max(altura-alturaDaBarra-3, 1),
 	}
 }
 
@@ -27,7 +27,7 @@ func DesenharLista(estado protocolo.Estado, foco Foco, modo teclado.Modo, largur
 		return telaVazia(modo, largura, altura, erro, estado.Aviso)
 	}
 	foco = Ajustar(estado, foco)
-	corpo := altura - 4
+	corpo := altura - alturaDaBarra - 3
 
 	indice := linhasDoIndice(estado, foco, corpo)
 	previa := MioloDaPrevia(largura, altura)
@@ -37,7 +37,7 @@ func DesenharLista(estado protocolo.Estado, foco Foco, modo teclado.Modo, largur
 		celula = celulas[foco.Celula]
 	}
 
-	linhas := []string{barraDeTitulo(modo, largura, contarChamados(estado), estado.Quota)}
+	linhas := barraDeTitulo(modo, largura, contarChamados(estado), estado.Quota)
 	linhas = append(linhas, corBorda.Render("┌"+strings.Repeat("─", larguraDoIndice)+"┬"+strings.Repeat("─", previa.Colunas)+"┐"))
 	cabecalho := corTitulo.Render(" " + celula.Tipo + " · " + celula.Nome)
 	for l := range corpo {

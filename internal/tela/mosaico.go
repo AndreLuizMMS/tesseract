@@ -80,13 +80,13 @@ func Dispor(estado protocolo.Estado, foco Foco, largura, altura int) Disposicao 
 		return d
 	}
 
-	corpo := altura - 2 // a barra de título e o rodapé
+	corpo := altura - alturaDaBarra - 1 // o cabeçalho e o rodapé
 	todas := planejarFaixas(estado, largura)
 	visiveis := janelaDeFaixas(todas, faixaDoFoco(todas, foco), corpo)
 	d.escondidas = celulasDeFora(todas, visiveis)
 	d.faixas = repartirAltura(visiveis, corpo)
 
-	y := 1 // a barra de título
+	y := alturaDaBarra // o cabeçalho
 	for _, f := range d.faixas {
 		if f.abre {
 			y++
@@ -232,7 +232,7 @@ func Desenhar(estado protocolo.Estado, foco Foco, modo teclado.Modo, largura, al
 		return telaVazia(modo, largura, altura, erro, estado.Aviso)
 	}
 
-	linhas := []string{barraDeTitulo(modo, largura, contarChamados(estado), estado.Quota)}
+	linhas := barraDeTitulo(modo, largura, contarChamados(estado), estado.Quota)
 	for _, f := range d.faixas {
 		projeto := estado.Projetos[f.projeto]
 		if f.abre {

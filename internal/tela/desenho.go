@@ -112,30 +112,64 @@ func corMarca(modo teclado.Modo) lipgloss.Style {
 // MioloDaCelulaCheia é o espaço útil de uma célula ocupando a tela toda:
 // desconta a barra de título, o rodapé e as bordas da caixa.
 func MioloDaCelulaCheia(largura, altura int) Geometria {
-	return Geometria{Colunas: max(largura-2, 1), Linhas: max(altura-4, 1)}
+	return Geometria{Colunas: max(largura-2, 1), Linhas: max(altura-alturaDaBarra-3, 1)}
 }
 
 // DesenharCheia põe uma célula na tela inteira. É como se copia um bloco de
 // texto sem pegar os vizinhos, e é o que a tecla de tela cheia faz.
 func DesenharCheia(projeto protocolo.Projeto, celula protocolo.Celula, modo teclado.Modo, largura, altura int, erro string) string {
-	linhas := []string{barraDeTitulo(modo, largura, contarChamadosDoProjeto(projeto), nil)}
-	linhas = append(linhas, caixaDaCelula(celula, modo, true, largura, altura-2)...)
+	linhas := barraDeTitulo(modo, largura, contarChamadosDoProjeto(projeto), nil)
+	linhas = append(linhas, caixaDaCelula(celula, modo, true, largura, altura-alturaDaBarra-1)...)
 	linhas = append(linhas, rodape(modo, largura, erro))
 	return strings.Join(linhas, "\n")
 }
 
-// barraDeTitulo é o primeiro dos três sinais redundantes do modo.
-func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quota *protocolo.Quota) string {
-	nome := "TESSERACT"
-	pintarNome, pintarSinais := corTitulo, corBarra
+// alturaDaBarra é quanto o cabeçalho ocupa: a faixa da marca e a linha de
+// estado. Toda conta de layout desconta isto, em vez de repetir o número.
+const alturaDaBarra = 2
+
+// barraDeTitulo é o cabeçalho: uma faixa com a marca no meio de uma régua, e
+// abaixo dela quem chama você e de quem é o teclado. É o primeiro dos três
+// sinais redundantes do modo.
+func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quota *protocolo.Quota) []string {
+	return []string{
+		faixaDaMarca(modo, largura),
+		linhaDeEstado(modo, largura, chamados, quota),
+	}
+}
+
+// faixaDaMarca é a régua que atravessa a tela com o nome no meio. A régua é
+// ciano porque é estrutura, e o nome vem espaçado — a marca escreve assim, e
+// no terminal o espaço entre as letras é o que existe de tipografia.
+func faixaDaMarca(modo teclado.Modo, largura int) string {
+	// A régua é ciano, como toda a grade: ela é a moldura de cima da tela, e
+	// usar aqui o verde da tira do projeto focado diria "posse do teclado" onde
+	// não há teclado nenhum.
+	nome := "T E S S E R A C T"
+	pintarNome, pintarRegua := corTitulo, corBorda
+	traco := "─"
 	if modo == teclado.Digitar {
-		nome, pintarNome, pintarSinais = "tesseract", corApagada, corApagada
+		// Em DIGITAR o aplicativo está mudo, e a faixa apaga junto com o resto.
+		nome, pintarNome, pintarRegua = "t e s s e r a c t", corApagada, corApagada
 	}
 
-	// A marca fica no meio do topo, o tempo inteiro: é o eixo da tela, e é para
-	// lá que o olho volta entre uma célula e outra. O glifo em ciano, porque é
-	// estrutura.
-	meio := corMarca(modo).Render(tema.Glifo) + " " + pintarNome.Render(nome)
+	miolo := " " + corMarca(modo).Render(tema.Glifo) + "  " + pintarNome.Render(nome) + " "
+	sobra := largura - lipgloss.Width(miolo)
+	if sobra < 4 {
+		return preencher(centralizarEm(miolo, largura), largura)
+	}
+	esquerda := sobra / 2
+	return pintarRegua.Render(strings.Repeat(traco, esquerda)) + miolo +
+		pintarRegua.Render(strings.Repeat(traco, sobra-esquerda))
+}
+
+// linhaDeEstado é a segunda linha do cabeçalho: quem chama de um lado, o
+// estado da janela do outro.
+func linhaDeEstado(modo teclado.Modo, largura int, chamados map[string]int, quota *protocolo.Quota) string {
+	pintarSinais := corBarra
+	if modo == teclado.Digitar {
+		pintarSinais = corApagada
+	}
 
 	// À esquerda, quem está chamando você — a única informação da barra que
 	// pede ação.
@@ -163,7 +197,7 @@ func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quot
 		}
 		direita = pintar.Render("⏳ "+strconv.Itoa(quota.Percentual)+"% "+quota.Vira) + "   " + direita
 	}
-	return tresPartes(esquerda, meio, direita, largura)
+	return tresPartes(esquerda, "", direita, largura)
 }
 
 // rodape mostra o que dá para fazer agora. Em DIGITAR encolhe para uma linha
@@ -187,7 +221,7 @@ func rodape(modo teclado.Modo, largura int, erro string) string {
 
 // telaVazia é o que aparece quando não há nenhuma célula na grade.
 func telaVazia(modo teclado.Modo, largura, altura int, erro, aviso string) string {
-	linhas := []string{barraDeTitulo(modo, largura, nil, nil)}
+	linhas := barraDeTitulo(modo, largura, nil, nil)
 	recado := "nenhuma célula na tela — n cria a primeira"
 	if aviso != "" {
 		recado = aviso
@@ -196,7 +230,7 @@ func telaVazia(modo teclado.Modo, largura, altura int, erro, aviso string) strin
 	// roubar espaço de trabalho. Todo estado vazio termina numa tecla.
 	miolo := append(tema.SimboloPintado(), "", corApagada.Render(recado))
 
-	corpo := max(altura-2, 1)
+	corpo := max(altura-alturaDaBarra-1, 1)
 	topo := max((corpo-len(miolo))/2, 0)
 	for i := range corpo {
 		if i >= topo && i-topo < len(miolo) {
