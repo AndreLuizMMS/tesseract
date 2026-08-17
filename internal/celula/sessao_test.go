@@ -181,3 +181,39 @@ func TestSessaoNasceNaAbaSalva(t *testing.T) {
 		t.Fatalf("devia ter nascido na aba salva, está em %q", sessao.AbaAtiva())
 	}
 }
+
+// TestSessaoAvisaAAbaQueVoltouAAparecer — a aba de markdown procura arquivo
+// novo quando volta à tela, e não de minuto em minuto no escuro.
+func TestSessaoAvisaAAbaQueVoltouAAparecer(t *testing.T) {
+	sessao, dir := sessaoDeTeste(t)
+
+	// Vai até a aba de markdown.
+	for sessao.AbaAtiva() != "md" {
+		if err := sessao.TrocarAba(1); err != nil {
+			t.Fatalf("trocar de aba: %v", err)
+		}
+	}
+	if !esperarPor(t, 2*time.Second, func() bool {
+		return strings.Contains(strings.Join(sessao.Desenhar().Linhas, "\n"), "buscar:")
+	}) {
+		t.Fatalf("a aba de markdown devia mostrar a busca:\n%s", strings.Join(sessao.Desenhar().Linhas, "\n"))
+	}
+
+	// Um arquivo novo aparece no disco enquanto a aba está fora de foco.
+	if err := sessao.TrocarAba(1); err != nil {
+		t.Fatalf("trocar de aba: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "NOVO-DOCUMENTO.md"), []byte("# novo\n"), 0o644); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	for sessao.AbaAtiva() != "md" {
+		if err := sessao.TrocarAba(1); err != nil {
+			t.Fatalf("trocar de aba: %v", err)
+		}
+	}
+	if !esperarPor(t, 3*time.Second, func() bool {
+		return strings.Contains(strings.Join(sessao.Desenhar().Linhas, "\n"), "NOVO-DOCUMENTO.md")
+	}) {
+		t.Fatalf("a aba devia ter reconferido ao voltar:\n%s", strings.Join(sessao.Desenhar().Linhas, "\n"))
+	}
+}

@@ -19,7 +19,7 @@ func init() {
 // abasDaSessao são os agentes que toda sessão carrega por dentro. Criar uma
 // sessão não obriga a escolher qual deles será usado: a tecla de aba troca
 // entre eles a qualquer momento.
-var abasDaSessao = []string{"claude", "cursor", "bash"}
+var abasDaSessao = []string{"claude", "cursor", "bash", "md"}
 
 // Sessao é uma célula com várias abas — uma por agente. Só a aba que está sendo
 // usada tem processo: as outras nascem quando alguém troca para elas, para uma
@@ -157,6 +157,11 @@ func (s *Sessao) TrocarAba(passo int) error {
 
 	if err := s.abrirAba(aba); err != nil {
 		return err
+	}
+	// A aba que volta a aparecer reconfere o que precisa — a de markdown, por
+	// exemplo, procura arquivo novo.
+	if comAtualizacao, tem := s.atual().(ComAtualizacao); tem {
+		go comAtualizacao.Atualizar()
 	}
 	s.avisar()
 	return nil

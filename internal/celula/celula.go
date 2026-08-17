@@ -105,6 +105,11 @@ type ComAbas interface {
 	TrocarAba(passo int) error
 }
 
+// ComAtualizacao é a célula que tem o que reconferir quando volta a aparecer.
+type ComAtualizacao interface {
+	Atualizar()
+}
+
 // ComHistorico é a célula que guarda mais de um histórico por dentro e sabe
 // qual deles a busca deve olhar.
 type ComHistorico interface {
