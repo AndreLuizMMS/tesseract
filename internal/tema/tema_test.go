@@ -54,6 +54,68 @@ func TestSemCorNaoEmiteEscapeDeCor(t *testing.T) {
 	}
 }
 
+func TestMascaraDoSimboloCobreODesenho(t *testing.T) {
+	if len(mascaraDoSimbolo) != len(Simbolo) {
+		t.Fatalf("a máscara tem %d linhas e o símbolo %d", len(mascaraDoSimbolo), len(Simbolo))
+	}
+	for i, linha := range Simbolo {
+		if len([]rune(mascaraDoSimbolo[i])) != len([]rune(linha)) {
+			t.Fatalf("linha %d: máscara %q não cobre %q", i, mascaraDoSimbolo[i], linha)
+		}
+	}
+}
+
+func TestSimboloPintadoNaoMexeNoDesenho(t *testing.T) {
+	anterior := Atual
+	Atual = CorTotal
+	defer func() { Atual = anterior }()
+
+	for i, linha := range SimboloPintado() {
+		if limpo := semEscape(linha); limpo != Simbolo[i] {
+			t.Fatalf("linha %d virou %q, devia continuar %q", i, limpo, Simbolo[i])
+		}
+	}
+}
+
+func TestPiscadaNaoTiraAAreaPreenchida(t *testing.T) {
+	anterior, antesApagado := Atual, Apagado
+	Atual = CorTotal
+	defer func() { Atual, Apagado = anterior, antesApagado }()
+
+	Apagado = false
+	aceso := Do(Aprovar).Estilo().Render("x")
+	Apagado = true
+	apagado := Do(Aprovar).Estilo().Render("x")
+
+	if aceso == apagado {
+		t.Fatal("o quadro apagado devia ser diferente do aceso")
+	}
+	for nome, saida := range map[string]string{"aceso": aceso, "apagado": apagado} {
+		if !strings.Contains(saida, "48;") {
+			t.Fatalf("quadro %s perdeu o fundo — a barra tem que continuar barra: %q", nome, saida)
+		}
+	}
+}
+
+// semEscape tira os códigos de cor, para o teste olhar só o desenho.
+func semEscape(texto string) string {
+	var saida strings.Builder
+	dentro := false
+	for _, r := range texto {
+		switch {
+		case r == 0x1b:
+			dentro = true
+		case dentro:
+			if r >= 0x40 && r <= 0x7e && r != '[' {
+				dentro = false
+			}
+		default:
+			saida.WriteRune(r)
+		}
+	}
+	return saida.String()
+}
+
 func TestTodoTokenTemDestinoEmDezesseisCores(t *testing.T) {
 	for _, m := range mapa {
 		if _, ok := ansi16[m.Cor]; !ok {

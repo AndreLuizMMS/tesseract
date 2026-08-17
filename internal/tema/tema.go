@@ -80,8 +80,76 @@ const (
 	CorAnsiMagenta  = "#8B4FC4" // ANSI 5
 )
 
-// Glifo de um caractere da marca. O símbolo cheio 7×5 mora no README.
+// Glifo de um caractere da marca, para onde só cabe um caractere: prompt,
+// título de janela, barra.
 const Glifo = "⧉"
+
+// Simbolo é a marca em caractere, 7×5 — a versão que vive dentro do produto.
+// Dois quadrados deslocados na diagonal e uma tessera acesa no meio da
+// sobreposição.
+// Todas as linhas têm a mesma largura, com espaço no fim onde o desenho
+// termina antes — senão quem centraliza linha a linha entorta o símbolo.
+var Simbolo = []string{
+	"┌────┐ ",
+	"│┌───┼┐",
+	"││ ▓ ││",
+	"└┼───┘│",
+	" └────┘",
+}
+
+// mascaraDoSimbolo diz de quem é cada caractere do desenho: v é o quadrado da
+// frente, c é o de trás, f é a tessera, espaço não pinta nada. Onde os dois
+// quadrados se cruzam quem ganha é o da frente — é o que "estar na frente"
+// quer dizer.
+var mascaraDoSimbolo = []string{
+	"vvvvvv ",
+	"vccccvc",
+	"vc f vc",
+	"vvvvvvc",
+	" cccccc",
+}
+
+// SimboloPintado é a marca 7×5 já colorida: quadrado de trás em flux, o da
+// frente em brand.core, a tessera em brand.phosphor. Sem cor, devolve o
+// desenho puro — ele foi feito para ler sem cor nenhuma.
+func SimboloPintado() []string {
+	if Atual == SemCor {
+		return append([]string(nil), Simbolo...)
+	}
+	verde := Pintar(BrandCore, "")
+	ciano := Pintar(Flux, "")
+	fosforo := Pintar(BrandPhosphor, "").Bold(true)
+
+	linhas := make([]string, len(Simbolo))
+	for i, linha := range Simbolo {
+		mascara := []rune(mascaraDoSimbolo[i])
+		var saida strings.Builder
+		for j, r := range []rune(linha) {
+			pintar := ciano
+			if j < len(mascara) {
+				switch mascara[j] {
+				case 'v':
+					pintar = verde
+				case 'f':
+					pintar = fosforo
+				case ' ':
+					saida.WriteRune(r)
+					continue
+				}
+			}
+			saida.WriteString(pintar.Render(string(r)))
+		}
+		linhas[i] = saida.String()
+	}
+	return linhas
+}
+
+// Tagline e Versao são a assinatura que acompanha o símbolo no banner.
+const (
+	Tagline = "o mosaico não desmonta"
+	Nome    = "T E S S E R A C T"
+	Versao  = "ts 0.1.0 // MIT"
+)
 
 // ---------------------------------------------------------------------------
 // Perfil de cor: 24 bits, 16 cores ou nenhuma.
@@ -266,13 +334,36 @@ func Do(e Estado) Marcador {
 	return mapa[Parada]
 }
 
+// Apagado é o quadro apagado da piscada do estado que bloqueia. Quem move é a
+// tela, num relógio de 1,8s aceso e 200ms apagado.
+var Apagado bool
+
+// PiscaLigado diz se a barra do estado que bloqueia deve piscar. Sem cor a
+// piscada não acontece: o vídeo invertido é o único sinal que sobra, e apagá-lo
+// de tempos em tempos tiraria a área preenchida, que é justamente o que
+// diferencia "aprovar" de "respondeu".
+func PiscaLigado() bool {
+	if Atual == SemCor {
+		return false
+	}
+	_, desligado := os.LookupEnv("TESSERACT_SEM_PISCA")
+	return !desligado
+}
+
 // Estilo é como o marcador se pinta. Invertido vira barra sólida: fundo na
 // cor do estado, texto no fundo mais fundo. Sem cor, inverte de verdade — o
 // reverso do terminal não precisa de paleta.
+//
+// No quadro apagado a barra troca de fundo, mas continua barra: a área
+// preenchida é o que diz "isto trava o trabalho", e ela nunca desaparece. O
+// que pisca é a intensidade, não a presença.
 func (m Marcador) Estilo() lipgloss.Style {
 	if m.Invertido {
 		if Atual == SemCor {
 			return lipgloss.NewStyle().Reverse(true).Bold(true)
+		}
+		if Apagado {
+			return Pintar(m.Cor, BgRaised).Bold(true)
 		}
 		return Pintar(BgVoid, m.Cor).Bold(true)
 	}
