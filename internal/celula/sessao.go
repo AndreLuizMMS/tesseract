@@ -281,13 +281,13 @@ func (s *Sessao) Prompt(texto string) error {
 	return comPrompt.Prompt(texto)
 }
 
-// PropagarNome empurra o nome para dentro do agente da aba ativa.
-func (s *Sessao) PropagarNome(nome string) error {
+// PedirNomeAutomatico manda o agente da aba ativa escolher o próprio nome.
+func (s *Sessao) PedirNomeAutomatico() error {
 	comConversa, tem := s.atual().(ComConversa)
 	if !tem {
 		return fmt.Errorf("a aba %s não tem conversa com nome", s.AbaAtiva())
 	}
-	return comConversa.PropagarNome(nome)
+	return comConversa.PedirNomeAutomatico()
 }
 
 // NomeDaConversa é o nome que o agente da aba ativa deu à conversa.

@@ -55,6 +55,7 @@ func (m *Motor) pararVigia() {
 func (m *Motor) conferirEstados() {
 	type anuncio struct{ texto string }
 	var anuncios []anuncio
+	var paraAdotarNome []string
 
 	m.mu.Lock()
 	for _, p := range m.projetos {
@@ -72,6 +73,9 @@ func (m *Motor) conferirEstados() {
 			switch estado {
 			case celula.Respondeu:
 				anuncios = append(anuncios, anuncio{c.nome + " · " + nomeProjeto + " respondeu"})
+				if c.aguardandoNome {
+					paraAdotarNome = append(paraAdotarNome, c.id)
+				}
 			case celula.Aprovar:
 				anuncios = append(anuncios, anuncio{c.nome + " · " + nomeProjeto + " pediu aprovação"})
 			case celula.Caiu:
@@ -85,6 +89,10 @@ func (m *Motor) conferirEstados() {
 
 	for _, a := range anuncios {
 		m.anunciar(a.texto)
+	}
+	// Fora do lock: adotar o nome chama Renomear, que trava o mutex de novo.
+	for _, id := range paraAdotarNome {
+		_ = m.AdotarNomeDoAgente(id)
 	}
 }
 

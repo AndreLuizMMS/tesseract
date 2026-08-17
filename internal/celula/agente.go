@@ -28,8 +28,9 @@ type ComPrompt interface {
 // ComConversa é a célula que tem uma conversa com nome próprio: dá para
 // empurrar o nome para dentro dela e para puxar o nome que ela escolheu.
 type ComConversa interface {
-	// PropagarNome manda o nome para dentro do agente.
-	PropagarNome(nome string) error
+	// PedirNomeAutomatico manda o agente escolher e escrever o próprio nome
+	// da conversa, sem o usuário digitar nada.
+	PedirNomeAutomatico() error
 	// NomeDaConversa é o nome que o próprio agente deu à conversa.
 	NomeDaConversa() (string, error)
 	// Conversa é a identidade da conversa, para reatar depois de uma queda.
@@ -145,12 +146,13 @@ func (a *Agente) Prompt(texto string) error {
 	return a.Processo.Tecla(Toque{Codigo: vt.KeyEnter})
 }
 
-// PropagarNome empurra o nome escolhido pelo usuário para dentro do agente.
-func (a *Agente) PropagarNome(nome string) error {
+// PedirNomeAutomatico manda o comando de rename puro, sem nome — é o próprio
+// agente quem escolhe e escreve o título da conversa.
+func (a *Agente) PedirNomeAutomatico() error {
 	if a.comandoRenomear == "" {
 		return fmt.Errorf("este agente não sabe renomear a própria conversa")
 	}
-	return a.Prompt(a.comandoRenomear + " " + nome)
+	return a.Prompt(a.comandoRenomear)
 }
 
 // NomeDaConversa é o nome que o próprio agente deu à conversa. Conversa sem

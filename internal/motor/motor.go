@@ -56,6 +56,9 @@ type celulaViva struct {
 	// ultimoEstado é o que o vigia viu da última vez, para notificar só a
 	// mudança e não o estado parado.
 	ultimoEstado celula.Estado
+	// aguardandoNome marca que um /rename automático foi mandado e o vigia
+	// precisa adotar o nome assim que o turno terminar.
+	aguardandoNome bool
 }
 
 // Novo prepara um motor sobre um diretório de estado.

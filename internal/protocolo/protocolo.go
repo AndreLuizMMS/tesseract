@@ -14,7 +14,6 @@ const (
 	TipoCriar       = "criar"
 	TipoMatar       = "matar"
 	TipoRenomear    = "renomear"
-	TipoAdotar      = "adotar"
 	TipoRetomar     = "retomar"
 	TipoAba         = "aba"
 	TipoPrompt      = "prompt"
@@ -76,15 +75,9 @@ type Matar struct {
 	Celula string `json:"celula"`
 }
 
-// Renomear troca o rótulo da célula e, quando ela tem conversa, propaga o nome
-// para dentro do agente.
+// Renomear pede ao agente que escolha e escreva o próprio nome da conversa; o
+// motor aplica esse nome na célula quando o turno termina.
 type Renomear struct {
-	Celula string `json:"celula"`
-	Nome   string `json:"nome"`
-}
-
-// Adotar puxa para a célula o nome que o agente deu à conversa.
-type Adotar struct {
 	Celula string `json:"celula"`
 }
 

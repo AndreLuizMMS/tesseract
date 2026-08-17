@@ -23,8 +23,7 @@ func casos() []caso {
 		{"rolar", TipoRolar, Rolar{Celula: "c1", Delta: -3, AoVivo: true}, func() any { return new(Rolar) }},
 		{"criar", TipoCriar, Criar{Caminho: "/dev/x", Tipo: "bash", Nome: "testes", Alvo: "api", Prompt: "oi"}, func() any { return new(Criar) }},
 		{"matar", TipoMatar, Matar{Celula: "c1"}, func() any { return new(Matar) }},
-		{"renomear", TipoRenomear, Renomear{Celula: "c1", Nome: "fix nav"}, func() any { return new(Renomear) }},
-		{"adotar", TipoAdotar, Adotar{Celula: "c1"}, func() any { return new(Adotar) }},
+		{"renomear", TipoRenomear, Renomear{Celula: "c1"}, func() any { return new(Renomear) }},
 		{"retomar", TipoRetomar, Retomar{Celula: "c1"}, func() any { return new(Retomar) }},
 		{"aba", TipoAba, Aba{Celula: "c1", Passo: 1}, func() any { return new(Aba) }},
 		{"prompt", TipoPrompt, Prompt{Celula: "c1", Texto: "cobre o menu mobile"}, func() any { return new(Prompt) }},
@@ -106,7 +105,7 @@ func TestIdaEVolta(t *testing.T) {
 func TestTodoTipoTemCaso(t *testing.T) {
 	todos := []string{
 		TipoTecla, TipoTamanho, TipoRolar, TipoCriar, TipoMatar, TipoRenomear,
-		TipoAdotar, TipoRetomar, TipoAba, TipoPrompt, TipoCompletar, TipoTela, TipoBuscar,
+		TipoRetomar, TipoAba, TipoPrompt, TipoCompletar, TipoTela, TipoBuscar,
 		TipoDocker, TipoEditor, TipoIrParaLinha, TipoStatus, TipoParar, TipoEstado, TipoCompletado,
 		TipoAchados, TipoServicos, TipoResumo, TipoErro,
 	}

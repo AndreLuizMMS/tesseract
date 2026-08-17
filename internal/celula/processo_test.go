@@ -28,6 +28,19 @@ func telaDe(c Celula) string {
 	return strings.Join(c.Desenhar().Linhas, "\n")
 }
 
+// colarEEntrar faz o que o usuário faz: cola o comando e depois manda o enter.
+// A colagem vai marcada como colagem, então a quebra de linha não vem junto do
+// texto colado.
+func colarEEntrar(t *testing.T, c Celula, comando string) {
+	t.Helper()
+	if err := c.Tecla(Toque{Colar: comando}); err != nil {
+		t.Fatalf("colar: %v", err)
+	}
+	if err := c.Tecla(Toque{Codigo: vt.KeyEnter}); err != nil {
+		t.Fatalf("enter: %v", err)
+	}
+}
+
 // TestBashMostraOQueFoiDigitado é a fatia vertical: sobe um shell de verdade,
 // escreve nele, e a tela interna do motor passa a conter a saída.
 func TestBashMostraOQueFoiDigitado(t *testing.T) {
@@ -54,9 +67,7 @@ func TestBashMostraOQueFoiDigitado(t *testing.T) {
 		t.Fatalf("célula viva devia estar trabalhando, está %q", c.Estado())
 	}
 
-	if err := c.Tecla(Toque{Colar: "echo tesseract\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, c, "echo tesseract")
 	if !esperarPor(t, 2*time.Second, func() bool {
 		return strings.Contains(telaDe(c), "tesseract")
 	}) {
@@ -102,9 +113,7 @@ func TestProcessoQueMorreSozinhoCai(t *testing.T) {
 	}
 	defer c.Matar()
 
-	if err := c.Tecla(Toque{Colar: "exit\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, c, "exit")
 	if !esperarPor(t, 3*time.Second, func() bool { return c.Estado() == Caiu }) {
 		t.Fatalf("estado depois do shell sair: %q, esperado caiu", c.Estado())
 	}
@@ -180,9 +189,7 @@ func TestRolarMostraOPassado(t *testing.T) {
 	}
 	defer c.Matar()
 
-	if err := c.Tecla(Toque{Colar: "for i in $(seq 1 40); do echo linha-$i; done\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, c, "for i in $(seq 1 40); do echo linha-$i; done")
 	if !esperarPor(t, 3*time.Second, func() bool {
 		return strings.Contains(telaDe(c), "linha-40")
 	}) {
@@ -228,9 +235,7 @@ func TestRolagemPreservaEstilo(t *testing.T) {
 	defer c.Matar()
 
 	// Cada linha sai verde e em negrito, e depois sobe para o histórico.
-	if err := c.Tecla(Toque{Colar: "for i in $(seq 1 30); do printf '\\033[1;32mverde-%s\\033[0m\\n' $i; done\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, c, "for i in $(seq 1 30); do printf '\\033[1;32mverde-%s\\033[0m\\n' $i; done")
 	if !esperarPor(t, 3*time.Second, func() bool {
 		return strings.Contains(telaDe(c), "verde-30")
 	}) {
@@ -306,9 +311,7 @@ func TestRedimensionarParaOMesmoTamanhoNaoLimpaATela(t *testing.T) {
 	}
 	defer c.Matar()
 
-	if err := c.Tecla(Toque{Colar: "echo marca-na-tela\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, c, "echo marca-na-tela")
 	if !esperarPor(t, 3*time.Second, func() bool {
 		return strings.Contains(telaDe(c), "marca-na-tela")
 	}) {

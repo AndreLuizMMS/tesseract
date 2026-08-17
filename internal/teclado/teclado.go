@@ -59,8 +59,7 @@ const (
 	Matar   Acao = "matar"
 
 	// Nomear.
-	Renomear   Acao = "renomear"
-	AdotarNome Acao = "adotar-nome"
+	Renomear Acao = "renomear"
 
 	// Agir.
 	Prompt      Acao = "prompt"
@@ -111,10 +110,10 @@ type Atalho struct {
 var mapa = map[Modo][]Atalho{
 	Navegar: {
 		// Navegação é exclusivamente direcional: letra nenhuma anda pela grade.
-		{Tecla: "up", Acao: CelulaAnterior, Ajuda: "anda entre as células, atravessando projeto", Grupo: "↑↓ célula", Rodape: true, Curto: "↑↓ célula"},
-		{Tecla: "down", Acao: CelulaProxima, Ajuda: "próxima célula", Grupo: "↑↓ célula"},
-		{Tecla: "left", Acao: ProjetoAnterior, Ajuda: "anda entre os projetos", Grupo: "←→ projeto", Rodape: true, Curto: "←→ projeto"},
-		{Tecla: "right", Acao: ProjetoProximo, Ajuda: "próximo projeto", Grupo: "←→ projeto"},
+		{Tecla: "left", Acao: CelulaAnterior, Ajuda: "anda entre as células, atravessando projeto", Grupo: "←→ célula", Rodape: true, Curto: "←→ célula"},
+		{Tecla: "right", Acao: CelulaProxima, Ajuda: "próxima célula", Grupo: "←→ célula"},
+		{Tecla: "up", Acao: ProjetoAnterior, Ajuda: "anda entre os projetos", Grupo: "↑↓ projeto", Rodape: true, Curto: "↑↓ projeto"},
+		{Tecla: "down", Acao: ProjetoProximo, Ajuda: "próximo projeto", Grupo: "↑↓ projeto"},
 		{Tecla: "space", Acao: PularChamado, Ajuda: "pula para a próxima célula que pede atenção, atravessando projeto"},
 		{Tecla: "tab", Acao: ProximaAba, Ajuda: "troca a aba da célula: claude, cursor, shell", Grupo: "tab ⇥ aba", Rodape: true, Curto: "tab aba"},
 		{Tecla: "shift+tab", Acao: AbaAnterior, Ajuda: "aba anterior", Grupo: "tab ⇥ aba"},
@@ -127,12 +126,11 @@ var mapa = map[Modo][]Atalho{
 		{Tecla: "r", Acao: Retomar, Ajuda: "retoma célula parada, ou sobe célula caída"},
 		{Tecla: "D", Acao: Matar, Ajuda: "mata a célula focada — sempre confirma"},
 
-		{Tecla: "R", Acao: Renomear, Ajuda: "renomeia a célula e propaga o nome para dentro do agente"},
-		{Tecla: "ctrl+r", Acao: AdotarNome, Ajuda: "adota na célula o nome que o agente deu à conversa"},
+		{Tecla: "ctrl+r", Acao: Renomear, Ajuda: "manda o agente escolher o nome da conversa e adota esse nome na célula"},
 
 		{Tecla: "p", Acao: Prompt, Ajuda: "manda prompt para a célula focada sem entrar nela"},
 		{Tecla: "d", Acao: AbrirDocker, Ajuda: "abre o painel Docker do projeto focado", Rodape: true, Curto: "d docker"},
-		{Tecla: "ctrl+e", Acao: AbrirEditor, Ajuda: "abre o diretório do projeto no editor configurado"},
+		{Tecla: "ctrl+e", Acao: AbrirEditor, Ajuda: "abre o diretório do projeto na IDE configurada"},
 
 		{Tecla: "/", Acao: BuscarTermo, Ajuda: "busca no histórico da célula focada"},
 		{Tecla: "esc", Acao: Voltar, Ajuda: "sai da rolagem e fecha o que estiver aberto"},

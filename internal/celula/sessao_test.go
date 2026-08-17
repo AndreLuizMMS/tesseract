@@ -109,9 +109,7 @@ func TestSessaoMostraAAbaAtiva(t *testing.T) {
 			t.Fatalf("trocar de aba: %v", err)
 		}
 	}
-	if err := sessao.Tecla(Toque{Colar: "echo dentro-da-aba\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, sessao, "echo dentro-da-aba")
 	if !esperarPor(t, 3*time.Second, func() bool {
 		return strings.Contains(strings.Join(sessao.Desenhar().Linhas, "\n"), "dentro-da-aba")
 	}) {

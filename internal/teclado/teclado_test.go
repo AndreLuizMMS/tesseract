@@ -90,7 +90,7 @@ func TestAjudaAgrupaAsFamilias(t *testing.T) {
 	if contagem["1…9 projeto N"] != 1 {
 		t.Error("os números deviam aparecer como uma linha só na ajuda")
 	}
-	if contagem["↑↓ célula"] != 1 || contagem["←→ projeto"] != 1 {
+	if contagem["←→ célula"] != 1 || contagem["↑↓ projeto"] != 1 {
 		t.Error("as setas deviam aparecer como uma linha por eixo")
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/vt"
+
 	_ "github.com/andreluiz/tesseract/internal/celula"
 	"github.com/andreluiz/tesseract/internal/protocolo"
 )
@@ -23,6 +25,19 @@ func esperarPor(t *testing.T, prazo time.Duration, condicao func() bool) bool {
 		time.Sleep(20 * time.Millisecond)
 	}
 	return condicao()
+}
+
+// colarEEntrar faz o que o usuário faz dentro da célula: cola o comando e
+// depois manda o enter. A colagem vai marcada como colagem, então a quebra de
+// linha não pode vir junto do texto colado.
+func colarEEntrar(t *testing.T, m *Motor, id, comando string) {
+	t.Helper()
+	if err := m.Tecla(protocolo.Tecla{Celula: id, Colar: comando}); err != nil {
+		t.Fatalf("colar: %v", err)
+	}
+	if err := m.Tecla(protocolo.Tecla{Celula: id, Codigo: vt.KeyEnter}); err != nil {
+		t.Fatalf("enter: %v", err)
+	}
 }
 
 // configuracaoDeTeste desliga os avisos: teste não apita nem sobe notificação.
@@ -196,9 +211,7 @@ func TestTeclaChegaNaCelula(t *testing.T) {
 	if err != nil {
 		t.Fatalf("criar: %v", err)
 	}
-	if err := m.Tecla(protocolo.Tecla{Celula: id, Colar: "echo tesseract\n"}); err != nil {
-		t.Fatalf("tecla: %v", err)
-	}
+	colarEEntrar(t, m, id, "echo tesseract")
 	if !esperarPor(t, 2*time.Second, func() bool {
 		return strings.Contains(strings.Join(m.Retrato().Projetos[0].Celulas[0].Linhas, "\n"), "tesseract")
 	}) {
@@ -265,7 +278,8 @@ func TestSocketAtendeUmaTela(t *testing.T) {
 	}
 
 	pedir(protocolo.TipoTamanho, protocolo.Tamanho{Celula: idCelula, Colunas: 60, Linhas: 10})
-	pedir(protocolo.TipoTecla, protocolo.Tecla{Celula: idCelula, Colar: "echo pelo-socket\n"})
+	pedir(protocolo.TipoTecla, protocolo.Tecla{Celula: idCelula, Colar: "echo pelo-socket"})
+	pedir(protocolo.TipoTecla, protocolo.Tecla{Celula: idCelula, Codigo: vt.KeyEnter})
 
 	achou := false
 	conexao.SetReadDeadline(time.Now().Add(3 * time.Second))

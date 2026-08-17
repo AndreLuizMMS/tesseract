@@ -27,4 +27,4 @@
 │                                                                                                                      │
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- ↑↓ célula   ←→ projeto   tab aba   ↵ digitar   v lista   n criar   d docker   ? ajuda
+ ←→ célula   ↑↓ projeto   tab aba   ↵ digitar   v lista   n criar   d docker   ? ajuda

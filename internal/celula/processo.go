@@ -219,7 +219,11 @@ func (p *Processo) Tecla(toque Toque) error {
 		return fmt.Errorf("a célula não está rodando")
 	}
 	if toque.Colar != "" {
-		p.emulador.SendText(toque.Colar)
+		// Colar vai como colagem, não como digitação: quando o programa lá
+		// dentro pediu bracketed paste, o texto chega marcado como colado e as
+		// quebras de linha não viram enter — um prompt de várias linhas entra
+		// inteiro em vez de ser enviado linha a linha.
+		p.emulador.Paste(toque.Colar)
 		return nil
 	}
 	// Tecla que imprime alguma coisa vai como texto: é o que ela escreve que
