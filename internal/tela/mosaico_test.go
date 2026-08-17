@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -48,22 +49,25 @@ func conferirGolden(t *testing.T, nome, desenho string) {
 // gradeDeTeste é o mesmo estado usado pelo mosaico e pela lista.
 func gradeDeTeste() protocolo.Estado {
 	return protocolo.Estado{
-		Tipos: []protocolo.TipoCelula{{Tipo: "claude", AceitaPrompt: true}, {Tipo: "bash"}},
+		Tipos: []protocolo.TipoCelula{{Tipo: "sessao", AceitaPrompt: true}, {Tipo: "md", RotuloAlvo: "MD"}},
 		Projetos: []protocolo.Projeto{
 			{
 				ID: "p1", Nome: "doxar-api", Caminho: "/home/dev/doxar-api", Cor: 0,
 				TemCompose: true, Docker: "4/5",
 				Celulas: []protocolo.Celula{
-					{ID: "c1", Tipo: "claude", Nome: "refatora auth", Estado: "respondeu", AoVivo: true,
+					{ID: "c1", Tipo: "sessao", Nome: "refatora auth", Estado: "respondeu", AoVivo: true,
+						Abas: []string{"claude", "cursor", "bash"}, Aba: "claude",
 						Linhas: []string{"Movi a validação de token", "pro guard.", "Qual você prefere?"}},
-					{ID: "c2", Tipo: "bash", Nome: "testes", Estado: "trabalhando", AoVivo: true,
+					{ID: "c2", Tipo: "sessao", Nome: "testes", Estado: "trabalhando", AoVivo: true,
+						Abas: []string{"claude", "cursor", "bash"}, Aba: "bash",
 						Linhas: []string{"$ go test ./...", "ok"}},
 				},
 			},
 			{
 				ID: "p2", Nome: "cortz-web", Caminho: "/home/dev/cortz-web", Cor: 1,
 				Celulas: []protocolo.Celula{
-					{ID: "c3", Tipo: "claude", Nome: "fix nav", Estado: "aprovar", AoVivo: true,
+					{ID: "c3", Tipo: "sessao", Nome: "fix nav", Estado: "aprovar", AoVivo: true,
+						Abas: []string{"claude", "cursor", "bash"}, Aba: "claude",
 						Linhas: []string{"posso mexer no Header?"}},
 				},
 			},
@@ -78,70 +82,150 @@ func gradeDeTeste() protocolo.Estado {
 	}
 }
 
-// TestMosaicoDesenhaColunaFocadaETiras é a regra de largura: a coluna do
-// projeto focado ocupa a largura de leitura, as outras viram tira.
-func TestMosaicoDesenhaColunaFocadaETiras(t *testing.T) {
+// TestMosaicoMostraTodasAsCelulas — a regra nova: nenhuma célula vira tira,
+// todas aparecem ao mesmo tempo, de todos os projetos.
+func TestMosaicoMostraTodasAsCelulas(t *testing.T) {
 	estado := gradeDeTeste()
-	desenho := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 120, 24, "")
-	conferirGolden(t, "mosaico-foco-0.txt", desenho)
+	completo := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 120, 30, "")
+	conferirGolden(t, "mosaico-foco-0.txt", completo)
 
-	larguras := Dispor(estado, Foco{Projeto: 0}, 120, 24).larguras
-	if larguras[1] != larguraTira || larguras[2] != larguraTira {
-		t.Fatalf("as colunas não focadas deviam virar tira: %v", larguras)
-	}
-	if larguras[0] < 60 {
-		t.Fatalf("a coluna focada precisa de largura de leitura, tem %d", larguras[0])
-	}
-	if soma(larguras)+1 != 120 {
-		t.Fatalf("as colunas não preenchem a largura: %v", larguras)
-	}
-}
-
-// TestMudarOFocoMudaQualColunaEngorda — navegar entre projetos é mover para a
-// coluna do lado: ela engorda, a atual encolhe.
-func TestMudarOFocoMudaQualColunaEngorda(t *testing.T) {
-	estado := gradeDeTeste()
-	desenho := Desenhar(estado, Foco{Projeto: 1}, teclado.Navegar, 120, 24, "")
-	conferirGolden(t, "mosaico-foco-1.txt", desenho)
-
-	larguras := Dispor(estado, Foco{Projeto: 1}, 120, 24).larguras
-	if larguras[0] != larguraTira || larguras[2] != larguraTira {
-		t.Fatalf("as vizinhas deviam ser tiras: %v", larguras)
-	}
-	if larguras[1] < 60 {
-		t.Fatalf("a coluna focada devia ter engordado: %v", larguras)
-	}
-	if !strings.Contains(semEstilo(desenho), "CORTZ-WEB") {
-		t.Error("o nome do projeto focado tem que aparecer na borda de cima")
-	}
-	if strings.Contains(semEstilo(desenho), "DOXAR-API ") {
-		t.Error("o projeto que virou tira não mostra o nome inteiro")
-	}
-}
-
-// TestTiraNuncaSome — some o texto, nunca o sinal.
-func TestTiraNuncaSome(t *testing.T) {
-	estado := gradeDeTeste()
-	linhas := strings.Split(semEstilo(Desenhar(estado, Foco{Projeto: 1}, teclado.Navegar, 120, 24, "")), "\n")
-	juntas := strings.Join(linhas, "")
-	for _, sinal := range []string{"D", "O", "X", "A", "R"} {
-		if !strings.Contains(juntas, sinal) {
-			t.Errorf("a tira devia mostrar o nome na vertical, falta %q", sinal)
+	desenho := semEstilo(completo)
+	for _, projeto := range estado.Projetos {
+		if !strings.Contains(desenho, strings.ToUpper(projeto.Nome)) {
+			t.Errorf("o projeto %q devia estar na tela", projeto.Nome)
+		}
+		for _, celula := range projeto.Celulas {
+			if !strings.Contains(desenho, celula.Nome) {
+				t.Errorf("a célula %q devia estar na tela", celula.Nome)
+			}
+			for _, linha := range celula.Linhas {
+				if !strings.Contains(desenho, linha) {
+					t.Errorf("o conteúdo %q da célula %q devia aparecer", linha, celula.Nome)
+				}
+			}
 		}
 	}
-	if !strings.Contains(juntas, "●") {
-		t.Error("a tira devia mostrar o indicador de Docker do projeto que tem compose")
+}
+
+// TestMosaicoNaoTemMaisTira — o texto do projeto não focado não some mais.
+func TestMosaicoNaoTemMaisTira(t *testing.T) {
+	estado := gradeDeTeste()
+	comFocoNoPrimeiro := semEstilo(Desenhar(estado, Foco{Projeto: 0}, teclado.Navegar, 120, 30, ""))
+	comFocoNoUltimo := semEstilo(Desenhar(estado, Foco{Projeto: 2}, teclado.Navegar, 120, 30, ""))
+	conferirGolden(t, "mosaico-foco-2.txt", Desenhar(estado, Foco{Projeto: 2}, teclado.Navegar, 120, 30, ""))
+
+	for _, pedaco := range []string{"CORTZ-WEB", "fix nav", "posso mexer no Header?", "spec-m7.md"} {
+		if !strings.Contains(comFocoNoPrimeiro, pedaco) {
+			t.Errorf("com o foco no primeiro projeto, %q continua visível", pedaco)
+		}
 	}
-	if !strings.Contains(juntas, "⬤1") {
-		t.Error("a tira devia mostrar quantas células pedem atenção")
+	for _, pedaco := range []string{"DOXAR-API", "refatora auth", "testes"} {
+		if !strings.Contains(comFocoNoUltimo, pedaco) {
+			t.Errorf("com o foco no último projeto, %q continua visível", pedaco)
+		}
+	}
+}
+
+// TestCelulasDoMesmoProjetoFicamLadoALado — um projeto não é obrigado a ficar
+// na vertical: as células dele dividem a largura.
+func TestCelulasDoMesmoProjetoFicamLadoALado(t *testing.T) {
+	estado := gradeDeTeste()
+	d := Dispor(estado, Foco{Projeto: 0}, 140, 30)
+
+	if len(d.faixas) != 3 {
+		t.Fatalf("três projetos, três fileiras: %#v", d.faixas)
+	}
+	if len(d.faixas[0].celulas) != 2 {
+		t.Fatalf("as duas células do primeiro projeto deviam dividir a fileira: %#v", d.faixas[0])
+	}
+
+	primeira, segunda := d.miolos["c1"], d.miolos["c2"]
+	if primeira.Colunas < 60 || segunda.Colunas < 60 {
+		t.Fatalf("as células deviam dividir a largura: %#v %#v", primeira, segunda)
+	}
+	if primeira.Linhas != segunda.Linhas {
+		t.Fatalf("células da mesma fileira têm a mesma altura: %#v %#v", primeira, segunda)
+	}
+	if sozinha := d.miolos["c3"]; sozinha.Colunas < 130 {
+		t.Fatalf("a célula sozinha devia ocupar a largura inteira: %#v", sozinha)
+	}
+}
+
+// TestFileiraQuebraQuandoNaoCabeNaLargura — muitas células no mesmo projeto
+// viram mais de uma fileira em vez de espremer.
+func TestFileiraQuebraQuandoNaoCabeNaLargura(t *testing.T) {
+	estado := protocolo.Estado{Projetos: []protocolo.Projeto{{ID: "p1", Nome: "grande", Caminho: "/dev/grande"}}}
+	for i := range 6 {
+		estado.Projetos[0].Celulas = append(estado.Projetos[0].Celulas, protocolo.Celula{
+			ID: "c" + strconv.Itoa(i), Tipo: "sessao", Nome: "cel" + strconv.Itoa(i),
+			Estado: "trabalhando", AoVivo: true,
+		})
+	}
+
+	d := Dispor(estado, Foco{}, 120, 40)
+	if len(d.faixas) < 2 {
+		t.Fatalf("seis células em 120 colunas não cabem numa fileira só: %#v", d.faixas)
+	}
+	for _, f := range d.faixas {
+		if len(f.celulas) > 3 {
+			t.Fatalf("fileira com %d células fica ilegível", len(f.celulas))
+		}
+	}
+	for id, miolo := range d.Miolos() {
+		if miolo.Colunas < larguraMinimaDeCelula-2 {
+			t.Fatalf("a célula %s ficou com %d colunas", id, miolo.Colunas)
+		}
+	}
+}
+
+// TestMosaicoAvisaOQueNaoCoube — com células demais, some o desenho, nunca a
+// contagem.
+func TestMosaicoAvisaOQueNaoCoube(t *testing.T) {
+	estado := protocolo.Estado{}
+	for i := range 12 {
+		estado.Projetos = append(estado.Projetos, protocolo.Projeto{
+			ID: "p" + strconv.Itoa(i), Nome: "projeto" + strconv.Itoa(i), Caminho: "/dev/p",
+			Celulas: []protocolo.Celula{{
+				ID: "c" + strconv.Itoa(i), Tipo: "sessao", Nome: "cel" + strconv.Itoa(i),
+				Estado: "trabalhando", AoVivo: true,
+			}},
+		})
+	}
+
+	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0}, teclado.Navegar, 100, 20, ""))
+	if !strings.Contains(desenho, "fora da tela") {
+		t.Errorf("com células demais, a tela precisa dizer quantas ficaram de fora:\n%s", desenho)
+	}
+	if !strings.Contains(desenho, "cel0") {
+		t.Errorf("a célula focada tem que estar na tela:\n%s", desenho)
+	}
+
+	desenhoFinal := semEstilo(Desenhar(estado, Foco{Projeto: 11}, teclado.Navegar, 100, 20, ""))
+	if !strings.Contains(desenhoFinal, "cel11") {
+		t.Errorf("a janela devia seguir o foco:\n%s", desenhoFinal)
+	}
+}
+
+// TestAbasAparecemNoLugarDoTipo — a célula com abas mostra as abas, com a ativa
+// em destaque.
+func TestAbasAparecemNoLugarDoTipo(t *testing.T) {
+	estado := gradeDeTeste()
+	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 140, 30, ""))
+	for _, aba := range []string{"claude", "cursor", "bash"} {
+		if !strings.Contains(desenho, aba) {
+			t.Errorf("a aba %q devia aparecer na borda da célula:\n%s", aba, desenho)
+		}
+	}
+	if !strings.Contains(desenho, "refatora auth") {
+		t.Error("o nome da célula continua ao lado das abas")
 	}
 }
 
 // TestMosaicoEmDigitarApagaOResto — três sinais redundantes: barra apagada,
-// selo e borda grossa.
+// selo e borda grossa e verde.
 func TestMosaicoEmDigitarApagaOResto(t *testing.T) {
 	estado := gradeDeTeste()
-	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 1}, teclado.Digitar, 120, 24, ""))
+	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 1}, teclado.Digitar, 120, 30, ""))
 	if !strings.Contains(desenho, "▓ DIGITAR ▓") {
 		t.Error("falta o selo de DIGITAR na barra")
 	}
@@ -156,11 +240,29 @@ func TestMosaicoEmDigitarApagaOResto(t *testing.T) {
 	}
 }
 
+// TestCelulaFicaVerdeAoDigitar — em DIGITAR a célula que tem o teclado é a
+// única acesa, e ela fica verde.
+func TestCelulaFicaVerdeAoDigitar(t *testing.T) {
+	estado := gradeDeTeste()
+	comTeclado := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Digitar, 120, 30, "")
+	semTeclado := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 120, 30, "")
+
+	if !strings.Contains(comTeclado, "38;5;"+corDigitandoNumero) {
+		t.Error("a célula focada devia ficar verde em DIGITAR")
+	}
+	if strings.Contains(semTeclado, "┏") {
+		t.Error("fora de DIGITAR a borda não engrossa")
+	}
+	if !strings.Contains(comTeclado, "┏") {
+		t.Error("em DIGITAR a borda da célula focada engrossa")
+	}
+}
+
 // TestTelaCheiaMostraSoACelulaFocada — é assim que se copia um bloco de texto
 // sem pegar os vizinhos.
 func TestTelaCheiaMostraSoACelulaFocada(t *testing.T) {
 	estado := gradeDeTeste()
-	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 0, Cheia: true}, teclado.Navegar, 120, 24, ""))
+	desenho := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 0, Cheia: true}, teclado.Navegar, 120, 30, ""))
 	if !strings.Contains(desenho, "refatora auth") {
 		t.Error("a célula focada devia estar na tela")
 	}
@@ -176,7 +278,7 @@ func TestTelaCheiaMostraSoACelulaFocada(t *testing.T) {
 // tela desenha, senão o processo lá dentro enxerga um terminal torto.
 func TestGeometriaBateComODesenho(t *testing.T) {
 	estado := gradeDeTeste()
-	for _, tamanho := range [][2]int{{120, 24}, {80, 20}, {200, 50}, {60, 12}} {
+	for _, tamanho := range [][2]int{{120, 30}, {80, 20}, {200, 50}, {60, 14}} {
 		largura, altura := tamanho[0], tamanho[1]
 		d := Dispor(estado, Foco{Projeto: 0}, largura, altura)
 		desenho := strings.Split(Desenhar(estado, Foco{Projeto: 0}, teclado.Navegar, largura, altura, ""), "\n")
@@ -188,50 +290,41 @@ func TestGeometriaBateComODesenho(t *testing.T) {
 				t.Errorf("%dx%d: linha com %d colunas: %q", largura, altura, visivel, linha)
 			}
 		}
-		somaAlturas := 0
-		for _, miolo := range d.Miolos() {
-			somaAlturas += miolo.Linhas + 2
+		usado := 0
+		for _, f := range d.faixas {
+			if f.abre {
+				usado++
+			}
+			usado += f.altura
+		}
+		if len(d.faixas) > 0 && usado > altura-2 {
+			t.Errorf("%dx%d: as fileiras somam %d linhas, o corpo tem %d", largura, altura, usado, altura-2)
+		}
+		for id, miolo := range d.Miolos() {
 			if miolo.Colunas < 1 || miolo.Linhas < 1 {
-				t.Errorf("%dx%d: miolo inválido %#v", largura, altura, miolo)
+				t.Errorf("%dx%d: miolo inválido da célula %s: %#v", largura, altura, id, miolo)
 			}
 		}
-		if len(d.Miolos()) > 0 && somaAlturas != altura-4 {
-			t.Errorf("%dx%d: as células somam %d linhas, o corpo tem %d", largura, altura, somaAlturas, altura-4)
-		}
 	}
 }
 
-// TestMuitosProjetosNaoEspremenAColunaFocada — a tira mais distante do foco sai
-// antes de a coluna focada ficar ilegível.
-func TestMuitosProjetosNaoEspremenAColunaFocada(t *testing.T) {
-	estado := protocolo.Estado{}
-	for i := range 30 {
-		estado.Projetos = append(estado.Projetos, protocolo.Projeto{
-			ID:      "p" + string(rune('a'+i)),
-			Nome:    "projeto" + string(rune('a'+i)),
-			Celulas: []protocolo.Celula{{ID: "c" + string(rune('a'+i)), Tipo: "bash", Nome: "shell", Estado: "trabalhando", AoVivo: true}},
-		})
+// TestOrigemDoCursorCaiDentroDaCelula — o cursor precisa pousar no miolo certo.
+func TestOrigemDoCursorCaiDentroDaCelula(t *testing.T) {
+	estado := gradeDeTeste()
+	foco := Foco{Projeto: 0, Celula: 1}
+	x, y, tem := OrigemNoMosaico(estado, foco, 140, 30, "c2")
+	if !tem {
+		t.Fatal("a célula focada precisa ter origem")
 	}
-	larguras := Dispor(estado, Foco{Projeto: 15}, 120, 24).larguras
-	if larguras[15] < larguraMinimaDeLeitura {
-		t.Fatalf("a coluna focada ficou com %d colunas", larguras[15])
+	if x < 1 || y < 2 {
+		t.Fatalf("origem estranha: %d,%d", x, y)
 	}
-	if soma(larguras)+1 != 120 {
-		t.Fatalf("as colunas não preenchem a largura: soma %d", soma(larguras))
-	}
-	// As tiras que sobraram são as vizinhas do foco.
-	if larguras[14] == 0 || larguras[16] == 0 {
-		t.Error("as tiras mantidas deviam ser as mais próximas do foco")
-	}
-	if larguras[0] != 0 {
-		t.Error("com projetos demais, a tira mais distante do foco cede lugar")
-	}
-}
 
-func soma(numeros []int) int {
-	total := 0
-	for _, n := range numeros {
-		total += n
+	linhas := strings.Split(semEstilo(Desenhar(estado, foco, teclado.Navegar, 140, 30, "")), "\n")
+	if y >= len(linhas) {
+		t.Fatalf("a origem caiu fora da tela: linha %d de %d", y, len(linhas))
 	}
-	return total
+	if !strings.Contains(linhas[y-1], "testes") {
+		t.Fatalf("a linha acima da origem devia ser a borda da célula, veio %q", linhas[y-1])
+	}
 }

@@ -11,15 +11,12 @@ import (
 )
 
 const (
-	// larguraTira é o quanto sobra de um projeto que não está em foco: some o
-	// texto, nunca o sinal.
-	larguraTira = 4
-	// larguraMinimaDeLeitura é o piso da coluna focada. Abaixo disso a coluna
-	// não serve para ler nada, e as tiras mais distantes cedem lugar.
-	larguraMinimaDeLeitura = 30
-	// alturaMinimaDaCelula é o mínimo para uma célula mostrar alguma coisa:
-	// borda de cima, uma linha de conteúdo e borda de baixo.
-	alturaMinimaDaCelula = 3
+	// larguraMinimaDeCelula é o menos que uma célula precisa para o conteúdo
+	// dela ainda dizer alguma coisa.
+	larguraMinimaDeCelula = 34
+	// alturaMinimaDeCelula é borda de cima, três linhas de conteúdo e borda de
+	// baixo.
+	alturaMinimaDeCelula = 5
 )
 
 // Foco é onde o usuário está agora.
@@ -36,124 +33,190 @@ type Geometria struct {
 	Linhas  int
 }
 
-// Disposicao é o resultado do cálculo de layout: quanto cada coluna ocupa e que
-// espaço sobrou para o miolo de cada célula visível. Desenhar e avisar o
-// tamanho ao motor saem daqui, para nunca discordarem.
+// faixa é uma fileira de células do mesmo projeto, lado a lado. Um projeto com
+// muitas células ocupa várias faixas; um projeto com uma célula ocupa a largura
+// inteira. É isso que faz todas as células caberem na tela sem nenhuma virar
+// tira.
+type faixa struct {
+	projeto int
+	celulas []int
+	// abre marca a primeira faixa do projeto, que é a que leva o nome dele.
+	abre bool
+	// altura é quanto ela recebeu na divisão da tela.
+	altura int
+}
+
+// Disposicao é o resultado do cálculo de layout. Desenhar e avisar o tamanho ao
+// motor saem daqui, para nunca discordarem.
 type Disposicao struct {
-	larguras []int
-	visiveis []int
-	miolos   map[string]Geometria
+	faixas  []faixa
+	miolos  map[string]Geometria
+	origens map[string][2]int
+	// escondidas conta as células que não couberam na tela.
+	escondidas int
 }
 
 // Miolos é o que a tela avisa ao motor: o tamanho útil de cada célula visível.
 func (d Disposicao) Miolos() map[string]Geometria { return d.miolos }
 
-// Dispor calcula o layout do mosaico.
+// Dispor calcula o layout do mosaico: todas as células de todos os projetos ao
+// mesmo tempo, ocupando o máximo de espaço, com o projeto como divisão.
 func Dispor(estado protocolo.Estado, foco Foco, largura, altura int) Disposicao {
-	d := Disposicao{miolos: map[string]Geometria{}}
+	d := Disposicao{miolos: map[string]Geometria{}, origens: map[string][2]int{}}
 	if len(estado.Projetos) == 0 || largura < 12 || altura < 6 {
 		return d
 	}
 	foco = Ajustar(estado, foco)
-	projeto := estado.Projetos[foco.Projeto]
-	if len(projeto.Celulas) == 0 {
+	projetoFocado := estado.Projetos[foco.Projeto]
+	if len(projetoFocado.Celulas) == 0 {
 		return d
 	}
 
 	if foco.Cheia {
-		celula := projeto.Celulas[foco.Celula]
-		d.miolos[celula.ID] = MioloDaCelulaCheia(largura, altura)
-		d.visiveis = []int{foco.Celula}
+		celula := projetoFocado.Celulas[foco.Celula]
+		miolo := MioloDaCelulaCheia(largura, altura)
+		d.miolos[celula.ID] = miolo
+		d.origens[celula.ID] = [2]int{1, 2}
 		return d
 	}
 
-	// Uma coluna por projeto: a focada com largura de leitura, as outras em
-	// tira. Com projetos demais, as tiras mais distantes do foco saem antes de
-	// a coluna focada ficar ilegível.
-	d.larguras = larguraDasColunas(len(estado.Projetos), foco.Projeto, largura)
+	corpo := altura - 2 // a barra de título e o rodapé
+	todas := planejarFaixas(estado, largura)
+	visiveis := janelaDeFaixas(todas, faixaDoFoco(todas, foco), corpo)
+	d.escondidas = celulasDeFora(todas, visiveis)
+	d.faixas = repartirAltura(visiveis, corpo)
 
-	alturaCorpo := altura - 4 // barra, borda de cima, borda de baixo, rodapé
-	d.visiveis = celulasQueCabem(len(projeto.Celulas), foco.Celula, alturaCorpo)
-
-	larguraColuna := d.larguras[foco.Projeto]
-	for i, alturaCelula := range alturasDasCelulas(len(d.visiveis), alturaCorpo) {
-		celula := projeto.Celulas[d.visiveis[i]]
-		d.miolos[celula.ID] = Geometria{
-			Colunas: max(larguraColuna-3, 1), // a borda da coluna e as duas da célula
-			Linhas:  max(alturaCelula-2, 1),  // a borda de cima e a de baixo da célula
+	y := 1 // a barra de título
+	for _, f := range d.faixas {
+		if f.abre {
+			y++
 		}
+		projeto := estado.Projetos[f.projeto]
+		x := 0
+		for i, larguraCelula := range repartirLargura(len(f.celulas), largura) {
+			celula := projeto.Celulas[f.celulas[i]]
+			d.miolos[celula.ID] = Geometria{
+				Colunas: max(larguraCelula-2, 1),
+				Linhas:  max(f.altura-2, 1),
+			}
+			d.origens[celula.ID] = [2]int{x + 1, y + 1}
+			x += larguraCelula
+		}
+		y += f.altura
 	}
 	return d
 }
 
-// larguraDasColunas reparte a largura entre os projetos.
-func larguraDasColunas(quantos, focado, largura int) []int {
-	util := largura - 1 // a borda direita do quadro
-	larguras := make([]int, quantos)
-
-	cabem := (util - larguraMinimaDeLeitura) / larguraTira
-	cabem = min(max(cabem, 0), quantos-1)
-
-	// As tiras que ficam são as mais próximas do foco, para os dois lados.
-	mantidas := map[int]bool{}
-	for passo := 1; len(mantidas) < cabem; passo++ {
-		if i := focado - passo; i >= 0 && len(mantidas) < cabem {
-			mantidas[i] = true
+// planejarFaixas quebra cada projeto em fileiras de células que cabem na
+// largura, equilibradas para não sobrar uma fileira com uma célula só.
+func planejarFaixas(estado protocolo.Estado, largura int) []faixa {
+	cabemNaLargura := max(largura/larguraMinimaDeCelula, 1)
+	var faixas []faixa
+	for iProjeto, projeto := range estado.Projetos {
+		total := len(projeto.Celulas)
+		if total == 0 {
+			continue
 		}
-		if i := focado + passo; i < quantos && len(mantidas) < cabem {
-			mantidas[i] = true
-		}
-		if focado-passo < 0 && focado+passo >= quantos {
-			break
+		quantasFileiras := (total + cabemNaLargura - 1) / cabemNaLargura
+		porFileira := (total + quantasFileiras - 1) / quantasFileiras
+		for inicio := 0; inicio < total; inicio += porFileira {
+			fim := min(inicio+porFileira, total)
+			indices := make([]int, 0, fim-inicio)
+			for i := inicio; i < fim; i++ {
+				indices = append(indices, i)
+			}
+			faixas = append(faixas, faixa{projeto: iProjeto, celulas: indices, abre: inicio == 0})
 		}
 	}
+	return faixas
+}
 
-	sobra := util
+// faixaDoFoco acha em que fileira está a célula focada.
+func faixaDoFoco(faixas []faixa, foco Foco) int {
+	for i, f := range faixas {
+		if f.projeto != foco.Projeto {
+			continue
+		}
+		for _, celula := range f.celulas {
+			if celula == foco.Celula {
+				return i
+			}
+		}
+	}
+	return 0
+}
+
+// janelaDeFaixas escolhe quais fileiras aparecem quando não cabem todas,
+// mantendo a do foco sempre visível.
+func janelaDeFaixas(faixas []faixa, focada, corpo int) []faixa {
+	cabem := max(corpo/(alturaMinimaDeCelula+1), 1)
+	if cabem >= len(faixas) {
+		return faixas
+	}
+	primeira := min(max(focada-cabem/2, 0), len(faixas)-cabem)
+	janela := append([]faixa{}, faixas[primeira:primeira+cabem]...)
+	// A primeira fileira da janela sempre diz de que projeto ela é, mesmo que o
+	// nome do projeto tenha ficado acima do corte.
+	janela[0].abre = true
+	return janela
+}
+
+func celulasDeFora(todas, visiveis []faixa) int {
+	contar := func(faixas []faixa) int {
+		total := 0
+		for _, f := range faixas {
+			total += len(f.celulas)
+		}
+		return total
+	}
+	return contar(todas) - contar(visiveis)
+}
+
+// repartirAltura divide a altura entre as fileiras, descontando as linhas de
+// nome de projeto. A sobra da divisão vai para as primeiras.
+func repartirAltura(faixas []faixa, corpo int) []faixa {
+	if len(faixas) == 0 {
+		return nil
+	}
+	cabecalhos := 0
+	for _, f := range faixas {
+		if f.abre {
+			cabecalhos++
+		}
+	}
+	disponivel := max(corpo-cabecalhos, len(faixas))
+	base := disponivel / len(faixas)
+	resto := disponivel % len(faixas)
+
+	repartidas := append([]faixa{}, faixas...)
+	for i := range repartidas {
+		repartidas[i].altura = base
+		if i < resto {
+			repartidas[i].altura++
+		}
+	}
+	return repartidas
+}
+
+// repartirLargura divide a largura entre as células de uma fileira.
+func repartirLargura(quantas, largura int) []int {
+	if quantas == 0 {
+		return nil
+	}
+	base := largura / quantas
+	resto := largura % quantas
+	larguras := make([]int, quantas)
 	for i := range larguras {
-		if i != focado && mantidas[i] {
-			larguras[i] = larguraTira
-			sobra -= larguraTira
+		larguras[i] = base
+		if i < resto {
+			larguras[i]++
 		}
 	}
-	larguras[focado] = sobra
 	return larguras
 }
 
-// celulasQueCabem escolhe quais células da coluna focada aparecem quando não
-// cabem todas, mantendo a focada sempre visível.
-func celulasQueCabem(quantas, focada, alturaCorpo int) []int {
-	if quantas == 0 {
-		return nil
-	}
-	cabem := min(max(alturaCorpo/alturaMinimaDaCelula, 1), quantas)
-	primeira := min(max(focada-cabem/2, 0), quantas-cabem)
-	visiveis := make([]int, cabem)
-	for i := range visiveis {
-		visiveis[i] = primeira + i
-	}
-	return visiveis
-}
-
-// alturasDasCelulas reparte a altura da coluna entre as células visíveis. A
-// sobra da divisão vai para as primeiras, para não deixar linha em branco.
-func alturasDasCelulas(quantas, alturaCorpo int) []int {
-	if quantas == 0 {
-		return nil
-	}
-	base := alturaCorpo / quantas
-	resto := alturaCorpo % quantas
-	alturas := make([]int, quantas)
-	for i := range alturas {
-		alturas[i] = base
-		if i < resto {
-			alturas[i]++
-		}
-	}
-	return alturas
-}
-
-// Desenhar monta o mosaico: todos os projetos ao mesmo tempo, cada um numa
-// coluna, a focada larga e as outras em tira.
+// Desenhar monta o mosaico: todas as células abertas ao mesmo tempo, agrupadas
+// por projeto, cada uma ocupando o máximo de espaço que a tela permite.
 func Desenhar(estado protocolo.Estado, foco Foco, modo teclado.Modo, largura, altura int, erro string) string {
 	if len(estado.Projetos) == 0 {
 		return telaVazia(modo, largura, altura, erro, estado.Aviso)
@@ -165,143 +228,114 @@ func Desenhar(estado protocolo.Estado, foco Foco, modo teclado.Modo, largura, al
 	}
 
 	d := Dispor(estado, foco, largura, altura)
-	if len(d.larguras) == 0 {
+	if len(d.faixas) == 0 {
 		return telaVazia(modo, largura, altura, erro, estado.Aviso)
 	}
 
-	alturaCorpo := altura - 4
-	corpo := make([][]string, len(estado.Projetos))
-	for i, p := range estado.Projetos {
-		if d.larguras[i] == 0 {
-			continue
-		}
-		if i == foco.Projeto {
-			corpo[i] = colunaFocada(p, d, foco, modo, alturaCorpo)
-			continue
-		}
-		corpo[i] = tira(p, d.larguras[i], alturaCorpo, modo)
-	}
-
 	linhas := []string{barraDeTitulo(modo, largura, contarChamados(estado), estado.Quota)}
-	linhas = append(linhas, bordaDoQuadro(estado, d, foco, true))
-	for l := range alturaCorpo {
-		var linha strings.Builder
-		for i := range estado.Projetos {
-			if d.larguras[i] == 0 {
-				continue
-			}
-			linha.WriteString(corpo[i][l])
+	for _, f := range d.faixas {
+		projeto := estado.Projetos[f.projeto]
+		if f.abre {
+			linhas = append(linhas, divisoriaDoProjeto(projeto, largura, modo, f.projeto == foco.Projeto))
 		}
-		linha.WriteString(corBorda.Render("│"))
-		linhas = append(linhas, linha.String())
+		linhas = append(linhas, fileiraDeCelulas(projeto, f, foco, modo, largura)...)
 	}
-	linhas = append(linhas, bordaDoQuadro(estado, d, foco, false))
-	linhas = append(linhas, rodape(modo, largura, erro))
-	return strings.Join(linhas, "\n")
+	if d.escondidas > 0 && len(linhas) > 1 {
+		linhas[len(linhas)-1] = marcarEscondidas(linhas[len(linhas)-1], d.escondidas, largura)
+	}
+	for len(linhas) < altura-1 {
+		linhas = append(linhas, strings.Repeat(" ", largura))
+	}
+	linhas = linhas[:altura-1]
+	return strings.Join(append(linhas, rodape(modo, largura, erro)), "\n")
 }
 
-// bordaDoQuadro desenha a linha de cima, com o nome do projeto focado, ou a de
-// baixo.
-func bordaDoQuadro(estado protocolo.Estado, d Disposicao, foco Foco, emCima bool) string {
-	esquerdo, junta, direito := "┌", "┬", "┐"
-	if !emCima {
-		esquerdo, junta, direito = "└", "┴", "┘"
+// divisoriaDoProjeto é a linha que separa um projeto do outro: o nome, o
+// caminho e o estado da stack.
+func divisoriaDoProjeto(projeto protocolo.Projeto, largura int, modo teclado.Modo, focado bool) string {
+	pintarNome := corProjeto(projeto.Cor).Bold(focado)
+	pintarTraco := corBorda
+	if modo == teclado.Digitar {
+		pintarNome, pintarTraco = corApagada, corApagada
 	}
 
-	var linha strings.Builder
-	primeira := true
-	for i := range estado.Projetos {
-		w := d.larguras[i]
-		if w == 0 {
-			continue
-		}
-		canto := junta
-		if primeira {
-			canto, primeira = esquerdo, false
-		}
-		linha.WriteString(corBorda.Render(canto))
-		if emCima && i == foco.Projeto {
-			linha.WriteString(tituloDoProjeto(estado.Projetos[i], w-1))
-			continue
-		}
-		linha.WriteString(corBorda.Render(strings.Repeat("─", w-1)))
+	marca := "──"
+	if focado {
+		marca = "━━"
 	}
-	linha.WriteString(corBorda.Render(direito))
-	return linha.String()
-}
+	esquerda := marca + " " + strings.ToUpper(projeto.Nome) + " "
 
-// tituloDoProjeto centraliza o nome do projeto na borda de cima da coluna.
-func tituloDoProjeto(projeto protocolo.Projeto, largura int) string {
-	nome := " " + strings.ToUpper(projeto.Nome) + " "
-	if lipgloss.Width(nome) > largura {
-		nome = " " + strings.ToUpper(cortar(projeto.Nome, max(largura-2, 1))) + " "
-	}
-	sobra := max(largura-lipgloss.Width(nome), 0)
-	esquerda := sobra / 2
-	return corBorda.Render(strings.Repeat("─", esquerda)) +
-		corProjeto(projeto.Cor).Render(nome) +
-		corBorda.Render(strings.Repeat("─", sobra-esquerda))
-}
-
-// colunaFocada empilha as células do projeto em foco, cada uma na sua caixa.
-func colunaFocada(projeto protocolo.Projeto, d Disposicao, foco Foco, modo teclado.Modo, alturaCorpo int) []string {
-	largura := d.larguras[foco.Projeto]
-	var linhas []string
-	for i, alturaCelula := range alturasDasCelulas(len(d.visiveis), alturaCorpo) {
-		indice := d.visiveis[i]
-		focada := indice == foco.Celula
-		linhas = append(linhas, caixaDaCelula(projeto.Celulas[indice], modo, focada, largura-1, alturaCelula)...)
-	}
-	for len(linhas) < alturaCorpo {
-		linhas = append(linhas, strings.Repeat(" ", largura-1))
-	}
-	for i, linha := range linhas[:alturaCorpo] {
-		linhas[i] = corBorda.Render("│") + linha
-	}
-	return linhas[:alturaCorpo]
-}
-
-// tira é o projeto que não está em foco: some o texto, nunca o sinal. Mostra,
-// de cima para baixo, o nome na vertical, quantas células, quantas pedem
-// atenção e o estado do Docker.
-func tira(projeto protocolo.Projeto, largura, alturaCorpo int, modo teclado.Modo) []string {
-	conteudo := largura - 1
 	var sinais []string
-	for _, letra := range strings.ToUpper(projeto.Nome) {
-		sinais = append(sinais, string(letra))
-	}
 	chamados := contarChamadosDoProjeto(projeto)
-	sinais = append(sinais, "", strconv.Itoa(len(projeto.Celulas)))
-	if chamados["respondeu"] > 0 {
-		sinais = append(sinais, marcadorDe("respondeu").simbolo+strconv.Itoa(chamados["respondeu"]))
-	}
-	if chamados["aprovar"] > 0 {
-		sinais = append(sinais, marcadorDe("aprovar").simbolo+strconv.Itoa(chamados["aprovar"]))
+	for _, estado := range []string{"respondeu", "aprovar"} {
+		if chamados[estado] > 0 {
+			sinais = append(sinais, marcadorDe(estado).simbolo+strconv.Itoa(chamados[estado]))
+		}
 	}
 	if projeto.TemCompose {
-		sinais = append(sinais, "●")
-		if projeto.Docker != "" {
-			sinais = append(sinais, projeto.Docker)
+		docker := projeto.Docker
+		if docker == "" {
+			docker = "parado"
 		}
+		sinais = append(sinais, "● "+docker)
+	}
+	direita := ""
+	if len(sinais) > 0 {
+		direita = " " + strings.Join(sinais, "  ") + " "
 	}
 
-	pintar := corProjeto(projeto.Cor)
-	if modo == teclado.Digitar {
-		pintar = corApagada
+	caminho := " " + encurtarCaminho(projeto.Caminho, max(largura/3, 10)) + " "
+	if lipgloss.Width(esquerda)+lipgloss.Width(caminho)+lipgloss.Width(direita)+4 > largura {
+		caminho = ""
 	}
-	linhas := make([]string, alturaCorpo)
-	for i := range linhas {
-		texto := ""
-		if i < len(sinais) {
-			texto = sinais[i]
+
+	enfeite := largura - lipgloss.Width(esquerda) - lipgloss.Width(caminho) - lipgloss.Width(direita)
+	if enfeite < 0 {
+		esquerda = cortar(esquerda, max(largura-lipgloss.Width(direita), 1))
+		caminho, enfeite = "", max(largura-lipgloss.Width(esquerda)-lipgloss.Width(direita), 0)
+	}
+
+	return pintarTraco.Render(marca) + pintarNome.Render(strings.TrimPrefix(esquerda, marca)) +
+		corApagada.Render(caminho) +
+		pintarTraco.Render(strings.Repeat("─", enfeite)) +
+		pintarTraco.Render(direita)
+}
+
+// fileiraDeCelulas desenha uma fileira: as células lado a lado, cada uma com
+// sua caixa.
+func fileiraDeCelulas(projeto protocolo.Projeto, f faixa, foco Foco, modo teclado.Modo, largura int) []string {
+	larguras := repartirLargura(len(f.celulas), largura)
+	caixas := make([][]string, len(f.celulas))
+	for i, indice := range f.celulas {
+		focada := f.projeto == foco.Projeto && indice == foco.Celula
+		caixas[i] = caixaDaCelula(projeto.Celulas[indice], modo, focada, larguras[i], f.altura)
+	}
+
+	linhas := make([]string, f.altura)
+	for l := range linhas {
+		var linha strings.Builder
+		for i, caixa := range caixas {
+			if l < len(caixa) {
+				linha.WriteString(caixa[l])
+				continue
+			}
+			linha.WriteString(strings.Repeat(" ", larguras[i]))
 		}
-		linhas[i] = corBorda.Render("│") + pintar.Render(centralizarEm(cortar(texto, conteudo), conteudo))
+		linhas[l] = linha.String()
 	}
 	return linhas
 }
 
+// marcarEscondidas avisa, no rodapé do mosaico, quantas células ficaram fora da
+// tela. Some o desenho, nunca a contagem.
+func marcarEscondidas(linha string, quantas, largura int) string {
+	aviso := corRolagem.Render(" +" + strconv.Itoa(quantas) + " célula(s) fora da tela ")
+	corte := max(largura-lipgloss.Width(aviso), 0)
+	return cortar(linha, corte) + aviso
+}
+
 // caixaDaCelula desenha uma célula: nome e marcador na borda de cima, conteúdo
-// dentro. Uma borda, um significado — grossa quando o teclado é da célula.
+// dentro. Uma borda, um significado — grossa e verde quando o teclado é dela.
 func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, largura, altura int) []string {
 	traco := [6]string{"┌", "┐", "└", "┘", "─", "│"}
 	if focada && modo == teclado.Digitar {
@@ -309,14 +343,16 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	}
 	pintarQuadro := corBorda
 	switch {
-	case modo == teclado.Digitar && !focada:
+	case focada && modo == teclado.Digitar:
+		pintarQuadro = corDigitando
+	case modo == teclado.Digitar:
 		pintarQuadro = corApagada
 	case focada:
 		pintarQuadro = corBordaFocada
 	}
 
 	marcador := marcadorDe(celula.Estado)
-	rotulo := " " + celula.Tipo + " · " + celula.Nome + " "
+	rotulo := " " + rotuloDaCelula(celula) + " "
 	estado := " " + marcador.simbolo + " " + strings.ToUpper(celula.Estado) + " "
 	pintarEstado := marcador.cor
 	if !celula.AoVivo {
@@ -336,7 +372,10 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	}
 
 	pintarNome := corTitulo
-	if !focada {
+	switch {
+	case focada && modo == teclado.Digitar:
+		pintarNome = corDigitando.Bold(true)
+	case !focada:
 		pintarNome = corBarra
 	}
 	linhas := []string{
@@ -377,22 +416,6 @@ func Ajustar(estado protocolo.Estado, foco Foco) Foco {
 // OrigemNoMosaico diz em que linha e coluna da tela começa o miolo de uma
 // célula. É o que põe o cursor no lugar certo dentro da caixa.
 func OrigemNoMosaico(estado protocolo.Estado, foco Foco, largura, altura int, id string) (int, int, bool) {
-	d := Dispor(estado, foco, largura, altura)
-	if len(d.larguras) == 0 {
-		return 0, 0, false
-	}
-	foco = Ajustar(estado, foco)
-	x := 0
-	for i := range foco.Projeto {
-		x += d.larguras[i]
-	}
-	y := 2 // a barra de título e a borda de cima do quadro
-	projeto := estado.Projetos[foco.Projeto]
-	for i, alturaCelula := range alturasDasCelulas(len(d.visiveis), altura-4) {
-		if projeto.Celulas[d.visiveis[i]].ID == id {
-			return x + 2, y + 1, true
-		}
-		y += alturaCelula
-	}
-	return 0, 0, false
+	origem, tem := Dispor(estado, foco, largura, altura).origens[id]
+	return origem[0], origem[1], tem
 }

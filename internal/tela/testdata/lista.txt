@@ -1,12 +1,12 @@
  TESSERACT   ⬤ 1   ⏵ 1                                  NAVEGAR
 ┌──────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────┐
-│ DOXAR-API …/dev/doxar-api    │ bash · testes                                                                         │
-│  ⬤ claude refatora auth      │                                                                                       │
-│▸ ▸ bash   testes             │$ go test ./...                                                                        │
+│ DOXAR-API …/dev/doxar-api    │ sessao · testes                                                                       │
+│  ⬤ sessao refatora auth      │                                                                                       │
+│▸ ▸ sessao testes             │$ go test ./...                                                                        │
 │  ● docker 4/5                │ok                                                                                     │
 │                              │                                                                                       │
 │ CORTZ-WEB …/dev/cortz-web    │                                                                                       │
-│  ⏵ claude fix nav            │                                                                                       │
+│  ⏵ sessao fix nav            │                                                                                       │
 │                              │                                                                                       │
 │ API-LEGADO …/dev/api-legado  │                                                                                       │
 │  ○ md     spec-m7.md         │                                                                                       │
@@ -21,4 +21,4 @@
 │                              │                                                                                       │
 │                              │                                                                                       │
 └──────────────────────────────┴───────────────────────────────────────────────────────────────────────────────────────┘
- ↑↓ célula   ←→ projeto   ↵ digitar   v lista   n criar   d docker   ? ajuda
+ ↑↓ célula   ←→ projeto   tab aba   ↵ digitar   v lista   n criar   d docker   ? ajuda
