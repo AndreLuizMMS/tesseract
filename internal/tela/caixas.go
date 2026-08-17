@@ -8,6 +8,7 @@ import (
 
 	"github.com/andreluiz/tesseract/internal/protocolo"
 	"github.com/andreluiz/tesseract/internal/teclado"
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
 // Pergunta é uma caixa de uma linha só: renomear, mandar prompt, buscar. O
@@ -84,7 +85,7 @@ func caixaDeAjuda(largura, altura int) []string {
 		corpo = corpo[:sobra]
 		corpo = append(corpo, "  "+corApagada.Render("…"))
 	}
-	return caixaFlutuante("AJUDA", corpo, min(largura-8, 76))
+	return caixaFlutuante(tema.Glifo+" AJUDA", corpo, min(largura-8, 76))
 }
 
 // caixaDeAchados mostra o resultado da busca no histórico da célula.
