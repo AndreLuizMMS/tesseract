@@ -50,58 +50,35 @@ func (c *campo) escolhido() string {
 }
 
 // Formulario é o único caminho de criação: começa perguntando o projeto e
-// termina criando a célula. Não existe "criar projeto" separado.
+// termina criando a célula. Não existe "criar projeto" separado — e não existe
+// escolher o que a sessão vai ser: ela nasce com as abas dos agentes dentro.
 type Formulario struct {
-	tipos  []protocolo.TipoCelula
 	campos []*campo
 	atual  int
 	aviso  string
 }
 
-// NovoFormulario abre a criação já com o projeto focado preenchido.
-func NovoFormulario(tipos []protocolo.TipoCelula, caminhoFocado string) *Formulario {
-	nomes := make([]string, 0, len(tipos))
-	for _, tipo := range tipos {
-		nomes = append(nomes, tipo.Tipo)
-	}
-	f := &Formulario{tipos: tipos}
+// NovoFormulario abre a criação com o caminho da casa preenchido, que é de onde
+// todo projeto sai.
+func NovoFormulario(_ []protocolo.TipoCelula, _ string) *Formulario {
+	f := &Formulario{}
 	f.campos = []*campo{
-		{rotulo: "PROJETO", valor: caminhoFocado, dica: "tab completa · caminho novo cria projeto", completa: true, soPasta: true},
-		{rotulo: "TIPO", opcoes: nomes},
+		{rotulo: "PROJETO", valor: casaComBarra(), dica: "tab completa · caminho novo cria projeto", completa: true, soPasta: true},
 		{rotulo: "NOME", dica: "(vazio → nome automático)"},
+		{rotulo: "MD", dica: "(opcional — arquivo markdown vira célula de leitura)", completa: true},
+		{rotulo: "PROMPT", dica: "(opcional — sobe já trabalhando)"},
 	}
-	f.ajustarCamposDoTipo()
 	return f
 }
 
-// ajustarCamposDoTipo põe e tira os campos que dependem do tipo escolhido. O
-// formulário não sabe o que cada tipo é: ele lê a ficha que o motor mandou.
-func (f *Formulario) ajustarCamposDoTipo() {
-	base := f.campos[:min(3, len(f.campos))]
-	ficha := f.ficha()
-	campos := append([]*campo{}, base...)
-	if ficha.RotuloAlvo != "" {
-		campos = append(campos, &campo{
-			rotulo:   ficha.RotuloAlvo,
-			dica:     "tab completa",
-			completa: ficha.CompletaArquivo,
-		})
+// casaComBarra é o diretório da conta, terminado em barra para o tab completar
+// já de dentro dele.
+func casaComBarra() string {
+	casa := lar()
+	if casa == "" {
+		return ""
 	}
-	if ficha.AceitaPrompt {
-		campos = append(campos, &campo{rotulo: "PROMPT", dica: "(opcional — sobe já trabalhando)"})
-	}
-	f.campos = campos
-	f.atual = min(f.atual, len(f.campos)-1)
-}
-
-func (f *Formulario) ficha() protocolo.TipoCelula {
-	escolhido := f.campos[1].escolhido()
-	for _, tipo := range f.tipos {
-		if tipo.Tipo == escolhido {
-			return tipo
-		}
-	}
-	return protocolo.TipoCelula{}
+	return strings.TrimSuffix(casa, "/") + "/"
 }
 
 // Tecla trata uma tecla do formulário. Devolve o pedido de criação quando o
@@ -117,11 +94,12 @@ func (f *Formulario) Tecla(acao teclado.Acao, texto string, apagou bool) (pedido
 			f.aviso = "o projeto precisa de um caminho"
 			return nil, true
 		}
+		// O tipo não é perguntado: quem decide é o motor, pelo que foi
+		// preenchido. Sem markdown, nasce uma sessão com as abas dos agentes.
 		criar := &protocolo.Criar{
 			Caminho: caminho,
-			Tipo:    f.campos[1].escolhido(),
 			Nome:    strings.TrimSpace(f.valorDe("NOME")),
-			Alvo:    strings.TrimSpace(f.valorDe(f.ficha().RotuloAlvo)),
+			Alvo:    strings.TrimSpace(f.valorDe("MD")),
 			Prompt:  f.valorDe("PROMPT"),
 		}
 		return criar, false
@@ -131,14 +109,8 @@ func (f *Formulario) Tecla(acao teclado.Acao, texto string, apagou bool) (pedido
 		f.atual = (f.atual + 1) % len(f.campos)
 	case teclado.OpcaoAnterior:
 		f.campos[f.atual].andar(-1)
-		if f.atual == 1 {
-			f.ajustarCamposDoTipo()
-		}
 	case teclado.OpcaoProxima:
 		f.campos[f.atual].andar(1)
-		if f.atual == 1 {
-			f.ajustarCamposDoTipo()
-		}
 	default:
 		if apagou {
 			f.campos[f.atual].apagar()
@@ -158,7 +130,12 @@ func (f *Formulario) PedeCompletar(acao teclado.Acao) (protocolo.Completar, bool
 	if !atual.completa {
 		return protocolo.Completar{}, false
 	}
-	return protocolo.Completar{Caminho: atual.valor, SoDiretorio: atual.soPasta}, true
+	caminho := atual.valor
+	if !atual.soPasta && !strings.Contains(caminho, "/") {
+		// O arquivo é procurado dentro do projeto que está sendo criado.
+		caminho = strings.TrimSuffix(f.campos[0].valor, "/") + "/" + caminho
+	}
+	return protocolo.Completar{Caminho: caminho, SoDiretorio: atual.soPasta}, true
 }
 
 // Completou recebe a resposta do motor sobre o caminho digitado.
@@ -174,7 +151,11 @@ func (f *Formulario) Completou(resposta protocolo.Completado) {
 	case 1:
 		f.aviso = ""
 	default:
-		f.aviso = plural(resposta.Quantidade, "pasta casa", "pastas casam")
+		if atual.soPasta {
+			f.aviso = plural(resposta.Quantidade, "pasta casa", "pastas casam")
+			return
+		}
+		f.aviso = plural(resposta.Quantidade, "arquivo casa", "arquivos casam")
 	}
 }
 

@@ -86,7 +86,9 @@ func abrirTela() error {
 		if err != nil {
 			return err
 		}
-		if err := cliente.Enviar(protocolo.TipoCriar, protocolo.Criar{Caminho: diretorio, Tipo: "bash"}); err != nil {
+		// Sem tipo: quem decide é o motor, e a sessão já vem com as abas dos
+		// agentes por dentro.
+		if err := cliente.Enviar(protocolo.TipoCriar, protocolo.Criar{Caminho: diretorio}); err != nil {
 			return err
 		}
 	}
@@ -154,7 +156,7 @@ func rodarMotor() error {
 }
 
 // adicionarProjeto cria um projeto sem abrir a tela. Projeto nasce junto com a
-// primeira célula, então a célula vem junto — um shell, que não consome nada.
+// primeira célula, então a célula vem junto.
 func adicionarProjeto(argumentos []string) error {
 	if len(argumentos) == 0 {
 		return errors.New("uso: ts novo <dir> [tipo]")
@@ -163,7 +165,7 @@ func adicionarProjeto(argumentos []string) error {
 	if err != nil {
 		return err
 	}
-	tipo := "bash"
+	tipo := ""
 	if len(argumentos) > 1 {
 		tipo = argumentos[1]
 	}
@@ -192,7 +194,7 @@ func adicionarProjeto(argumentos []string) error {
 			estado, _ := protocolo.Desempacotar[protocolo.Estado](envelope)
 			for _, projeto := range estado.Projetos {
 				if projeto.Caminho == caminho {
-					fmt.Printf("%s entrou na grade com uma célula %s\n", projeto.Nome, tipo)
+					fmt.Printf("%s entrou na grade\n", projeto.Nome)
 					return nil
 				}
 			}

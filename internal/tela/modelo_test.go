@@ -20,15 +20,22 @@ func TestSetasAndamPelaGrade(t *testing.T) {
 	if m.foco.Celula != 1 {
 		t.Fatalf("↓ devia ir para a próxima célula, foco %#v", m.foco)
 	}
+	// No mosaico todas as células estão à vista, então andar atravessa projeto.
 	m.telaNavegando("down")
-	if m.foco.Celula != 1 {
-		t.Fatalf("↓ na última célula não passa do fim: %#v", m.foco)
+	if m.foco.Projeto != 1 || m.foco.Celula != 0 {
+		t.Fatalf("↓ devia atravessar para o projeto seguinte: %#v", m.foco)
 	}
 	m.telaNavegando("up")
-	if m.foco.Celula != 0 {
-		t.Fatalf("↑ devia voltar: %#v", m.foco)
+	if m.foco.Projeto != 0 || m.foco.Celula != 1 {
+		t.Fatalf("↑ devia voltar para a célula anterior: %#v", m.foco)
+	}
+	m.foco = Foco{}
+	m.telaNavegando("up")
+	if m.foco.Projeto != 2 {
+		t.Fatalf("↑ na primeira célula dá a volta: %#v", m.foco)
 	}
 
+	m.foco = Foco{}
 	m.telaNavegando("right")
 	if m.foco.Projeto != 1 || m.foco.Celula != 0 {
 		t.Fatalf("→ devia ir para o próximo projeto: %#v", m.foco)

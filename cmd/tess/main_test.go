@@ -64,12 +64,26 @@ func semSystemctl() string {
 	return strings.Join(mantidos, string(filepath.ListSeparator))
 }
 
-// casaDeTeste é um lar curto: o socket unix não aceita caminho comprido.
+// casaDeTeste é um lar curto: o socket unix não aceita caminho comprido. A
+// configuração aponta os agentes para um programa de mentira, para o teste não
+// depender de claude nem de cursor instalados.
 func casaDeTeste(t *testing.T) string {
 	t.Helper()
 	casa, err := os.MkdirTemp("/tmp", "ts")
 	if err != nil {
 		t.Fatalf("preparar casa: %v", err)
+	}
+	fingido := filepath.Join(casa, "agente-de-mentira")
+	if err := os.WriteFile(fingido, []byte("#!/bin/sh\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
+		t.Fatalf("preparar agente: %v", err)
+	}
+	config := filepath.Join(casa, "config", "tesseract", "config.json")
+	if err := os.MkdirAll(filepath.Dir(config), 0o755); err != nil {
+		t.Fatalf("preparar configuração: %v", err)
+	}
+	corpo := `{"som":false,"notificar":false,"agentes":{"claude":{"programa":"` + fingido + `"},"cursor":{"programa":"` + fingido + `"}}}`
+	if err := os.WriteFile(config, []byte(corpo), 0o644); err != nil {
+		t.Fatalf("preparar configuração: %v", err)
 	}
 	t.Cleanup(func() {
 		parar := comando(t, casa, "stop")
@@ -182,12 +196,6 @@ func TestResetApagaOEstadoEPreservaAConfiguracao(t *testing.T) {
 		t.Fatalf("preparar: %v", err)
 	}
 	config := filepath.Join(casa, "config", "tesseract", "config.json")
-	if err := os.MkdirAll(filepath.Dir(config), 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-	if err := os.WriteFile(config, []byte(`{"editor":"vim"}`), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
 
 	if _, codigo := rodar(t, casa, "novo", projeto); codigo != 0 {
 		t.Fatal("não consegui criar o projeto")
@@ -263,7 +271,7 @@ func TestTelaAbreDesenhaEFecha(t *testing.T) {
 
 	// A tela abre com uma célula bash em tela cheia.
 	esperarAte(t, 10*time.Second, func() bool {
-		return strings.Contains(tela.Render(), "TESSERACT") && strings.Contains(tela.Render(), "bash")
+		return strings.Contains(tela.Render(), "TESSERACT") && strings.Contains(tela.Render(), "claude")
 	})
 	desenho := tela.Render()
 	if !strings.Contains(desenho, "NAVEGAR") {
@@ -355,9 +363,9 @@ func copiar(destino interface{ Write([]byte) (int, error) }, origem interface {
 	}
 }
 
-// TestMosaicoComDoisProjetos é a prova visual da fase do mosaico: dois projetos
-// viram duas colunas, a focada larga e a outra em tira, e a seta troca qual
-// engorda. Matar a última célula tira o projeto da tela.
+// TestMosaicoComDoisProjetos é a prova visual do mosaico: os dois projetos
+// aparecem ao mesmo tempo, com todas as células à vista, e a seta anda entre
+// eles. Matar a última célula tira o projeto da tela.
 func TestMosaicoComDoisProjetos(t *testing.T) {
 	casa := casaDeTeste(t)
 	primeiro := filepath.Join(casa, "cortz-web")
@@ -385,13 +393,15 @@ func TestMosaicoComDoisProjetos(t *testing.T) {
 	go func() { _, _ = copiar(terminal, tela) }()
 
 	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "CORTZ-WEB") })
-	if !strings.Contains(tela.Render(), "┬") {
-		t.Fatalf("dois projetos deviam virar duas colunas:\n%s", tela.Render())
-	}
+	// Os dois projetos ficam na tela ao mesmo tempo, nenhum vira tira.
+	esperarAte(t, 5*time.Second, func() bool {
+		desenho := tela.Render()
+		return strings.Contains(desenho, "CORTZ-WEB") && strings.Contains(desenho, "DOXAR-API")
+	})
 
-	// A coluna do lado engorda quando o foco anda.
+	// A seta anda para o projeto do lado.
 	_, _ = terminal.Write([]byte("\x1b[C")) // seta para a direita
-	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "DOXAR-API") })
+	time.Sleep(500 * time.Millisecond)
 
 	// D pede confirmação, e avisa que o projeto sai da tela.
 	_, _ = terminal.Write([]byte("D"))
@@ -511,6 +521,96 @@ func TestBuscaNoHistoricoPelaTela(t *testing.T) {
 	_, _ = terminal.Write([]byte{0x1b}) // esc fecha
 	esperarAte(t, 3*time.Second, func() bool { return !strings.Contains(tela.Render(), "BUSCA ·") })
 
+	_, _ = terminal.Write([]byte("q"))
+	_ = esperarSaida(cmd, 5*time.Second)
+}
+
+// TestTabTrocaDeAbaNaSessao — criar não pergunta o que a sessão será, e a tecla
+// de aba anda entre claude, cursor e shell dentro da mesma célula.
+func TestTabTrocaDeAbaNaSessao(t *testing.T) {
+	casa := casaDeTeste(t)
+	projeto := filepath.Join(casa, "projeto")
+	if err := os.MkdirAll(projeto, 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+
+	cmd := comando(t, casa)
+	cmd.Dir = projeto
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	tela := vt.NewSafeEmulator(120, 30)
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
+	if err != nil {
+		t.Fatalf("abrir a tela: %v", err)
+	}
+	defer terminal.Close()
+	go func() { _, _ = copiar(tela, terminal) }()
+	go func() { _, _ = copiar(terminal, tela) }()
+
+	// A célula nasce com as três abas na borda, sem ninguém ter escolhido nada.
+	esperarAte(t, 10*time.Second, func() bool {
+		desenho := tela.Render()
+		return strings.Contains(desenho, "claude") && strings.Contains(desenho, "cursor") && strings.Contains(desenho, "bash")
+	})
+
+	// O rodapé conta que a tecla existe.
+	if !strings.Contains(tela.Render(), "tab aba") {
+		t.Errorf("o rodapé devia mostrar a tecla de aba:\n%s", tela.Render())
+	}
+
+	// Duas trocas levam até a aba do shell, onde dá para escrever.
+	_, _ = terminal.Write([]byte("\t"))
+	time.Sleep(600 * time.Millisecond)
+	_, _ = terminal.Write([]byte("\t"))
+	time.Sleep(600 * time.Millisecond)
+
+	_, _ = terminal.Write([]byte("\r"))
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
+	_, _ = terminal.Write([]byte("echo estou-na-aba-do-shell\r"))
+	esperarAte(t, 6*time.Second, func() bool { return strings.Contains(tela.Render(), "estou-na-aba-do-shell") })
+
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
+	_, _ = terminal.Write([]byte("q"))
+	_ = esperarSaida(cmd, 5*time.Second)
+}
+
+// TestFormularioComecaNaCasaDoUsuario — o campo do caminho já vem apontando
+// para a casa.
+func TestFormularioComecaNaCasaDoUsuario(t *testing.T) {
+	casa := casaDeTeste(t)
+	projeto := filepath.Join(casa, "projeto")
+	if err := os.MkdirAll(projeto, 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+
+	cmd := comando(t, casa)
+	cmd.Dir = projeto
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	tela := vt.NewSafeEmulator(120, 30)
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
+	if err != nil {
+		t.Fatalf("abrir a tela: %v", err)
+	}
+	defer terminal.Close()
+	go func() { _, _ = copiar(tela, terminal) }()
+	go func() { _, _ = copiar(terminal, tela) }()
+
+	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "TESSERACT") })
+	_, _ = terminal.Write([]byte("n"))
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NOVA") })
+
+	desenho := tela.Render()
+	if !strings.Contains(desenho, os.Getenv("HOME")) {
+		t.Errorf("o formulário devia começar na casa do usuário:\n%s", desenho)
+	}
+	if strings.Contains(desenho, "TIPO") {
+		t.Errorf("o formulário não pergunta mais o tipo:\n%s", desenho)
+	}
+	if !strings.Contains(desenho, "MD") {
+		t.Errorf("o formulário devia oferecer o campo de markdown:\n%s", desenho)
+	}
+
+	_, _ = terminal.Write([]byte{0x1b})
 	_, _ = terminal.Write([]byte("q"))
 	_ = esperarSaida(cmd, 5*time.Second)
 }

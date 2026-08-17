@@ -212,9 +212,9 @@ func (m *Modelo) telaNavegando(tecla string) (tea.Model, tea.Cmd) {
 
 	switch acao {
 	case teclado.CelulaAnterior:
-		m.foco.Celula--
+		m.andarPelasCelulas(-1)
 	case teclado.CelulaProxima:
-		m.foco.Celula++
+		m.andarPelasCelulas(1)
 	case teclado.ProjetoAnterior:
 		m.foco.Projeto, m.foco.Celula = m.foco.Projeto-1, 0
 	case teclado.ProjetoProximo:
@@ -225,6 +225,14 @@ func (m *Modelo) telaNavegando(tecla string) (tea.Model, tea.Cmd) {
 		}
 	case teclado.PularChamado:
 		m.pularParaQuemChamou()
+	case teclado.ProximaAba:
+		if celula != nil {
+			m.enviar(protocolo.TipoAba, protocolo.Aba{Celula: celula.ID, Passo: 1})
+		}
+	case teclado.AbaAnterior:
+		if celula != nil {
+			m.enviar(protocolo.TipoAba, protocolo.Aba{Celula: celula.ID, Passo: -1})
+		}
 
 	case teclado.EntrarDigitar:
 		if celula != nil {
@@ -397,14 +405,30 @@ func (m *Modelo) telaDosAchados(tecla string) tea.Cmd {
 	return nil
 }
 
-// pularParaQuemChamou vai para a próxima célula que pede atenção, atravessando
-// projeto.
-func (m *Modelo) pularParaQuemChamou() {
-	chama := func(estado string) bool { return estado == "respondeu" || estado == "aprovar" }
+// andarPelasCelulas caminha pela grade inteira, atravessando projeto: no
+// mosaico todas as células estão à vista, então andar entre elas não para na
+// fronteira do projeto.
+func (m *Modelo) andarPelasCelulas(passo int) {
+	total := m.totalDeCelulas()
+	if total == 0 {
+		return
+	}
+	m.foco.Projeto, m.foco.Celula = m.posicaoDe((m.posicaoLinear() + passo + total) % total)
+}
+
+func (m *Modelo) totalDeCelulas() int {
 	total := 0
 	for _, projeto := range m.estado.Projetos {
 		total += len(projeto.Celulas)
 	}
+	return total
+}
+
+// pularParaQuemChamou vai para a próxima célula que pede atenção, atravessando
+// projeto.
+func (m *Modelo) pularParaQuemChamou() {
+	chama := func(estado string) bool { return estado == "respondeu" || estado == "aprovar" }
+	total := m.totalDeCelulas()
 	if total == 0 {
 		return
 	}
