@@ -467,3 +467,50 @@ func TestListaMostraOMesmoQueOMosaico(t *testing.T) {
 	_, _ = terminal2.Write([]byte("q"))
 	_ = esperarSaida(segunda, 5*time.Second)
 }
+
+// TestBuscaNoHistoricoPelaTela — a tecla de busca pergunta o termo, o motor
+// procura no histórico da célula focada e a tela mostra o que achou.
+func TestBuscaNoHistoricoPelaTela(t *testing.T) {
+	casa := casaDeTeste(t)
+	projeto := filepath.Join(casa, "projeto")
+	if err := os.MkdirAll(projeto, 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+
+	cmd := comando(t, casa)
+	cmd.Dir = projeto
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	tela := vt.NewSafeEmulator(110, 30)
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 110, Rows: 30})
+	if err != nil {
+		t.Fatalf("abrir a tela: %v", err)
+	}
+	defer terminal.Close()
+	go func() { _, _ = copiar(tela, terminal) }()
+	go func() { _, _ = copiar(terminal, tela) }()
+
+	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "bash") })
+
+	// Escreve algo no shell para haver histórico.
+	_, _ = terminal.Write([]byte("\r"))
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
+	_, _ = terminal.Write([]byte("echo agulha-procurada\r"))
+	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "agulha-procurada") })
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
+
+	// Busca.
+	_, _ = terminal.Write([]byte("/"))
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "BUSCAR") })
+	_, _ = terminal.Write([]byte("agulha-procurada\r"))
+	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "BUSCA · agulha-procurada") })
+	if !strings.Contains(tela.Render(), "agulha-procurada") {
+		t.Fatalf("a busca devia mostrar a linha achada:\n%s", tela.Render())
+	}
+
+	_, _ = terminal.Write([]byte{0x1b}) // esc fecha
+	esperarAte(t, 3*time.Second, func() bool { return !strings.Contains(tela.Render(), "BUSCA ·") })
+
+	_, _ = terminal.Write([]byte("q"))
+	_ = esperarSaida(cmd, 5*time.Second)
+}
