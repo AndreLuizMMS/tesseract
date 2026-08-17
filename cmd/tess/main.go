@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -71,26 +70,47 @@ func main() {
 
 // abrirTela conecta ao motor, subindo-o se preciso, e desenha.
 func abrirTela() error {
-	// O banner sai antes de conectar e fica na tela pelo tempo real que a
-	// conexão levar — nenhuma espera é inventada para exibi-lo. Com o motor
-	// de pé isso é um piscar de olhos; quando ele precisa subir, o banner
-	// vira o aviso de que alguma coisa está acontecendo.
-	comeco := time.Now()
-	desenharBanner()
+	// A abertura roda enquanto o motor é procurado, numa linha de execução, e
+	// a conexão corre na outra. O tempo da animação é tempo que já ia passar
+	// de qualquer jeito — nenhuma espera é inventada para exibi-la.
+	abertura := tela.NovaAbertura(os.Stderr, animarAbertura())
 
-	cliente, err := conectarOuSubir()
-	if err != nil {
-		return err
+	type chegada struct {
+		cliente *tela.Cliente
+		inicial protocolo.Estado
+		levou   time.Duration
+		err     error
 	}
+	conectou := make(chan chegada, 1)
+	go func() {
+		// O cronômetro mora aqui dentro: o que ele conta é o motor montando a
+		// grade, não a animação rodando ao lado. Medir a animação junto seria
+		// mentir num número que existe justamente para ser verdade.
+		comeco := time.Now()
+		cliente, err := conectarOuSubir()
+		if err != nil {
+			conectou <- chegada{err: err}
+			return
+		}
+		// O primeiro retrato chega assim que a tela conecta; ele é o ponto de
+		// partida do desenho.
+		inicial, err := primeiroEstado(cliente)
+		conectou <- chegada{cliente: cliente, inicial: inicial, levou: time.Since(comeco), err: err}
+	}()
+
+	abertura.Montar()
+
+	chegou := <-conectou
+	if chegou.err != nil {
+		if chegou.cliente != nil {
+			chegou.cliente.Fechar()
+		}
+		return chegou.err
+	}
+	cliente, inicial := chegou.cliente, chegou.inicial
 	defer cliente.Fechar()
 
-	// O primeiro retrato chega assim que a tela conecta; ele é o ponto de
-	// partida do desenho.
-	inicial, err := primeiroEstado(cliente)
-	if err != nil {
-		return err
-	}
-	contarNoBanner(inicial, time.Since(comeco))
+	abertura.Contar(contagemDoMotor(inicial, chegou.levou))
 	// Grade vazia começa com um shell aqui mesmo: sempre há o que olhar.
 	if len(inicial.Projetos) == 0 {
 		diretorio, err := os.Getwd()
@@ -107,39 +127,35 @@ func abrirTela() error {
 	modelo := tela.NovoModelo(cliente, inicial)
 	programa := tea.NewProgram(modelo)
 	modelo.Ouvir(programa)
-	_, err = programa.Run()
+	_, err := programa.Run()
 	return err
 }
 
-// desenharBanner põe a marca na tela enquanto o motor é procurado. É o único
-// momento em que o símbolo cabe inteiro sem roubar espaço de trabalho — a
-// partir do primeiro quadro da grade, cada linha é de quem está trabalhando.
-func desenharBanner() {
-	simbolo := tema.SimboloPintado()
-	assinatura := []string{"", tema.Nome, tema.Tagline, "", tema.Versao}
-	for i, linha := range simbolo {
-		lado := ""
-		if i < len(assinatura) {
-			lado = assinatura[i]
-		}
-		fmt.Fprintln(os.Stderr, strings.TrimRight("   "+linha+"    "+lado, " "))
+// animarAbertura diz se a abertura roda como animação. Sem terminal de
+// verdade ela viraria lixo de escape num arquivo de log, e quem não quer
+// esperar por ela desliga no ambiente.
+func animarAbertura() bool {
+	if _, desligado := os.LookupEnv("TESSERACT_SEM_ABERTURA"); desligado {
+		return false
 	}
-	fmt.Fprintln(os.Stderr)
+	info, err := os.Stderr.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-// contarNoBanner fecha o banner com o que o motor devolveu: é a prova de que a
-// grade voltou inteira, dita em número, e some junto com o banner quando a
-// tela cheia abre.
-func contarNoBanner(estado protocolo.Estado, levou time.Duration) {
+// contagemDoMotor é o que o motor devolveu: a prova de que a grade voltou
+// inteira, dita em número. Some junto com a abertura quando a tela cheia abre.
+func contagemDoMotor(estado protocolo.Estado, levou time.Duration) []string {
 	celulas := 0
 	for _, projeto := range estado.Projetos {
 		celulas += len(projeto.Celulas)
 	}
-	fmt.Fprintln(os.Stderr, "   > motor de sessão: vivo")
-	fmt.Fprintf(os.Stderr, "   > %s · %s · mesma posição\n",
-		contar(celulas, "célula recuperada", "células recuperadas"),
-		contar(len(estado.Projetos), "projeto", "projetos"))
-	fmt.Fprintf(os.Stderr, "   > grade montada em %dms\n", levou.Milliseconds())
+	return []string{
+		tela.LinhaDoMotor("motor de sessão: vivo"),
+		tela.LinhaDoMotor(fmt.Sprintf("%s · %s · mesma posição",
+			contar(celulas, "célula recuperada", "células recuperadas"),
+			contar(len(estado.Projetos), "projeto", "projetos"))),
+		tela.LinhaDoMotor(fmt.Sprintf("grade montada em %dms", levou.Milliseconds())),
+	}
 }
 
 // contar escreve o número junto do substantivo na forma certa. Uma célula não
