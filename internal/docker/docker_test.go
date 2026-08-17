@@ -76,62 +76,144 @@ func TestResumo(t *testing.T) {
 	}
 }
 
-// TestDetectarSegueAOrdem — só a raiz do projeto, e na ordem declarada.
+// TestDetectarSegueAOrdem — na raiz, o nome canônico ganha da variante.
 func TestDetectarSegueAOrdem(t *testing.T) {
 	dir := t.TempDir()
 	if Detectar(dir) != "" {
 		t.Fatal("projeto sem compose não pode ganhar painel")
 	}
 
-	criar := func(nome string) {
+	criar := func(caminho string) {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(dir, nome), []byte("services: {}\n"), 0o644); err != nil {
+		if err := os.MkdirAll(filepath.Dir(caminho), 0o755); err != nil {
+			t.Fatalf("preparar: %v", err)
+		}
+		if err := os.WriteFile(caminho, []byte("services: {}\n"), 0o644); err != nil {
 			t.Fatalf("preparar: %v", err)
 		}
 	}
 
-	criar("compose.yaml")
+	criar(filepath.Join(dir, "compose.yaml"))
 	if achado := Detectar(dir); achado != filepath.Join(dir, "compose.yaml") {
 		t.Fatalf("achou %q", achado)
 	}
-	criar("compose.yml")
-	if achado := Detectar(dir); achado != filepath.Join(dir, "compose.yml") {
-		t.Fatalf("achou %q", achado)
-	}
-	criar("docker-compose.yaml")
-	if achado := Detectar(dir); achado != filepath.Join(dir, "docker-compose.yaml") {
-		t.Fatalf("achou %q", achado)
-	}
-	criar("docker-compose.yml")
+	criar(filepath.Join(dir, "docker-compose.yml"))
 	if achado := Detectar(dir); achado != filepath.Join(dir, "docker-compose.yml") {
-		t.Fatalf("achou %q", achado)
+		t.Fatalf("o nome canônico devia ganhar, achou %q", achado)
 	}
 }
 
-// TestDetectarNaoBuscaRecursivo — compose numa subpasta não conta.
-func TestDetectarNaoBuscaRecursivo(t *testing.T) {
+// TestDetectarAchaEmSubpasta é o caso do mundo real: a stack mora em `docker/`.
+func TestDetectarAchaEmSubpasta(t *testing.T) {
 	dir := t.TempDir()
-	fundo := filepath.Join(dir, "infra", "local")
-	if err := os.MkdirAll(fundo, 0o755); err != nil {
+	dentro := filepath.Join(dir, "docker", "compose.yml")
+	if err := os.MkdirAll(filepath.Dir(dentro), 0o755); err != nil {
 		t.Fatalf("preparar: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(fundo, "docker-compose.yml"), []byte("services: {}\n"), 0o644); err != nil {
+	if err := os.WriteFile(dentro, []byte("services: {}\n"), 0o644); err != nil {
 		t.Fatalf("preparar: %v", err)
 	}
-	if achado := Detectar(dir); achado != "" {
-		t.Fatalf("compose fora da raiz não conta, mas achou %q", achado)
+	if achado := Detectar(dir); achado != dentro {
+		t.Fatalf("compose em subpasta devia ser achado, veio %q", achado)
 	}
 }
 
-// TestDetectarIgnoraDiretorio — uma pasta chamada docker-compose.yml não é um
-// arquivo de compose.
-func TestDetectarIgnoraDiretorio(t *testing.T) {
+// TestDetectarNuncaEscolheProducao — o painel é de desenvolvimento.
+func TestDetectarNuncaEscolheProducao(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(dir, "docker-compose.yml"), 0o755); err != nil {
+	pasta := filepath.Join(dir, "docker")
+	if err := os.MkdirAll(pasta, 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	for _, nome := range []string{"compose.prod.yml", "docker-compose-prod.yml", "compose.production.yaml", "compose.staging.yml"} {
+		if err := os.WriteFile(filepath.Join(pasta, nome), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatalf("preparar: %v", err)
+		}
+	}
+	if achado := Detectar(dir); achado != "" {
+		t.Fatalf("só havia arquivo de produção, mas escolheu %q", achado)
+	}
+
+	bom := filepath.Join(pasta, "compose.yml")
+	if err := os.WriteFile(bom, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if achado := Detectar(dir); achado != bom {
+		t.Fatalf("com o de desenvolvimento ao lado, devia escolher ele: %q", achado)
+	}
+}
+
+// TestDetectarPrefereDevEntreVariantes — `docker-compose-dev.yml` ao lado do de
+// produção é o arranjo comum.
+func TestDetectarPrefereDevEntreVariantes(t *testing.T) {
+	dir := t.TempDir()
+	for _, nome := range []string{"docker-compose-prod.yml", "docker-compose-dev.yml"} {
+		if err := os.WriteFile(filepath.Join(dir, nome), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatalf("preparar: %v", err)
+		}
+	}
+	if achado := Detectar(dir); achado != filepath.Join(dir, "docker-compose-dev.yml") {
+		t.Fatalf("devia escolher o de desenvolvimento, veio %q", achado)
+	}
+}
+
+// TestDetectarPrefereARaiz — compose na raiz ganha do que está em subpasta.
+func TestDetectarPrefereARaiz(t *testing.T) {
+	dir := t.TempDir()
+	raiz := filepath.Join(dir, "compose.yml")
+	if err := os.WriteFile(raiz, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	dentro := filepath.Join(dir, "infra", "docker-compose.yml")
+	if err := os.MkdirAll(filepath.Dir(dentro), 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if err := os.WriteFile(dentro, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if achado := Detectar(dir); achado != raiz {
+		t.Fatalf("a raiz devia ganhar, veio %q", achado)
+	}
+}
+
+// TestDetectarIgnoraPastaPesada — nada de vasculhar node_modules.
+func TestDetectarIgnoraPastaPesada(t *testing.T) {
+	dir := t.TempDir()
+	dentro := filepath.Join(dir, "node_modules", "algum-pacote-docker-compose.yml")
+	if err := os.MkdirAll(filepath.Dir(dentro), 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if err := os.WriteFile(dentro, []byte("services: {}\n"), 0o644); err != nil {
 		t.Fatalf("preparar: %v", err)
 	}
 	if achado := Detectar(dir); achado != "" {
-		t.Fatalf("diretório não é compose, mas achou %q", achado)
+		t.Fatalf("não podia olhar dentro de node_modules, achou %q", achado)
+	}
+}
+
+// TestDetectarNaoVaiFundoDemais — dois níveis abaixo já é longe demais.
+func TestDetectarNaoVaiFundoDemais(t *testing.T) {
+	dir := t.TempDir()
+	fundo := filepath.Join(dir, "infra", "local", "docker-compose.yml")
+	if err := os.MkdirAll(filepath.Dir(fundo), 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if err := os.WriteFile(fundo, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if achado := Detectar(dir); achado != "" {
+		t.Fatalf("compose a dois níveis não conta, achou %q", achado)
+	}
+}
+
+// TestDetectarIgnoraOverrideSozinho — sobreposição só vale acompanhada.
+func TestDetectarIgnoraOverrideSozinho(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "docker-compose.override.yml"), []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	if achado := Detectar(dir); achado != "" {
+		t.Fatalf("override sozinho não é stack, achou %q", achado)
 	}
 }
 

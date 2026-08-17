@@ -17,14 +17,17 @@ import (
 	"time"
 )
 
-// arquivosDeCompose é a ordem de procura, só na raiz do projeto. Sem busca
-// recursiva: projeto sem compose na raiz simplesmente não tem painel.
-var arquivosDeCompose = []string{
-	"docker-compose.yml",
-	"docker-compose.yaml",
-	"compose.yml",
-	"compose.yaml",
+// pastasIgnoradas nunca entram na procura por compose: são pesadas e nunca têm
+// a stack do projeto.
+var pastasIgnoradas = map[string]bool{
+	"node_modules": true, ".git": true, "vendor": true, "dist": true,
+	"build": true, "target": true, ".next": true, ".venv": true,
+	"venv": true, "coverage": true, "tmp": true, ".cache": true,
 }
+
+// proibidos marca o arquivo que nunca deve ser escolhido sozinho. Produção não
+// é coisa de painel de desenvolvimento.
+var proibidos = []string{"prod", "production", "staging", "homolog"}
 
 // prazoDeLeitura limita quanto tempo esperamos o Docker responder uma consulta.
 const prazoDeLeitura = 20 * time.Second
@@ -41,16 +44,85 @@ type Servico struct {
 	Uptime string `json:"uptime"`
 }
 
-// Detectar acha o arquivo de compose na raiz do projeto. Devolve vazio quando
-// não há nenhum.
+// Detectar acha o arquivo de compose do projeto. Procura primeiro na raiz e
+// depois nas pastas de primeiro nível — porque projeto de verdade guarda a
+// stack em `docker/`, `infra/` e afins — e nunca escolhe um arquivo de
+// produção.
 func Detectar(diretorio string) string {
-	for _, nome := range arquivosDeCompose {
-		caminho := filepath.Join(diretorio, nome)
-		if info, err := os.Stat(caminho); err == nil && !info.IsDir() {
-			return caminho
+	melhor, melhorNota := "", 0
+	considerar := func(caminho string, nota int) {
+		if nota > melhorNota {
+			melhor, melhorNota = caminho, nota
 		}
 	}
-	return ""
+
+	for _, entrada := range entradasDe(diretorio) {
+		caminho := filepath.Join(diretorio, entrada.Name())
+		if !entrada.IsDir() {
+			considerar(caminho, notaDoArquivo(entrada.Name(), true))
+			continue
+		}
+		if pastasIgnoradas[entrada.Name()] || strings.HasPrefix(entrada.Name(), ".") && entrada.Name() != ".docker" {
+			continue
+		}
+		for _, dentro := range entradasDe(caminho) {
+			if dentro.IsDir() {
+				continue
+			}
+			considerar(filepath.Join(caminho, dentro.Name()), notaDoArquivo(dentro.Name(), false))
+		}
+	}
+	return melhor
+}
+
+func entradasDe(diretorio string) []os.DirEntry {
+	entradas, err := os.ReadDir(diretorio)
+	if err != nil {
+		return nil
+	}
+	return entradas
+}
+
+// notaDoArquivo pontua um candidato a arquivo de compose. Zero quer dizer que
+// não serve. Nome canônico vale mais que variante, raiz vale mais que subpasta,
+// e o que cheira a produção não vale nada.
+func notaDoArquivo(nome string, naRaiz bool) int {
+	minusculo := strings.ToLower(nome)
+	if !strings.Contains(minusculo, "compose") {
+		return 0
+	}
+	if extensao := filepath.Ext(minusculo); extensao != ".yml" && extensao != ".yaml" {
+		return 0
+	}
+	for _, proibido := range proibidos {
+		if strings.Contains(minusculo, proibido) {
+			return 0
+		}
+	}
+	// Arquivo de sobreposição só faz sentido junto de outro, nunca sozinho.
+	if strings.Contains(minusculo, "override") {
+		return 0
+	}
+
+	nota := 10
+	if filepath.Ext(minusculo) == ".yml" {
+		nota++ // desempate entre os dois nomes canônicos
+	}
+	semExtensao := strings.TrimSuffix(strings.TrimSuffix(minusculo, ".yml"), ".yaml")
+	switch semExtensao {
+	case "docker-compose":
+		nota += 44
+	case "compose":
+		nota += 40
+	default:
+		if strings.Contains(minusculo, "dev") || strings.Contains(minusculo, "local") {
+			nota += 20
+		}
+	}
+	if naRaiz {
+		nota += 100
+	}
+	return nota
 }
 
 // Servicos lista o que a stack do projeto tem, de pé ou não.
