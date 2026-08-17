@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,13 +20,14 @@ import (
 	"github.com/andreluiz/tesseract/internal/motor"
 	"github.com/andreluiz/tesseract/internal/protocolo"
 	"github.com/andreluiz/tesseract/internal/tela"
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
 // esperaDoMotor é quanto tempo a tela dá para o motor abrir o socket antes de
 // desistir.
 const esperaDoMotor = 5 * time.Second
 
-const uso = `ts — mosaico de agentes em terminal
+const uso = `⧉ ts — mosaico de agentes em terminal
 
   ts                 abre a tela, subindo o motor se preciso
   ts novo <dir>      adiciona um projeto sem abrir a tela
@@ -68,6 +71,13 @@ func main() {
 
 // abrirTela conecta ao motor, subindo-o se preciso, e desenha.
 func abrirTela() error {
+	// O banner sai antes de conectar e fica na tela pelo tempo real que a
+	// conexão levar — nenhuma espera é inventada para exibi-lo. Com o motor
+	// de pé isso é um piscar de olhos; quando ele precisa subir, o banner
+	// vira o aviso de que alguma coisa está acontecendo.
+	comeco := time.Now()
+	desenharBanner()
+
 	cliente, err := conectarOuSubir()
 	if err != nil {
 		return err
@@ -80,6 +90,7 @@ func abrirTela() error {
 	if err != nil {
 		return err
 	}
+	contarNoBanner(inicial, time.Since(comeco))
 	// Grade vazia começa com um shell aqui mesmo: sempre há o que olhar.
 	if len(inicial.Projetos) == 0 {
 		diretorio, err := os.Getwd()
@@ -98,6 +109,46 @@ func abrirTela() error {
 	modelo.Ouvir(programa)
 	_, err = programa.Run()
 	return err
+}
+
+// desenharBanner põe a marca na tela enquanto o motor é procurado. É o único
+// momento em que o símbolo cabe inteiro sem roubar espaço de trabalho — a
+// partir do primeiro quadro da grade, cada linha é de quem está trabalhando.
+func desenharBanner() {
+	simbolo := tema.SimboloPintado()
+	assinatura := []string{"", tema.Nome, tema.Tagline, "", tema.Versao}
+	for i, linha := range simbolo {
+		lado := ""
+		if i < len(assinatura) {
+			lado = assinatura[i]
+		}
+		fmt.Fprintln(os.Stderr, strings.TrimRight("   "+linha+"    "+lado, " "))
+	}
+	fmt.Fprintln(os.Stderr)
+}
+
+// contarNoBanner fecha o banner com o que o motor devolveu: é a prova de que a
+// grade voltou inteira, dita em número, e some junto com o banner quando a
+// tela cheia abre.
+func contarNoBanner(estado protocolo.Estado, levou time.Duration) {
+	celulas := 0
+	for _, projeto := range estado.Projetos {
+		celulas += len(projeto.Celulas)
+	}
+	fmt.Fprintln(os.Stderr, "   > motor de sessão: vivo")
+	fmt.Fprintf(os.Stderr, "   > %s · %s · mesma posição\n",
+		contar(celulas, "célula recuperada", "células recuperadas"),
+		contar(len(estado.Projetos), "projeto", "projetos"))
+	fmt.Fprintf(os.Stderr, "   > grade montada em %dms\n", levou.Milliseconds())
+}
+
+// contar escreve o número junto do substantivo na forma certa. Uma célula não
+// é "1 células".
+func contar(quantos int, singular, plural string) string {
+	if quantos == 1 {
+		return "1 " + singular
+	}
+	return strconv.Itoa(quantos) + " " + plural
 }
 
 // primeiroEstado espera o retrato que o motor manda assim que a tela conecta.
@@ -219,7 +270,7 @@ func mostrarStatus() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(resumo)
+	fmt.Println(tema.Glifo, resumo)
 	return nil
 }
 
