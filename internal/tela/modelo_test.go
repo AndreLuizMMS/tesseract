@@ -1,7 +1,12 @@
 package tela
 
 import (
+	"encoding/json"
+	"net"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/andreluiz/tesseract/internal/protocolo"
 )
@@ -16,33 +21,33 @@ func modeloDeTeste(estado protocolo.Estado) *Modelo {
 func TestSetasAndamPelaGrade(t *testing.T) {
 	m := modeloDeTeste(gradeDeTeste())
 
-	m.telaNavegando("down")
+	m.telaNavegando("right")
 	if m.foco.Celula != 1 {
-		t.Fatalf("↓ devia ir para a próxima célula, foco %#v", m.foco)
+		t.Fatalf("→ devia ir para a próxima célula, foco %#v", m.foco)
 	}
 	// No mosaico todas as células estão à vista, então andar atravessa projeto.
-	m.telaNavegando("down")
+	m.telaNavegando("right")
 	if m.foco.Projeto != 1 || m.foco.Celula != 0 {
-		t.Fatalf("↓ devia atravessar para o projeto seguinte: %#v", m.foco)
+		t.Fatalf("→ devia atravessar para o projeto seguinte: %#v", m.foco)
 	}
-	m.telaNavegando("up")
+	m.telaNavegando("left")
 	if m.foco.Projeto != 0 || m.foco.Celula != 1 {
-		t.Fatalf("↑ devia voltar para a célula anterior: %#v", m.foco)
+		t.Fatalf("← devia voltar para a célula anterior: %#v", m.foco)
 	}
 	m.foco = Foco{}
-	m.telaNavegando("up")
+	m.telaNavegando("left")
 	if m.foco.Projeto != 2 {
-		t.Fatalf("↑ na primeira célula dá a volta: %#v", m.foco)
+		t.Fatalf("← na primeira célula dá a volta: %#v", m.foco)
 	}
 
 	m.foco = Foco{}
-	m.telaNavegando("right")
+	m.telaNavegando("down")
 	if m.foco.Projeto != 1 || m.foco.Celula != 0 {
-		t.Fatalf("→ devia ir para o próximo projeto: %#v", m.foco)
+		t.Fatalf("↓ devia ir para o próximo projeto: %#v", m.foco)
 	}
-	m.telaNavegando("left")
+	m.telaNavegando("up")
 	if m.foco.Projeto != 0 {
-		t.Fatalf("← devia voltar: %#v", m.foco)
+		t.Fatalf("↑ devia voltar: %#v", m.foco)
 	}
 }
 
@@ -159,5 +164,56 @@ func TestFocoNuncaSaiDoQueExiste(t *testing.T) {
 	}
 	if m.celulaFocada() != nil {
 		t.Fatal("sem célula, não há célula focada")
+	}
+}
+
+// TestColarVaiInteiroParaACelula — colar não chega como tecla: o terminal manda
+// o conteúdo de uma vez, num evento próprio. Se a tela ignorar esse evento,
+// ctrl-v não faz nada dentro da célula.
+func TestColarVaiInteiroParaACelula(t *testing.T) {
+	m := modeloDeTeste(gradeDeTeste())
+	daqui, dali := net.Pipe()
+	defer daqui.Close()
+	defer dali.Close()
+	m.cliente = &Cliente{conexao: daqui, escritor: json.NewEncoder(daqui), leitor: json.NewDecoder(daqui)}
+	m.digitando = true
+
+	recebido := make(chan protocolo.Tecla, 1)
+	go func() {
+		var envelope protocolo.Mensagem
+		if err := json.NewDecoder(dali).Decode(&envelope); err != nil {
+			return
+		}
+		tecla, _ := protocolo.Desempacotar[protocolo.Tecla](envelope)
+		recebido <- tecla
+	}()
+
+	colado := "primeira linha\nsegunda linha"
+	m.Update(tea.PasteMsg{Content: colado})
+
+	select {
+	case tecla := <-recebido:
+		if tecla.Celula != "c1" {
+			t.Fatalf("o texto colado foi para a célula %q, esperada a focada c1", tecla.Celula)
+		}
+		if tecla.Colar != colado {
+			t.Fatalf("o texto colado devia chegar inteiro, veio %q", tecla.Colar)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("colar em DIGITAR não mandou nada para a célula")
+	}
+}
+
+// TestColarNoFormularioCabeNumaLinha — campo de uma linha só não aceita a
+// quebra que veio junto do caminho copiado.
+func TestColarNoFormularioCabeNumaLinha(t *testing.T) {
+	m := modeloDeTeste(gradeDeTeste())
+	m.formulario = NovoFormulario(nil, "")
+	m.formulario.campos[0].valor = ""
+
+	m.Update(tea.PasteMsg{Content: "/home/dev/doxar-api\n"})
+
+	if valor := m.formulario.campos[0].valor; valor != "/home/dev/doxar-api" {
+		t.Fatalf("o caminho colado devia entrar sem a quebra de linha, veio %q", valor)
 	}
 }

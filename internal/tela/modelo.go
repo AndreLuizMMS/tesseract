@@ -56,6 +56,7 @@ type Modelo struct {
 
 	digitando bool
 	tamanhos  map[string]Geometria
+	selecao   *Selecao
 
 	painel          *PainelDocker
 	formulario      *Formulario
@@ -155,8 +156,20 @@ func (m *Modelo) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseWheelMsg:
 		return m, m.rolar(msg)
 
+	case tea.MouseClickMsg:
+		m.comecarSelecao(msg.Button, msg.X, msg.Y)
+
+	case tea.MouseMotionMsg:
+		m.arrastarSelecao(msg.X, msg.Y)
+
+	case tea.MouseReleaseMsg:
+		return m, m.copiarSelecao()
+
 	case tea.KeyPressMsg:
 		return m.teclou(msg)
+
+	case tea.PasteMsg:
+		return m, m.colou(msg.Content)
 	}
 	return m, nil
 }
@@ -200,6 +213,33 @@ func (m *Modelo) teclou(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.telaDigitando(tecla, msg)
 	}
 	return m.telaNavegando(tecla)
+}
+
+// colou entrega o texto colado a quem tem o teclado agora. Colar não chega como
+// tecla — o terminal manda o conteúdo inteiro de uma vez —, então não passa por
+// teclou; mas obedece ao mesmo dono, que continua sendo um só.
+func (m *Modelo) colou(texto string) tea.Cmd {
+	if texto == "" {
+		return nil
+	}
+	switch {
+	case m.formulario != nil:
+		return m.telaDoFormulario("", umaLinha(texto), false)
+	case m.pergunta != nil:
+		return m.telaDaPergunta("", umaLinha(texto), false)
+	case m.digitando:
+		foco := m.celulaFocada()
+		if foco == nil {
+			return nil
+		}
+		m.enviar(protocolo.TipoTecla, protocolo.Tecla{Celula: foco.ID, Colar: texto})
+	}
+	return nil
+}
+
+// umaLinha achata o texto colado para caber num campo que só tem uma linha.
+func umaLinha(texto string) string {
+	return strings.Join(strings.Fields(texto), " ")
 }
 
 func (m *Modelo) telaDigitando(tecla string, msg tea.KeyPressMsg) tea.Cmd {
@@ -280,14 +320,7 @@ func (m *Modelo) telaNavegando(tecla string) (tea.Model, tea.Cmd) {
 
 	case teclado.Renomear:
 		if celula != nil {
-			m.pergunta = &Pergunta{
-				Titulo: "RENOMEAR", Rotulo: "NOME", Texto: celula.Nome,
-				Dica: "o nome vai junto para dentro do agente", Acao: teclado.Renomear,
-			}
-		}
-	case teclado.AdotarNome:
-		if celula != nil {
-			m.enviar(protocolo.TipoAdotar, protocolo.Adotar{Celula: celula.ID})
+			m.enviar(protocolo.TipoRenomear, protocolo.Renomear{Celula: celula.ID})
 		}
 
 	case teclado.Prompt:
@@ -312,6 +345,10 @@ func (m *Modelo) telaNavegando(tecla string) (tea.Model, tea.Cmd) {
 			}
 		}
 	case teclado.Voltar:
+		if m.selecao != nil {
+			m.selecao = nil
+			break
+		}
 		if m.foco.Cheia {
 			m.foco.Cheia = false
 			break
@@ -404,8 +441,6 @@ func (m *Modelo) telaDaPergunta(tecla, texto string, apagou bool) tea.Cmd {
 		return nil
 	}
 	switch pergunta.Acao {
-	case teclado.Renomear:
-		m.enviar(protocolo.TipoRenomear, protocolo.Renomear{Celula: celula.ID, Nome: pergunta.Texto})
 	case teclado.Prompt:
 		m.enviar(protocolo.TipoPrompt, protocolo.Prompt{Celula: celula.ID, Texto: pergunta.Texto})
 	case teclado.BuscarTermo:
@@ -515,6 +550,14 @@ func (m *Modelo) rolar(msg tea.MouseWheelMsg) tea.Cmd {
 	if foco == nil {
 		return nil
 	}
+	if m.selecao != nil {
+		// Rolar no meio do arrasto moveria o texto debaixo da marca. Depois de
+		// copiar, rolar apaga a marca: ela ficaria acesa em cima de outro texto.
+		if m.selecao.Arrastando {
+			return nil
+		}
+		m.selecao = nil
+	}
 	delta := 0
 	switch msg.Button {
 	case tea.MouseWheelUp:
@@ -526,6 +569,122 @@ func (m *Modelo) rolar(msg tea.MouseWheelMsg) tea.Cmd {
 	}
 	m.enviar(protocolo.TipoRolar, protocolo.Rolar{Celula: foco.ID, Delta: delta})
 	return nil
+}
+
+// comecarSelecao ancora a marca onde o botão desceu. Clicar numa célula também
+// é escolhê-la — menos em DIGITAR, onde trocar o dono do teclado sem pedir
+// seria surpresa.
+func (m *Modelo) comecarSelecao(botao tea.MouseButton, x, y int) {
+	if botao != tea.MouseLeft {
+		return
+	}
+	m.selecao = nil
+	id, cx, cy, achou := m.celulaSobOPonto(x, y)
+	if !achou {
+		return
+	}
+	if !m.digitando {
+		m.focarCelula(id)
+	} else if foco := m.celulaFocada(); foco == nil || foco.ID != id {
+		return
+	}
+	m.selecao = &Selecao{Celula: id, AncoraX: cx, AncoraY: cy, AtualX: cx, AtualY: cy, Arrastando: true}
+}
+
+// arrastarSelecao estica a marca até onde o mouse está, sem deixar ela sair da
+// célula onde começou.
+func (m *Modelo) arrastarSelecao(x, y int) {
+	if m.selecao == nil || !m.selecao.Arrastando {
+		return
+	}
+	area, tem := m.areasVisiveis()[m.selecao.Celula]
+	if !tem {
+		return
+	}
+	m.selecao.AtualX = min(max(x-area[0], 0), area[2]-1)
+	m.selecao.AtualY = min(max(y-area[1], 0), area[3]-1)
+}
+
+// copiarSelecao fecha o arrasto e manda o trecho para a área de transferência
+// do terminal. A marca continua acesa: ela é o recibo do que foi copiado.
+func (m *Modelo) copiarSelecao() tea.Cmd {
+	if m.selecao == nil {
+		return nil
+	}
+	m.selecao.Arrastando = false
+	if m.selecao.Vazia() {
+		// Descer e subir no mesmo lugar é clique, não marca: escolher a célula
+		// não pode trocar o que o usuário tinha copiado antes.
+		m.selecao = nil
+		return nil
+	}
+	texto := m.textoSelecionado()
+	if strings.TrimSpace(texto) == "" {
+		m.selecao = nil
+		return nil
+	}
+	return tea.SetClipboard(texto)
+}
+
+// textoSelecionado tira do retrato o que está debaixo da marca.
+func (m *Modelo) textoSelecionado() string {
+	if m.selecao == nil {
+		return ""
+	}
+	miolo, tem := m.miolosVisiveis()[m.selecao.Celula]
+	if !tem {
+		return ""
+	}
+	celula := m.celulaPorID(m.selecao.Celula)
+	if celula == nil {
+		return ""
+	}
+	return m.selecao.Texto(celula.Linhas, miolo.Colunas)
+}
+
+// areasVisiveis é onde cada célula à vista está na tela — origem e tamanho do
+// miolo. É o que o mouse precisa para saber em quem ele tocou.
+func (m *Modelo) areasVisiveis() map[string][4]int {
+	areas := map[string][4]int{}
+	for id, miolo := range m.miolosVisiveis() {
+		if x, y, tem := m.origemDaCelula(id); tem {
+			areas[id] = [4]int{x, y, miolo.Colunas, miolo.Linhas}
+		}
+	}
+	return areas
+}
+
+// celulaSobOPonto diz qual célula está debaixo do ponto da tela, e onde o ponto
+// cai dentro do miolo dela.
+func (m *Modelo) celulaSobOPonto(x, y int) (id string, cx, cy int, achou bool) {
+	for celula, area := range m.areasVisiveis() {
+		if x >= area[0] && x < area[0]+area[2] && y >= area[1] && y < area[1]+area[3] {
+			return celula, x - area[0], y - area[1], true
+		}
+	}
+	return "", 0, 0, false
+}
+
+func (m *Modelo) celulaPorID(id string) *protocolo.Celula {
+	for i, projeto := range m.estado.Projetos {
+		for j, celula := range projeto.Celulas {
+			if celula.ID == id {
+				return &m.estado.Projetos[i].Celulas[j]
+			}
+		}
+	}
+	return nil
+}
+
+func (m *Modelo) focarCelula(id string) {
+	for i, projeto := range m.estado.Projetos {
+		for j, celula := range projeto.Celulas {
+			if celula.ID == id {
+				m.foco.Projeto, m.foco.Celula = i, j
+				return
+			}
+		}
+	}
 }
 
 func (m *Modelo) View() tea.View {
@@ -542,11 +701,18 @@ func (m *Modelo) View() tea.View {
 	}
 
 	modo := m.Modo()
+	estado := m.estado
+	if m.selecao != nil {
+		if miolo, tem := m.miolosVisiveis()[m.selecao.Celula]; tem {
+			estado = comSelecao(estado, *m.selecao, miolo.Colunas)
+		}
+	}
+
 	var fundo string
 	if m.mostrandoMosaico() {
-		fundo = Desenhar(m.estado, m.foco, modo, m.largura, m.altura, erro)
+		fundo = Desenhar(estado, m.foco, modo, m.largura, m.altura, erro)
 	} else {
-		fundo = DesenharLista(m.estado, m.foco, modo, m.largura, m.altura, erro)
+		fundo = DesenharLista(estado, m.foco, modo, m.largura, m.altura, erro)
 	}
 
 	switch {
