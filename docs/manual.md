@@ -88,6 +88,10 @@ os serviços ficam verdes um a um em vez de tudo mudar de uma vez no fim.
 
 ## Os dois modos
 
+<p align="center">
+  <img src="img/digitar.svg" alt="O modo DIGITAR: a tela apaga, o selo aparece e só a célula com o teclado fica acesa" width="1000">
+</p>
+
 Por padrão você está em **NAVEGAR**: toda tecla é do aplicativo.
 
 `↵` entra em **DIGITAR**: toda tecla é da célula, **sem nenhuma exceção**. Nem `q`, nem `D`,

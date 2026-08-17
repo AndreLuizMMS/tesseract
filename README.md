@@ -16,24 +16,9 @@ aba, sem alternar, sem descobrir tarde demais que um deles está travado esperan
 Por baixo, um motor que é serviço da sua conta: você fecha a tela e o trabalho continua, a
 máquina reinicia e a grade volta nas mesmas posições, com as conversas reatadas.
 
-```
- ⧉ TESSERACT   ⬤ 1   ⏵ 1                                NAVEGAR
-━━ DOXAR-API  /home/dev/doxar-api ─────────────────────────────────────────────────────────────────────────── ⬤1  ● 4/5
-┌  claude  cursor  bash  refatora auth ─────── ⬤ RESPONDEU ┐┌  claude  cursor  bash  testes ──────────── ▸ TRABALHANDO ┐
-│Movi a validação de token                                 ││$ go test ./...                                           │
-│pro guard.                                                ││ok                                                        │
-│Qual você prefere?                                        ││                                                          │
-└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
-── CORTZ-WEB  /home/dev/cortz-web ────────────────────────────────────────────────────────────────────────────────── ⏵1
-┌  claude  cursor  bash  fix nav ─────────────────────────────────────────────────────────────────────────── ⏵ APROVAR ┐
-│posso mexer no Header?                                                                                                │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-── API-LEGADO  /home/dev/api-legado ────────────────────────────────────────────────────────────────────────────────────
-┌ md · spec-m7.md ─────────────────────────────────────────────────────────────────────────────────────────── ○ PARADA ┐
-│# Módulo 7                                                                                                            │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- ←→ célula   ↑↓ projeto   tab aba   ↵ digitar   v lista   n criar   d docker   ? ajuda
-```
+<p align="center">
+  <img src="docs/img/mosaico.svg" alt="O mosaico do Tesseract: três projetos, cinco células, uma travada esperando aprovação" width="1000">
+</p>
 
 `⬤ respondeu` tem algo para ler. `⏵ aprovar` **não anda** sem você — e é o único sinal que
 vira barra sólida na linha inteira, piscando, porque urgência aqui é área preenchida, não
