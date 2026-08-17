@@ -255,6 +255,12 @@ func Desenhar(estado protocolo.Estado, foco Foco, modo teclado.Modo, largura, al
 func divisoriaDoProjeto(projeto protocolo.Projeto, largura int, modo teclado.Modo, focado bool) string {
 	pintarNome := corProjeto(projeto.Cor).Bold(focado)
 	pintarTraco := corBorda
+	if focado {
+		pintarTraco = corGradeAtiva
+	}
+	if !focado {
+		pintarNome = corApagada
+	}
 	if modo == teclado.Digitar {
 		pintarNome, pintarTraco = corApagada, corApagada
 	}
@@ -354,10 +360,10 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	marcador := marcadorDe(celula.Estado)
 	rotulo := " " + rotuloDaCelula(celula) + " "
 	estado := " " + marcador.simbolo + " " + strings.ToUpper(celula.Estado) + " "
-	pintarEstado := marcador.cor
+	pintarEstado := marcador.selo()
 	if !celula.AoVivo {
 		estado = " ▲ " + strconv.Itoa(celula.Rolagem) + " "
-		pintarEstado = corRolagem
+		pintarEstado = chip(corRolagem)
 	}
 
 	miolo := max(largura-2, 1)
@@ -378,17 +384,30 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	case !focada:
 		pintarNome = corBarra
 	}
+
+	// Urgência é área preenchida, não matiz: a célula que trava o trabalho
+	// vira uma barra sólida invertida na linha inteira do cabeçalho. Só as
+	// laterais ficam de fora, e a célula que está com o teclado escapa —
+	// lá o verde manda.
+	pintarTopo := pintarQuadro
+	if marcador.bloqueia && celula.AoVivo && !(focada && modo == teclado.Digitar) {
+		pintarTopo, pintarNome, pintarEstado = marcador.cor, marcador.cor, marcador.cor
+	}
+
 	linhas := []string{
-		pintarQuadro.Render(traco[0]) +
+		pintarTopo.Render(traco[0]) +
 			pintarNome.Render(rotulo) +
-			pintarQuadro.Render(strings.Repeat(traco[4], enfeite)) +
+			pintarTopo.Render(strings.Repeat(traco[4], enfeite)) +
 			pintarEstado.Render(estado) +
-			pintarQuadro.Render(traco[1]),
+			pintarTopo.Render(traco[1]),
 	}
 	for i := range max(altura-2, 0) {
 		conteudo := ""
 		if i < len(celula.Linhas) {
 			conteudo = celula.Linhas[i]
+			if !focada {
+				conteudo = apagar(conteudo)
+			}
 		}
 		linhas = append(linhas, pintarQuadro.Render(traco[5])+preencher(conteudo, miolo)+pintarQuadro.Render(traco[5]))
 	}

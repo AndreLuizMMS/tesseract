@@ -10,39 +10,42 @@ import (
 
 	"github.com/andreluiz/tesseract/internal/protocolo"
 	"github.com/andreluiz/tesseract/internal/teclado"
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
-// Em DIGITAR o aplicativo fica mudo e mostra que está mudo: barra e tiras
-// apagam, o selo aparece e a borda da célula focada engrossa.
+// Nenhuma cor é escolhida aqui: todas vêm de internal/tema, que é o único
+// lugar do projeto onde existe hex. Em DIGITAR o aplicativo fica mudo e mostra
+// que está mudo: barra e tiras apagam, o selo aparece e a borda da célula
+// focada engrossa.
 var (
-	corApagada     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	corBarra       = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	corSelo        = lipgloss.NewStyle().Foreground(lipgloss.Color("232")).Background(lipgloss.Color("214")).Bold(true)
-	corTitulo      = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
-	corBorda       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	corBordaFocada = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	corRolagem     = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	// Em DIGITAR a célula que tem o teclado fica verde: é o quarto sinal do
-	// modo, e o único aceso na tela.
-	corDigitando = lipgloss.NewStyle().Foreground(lipgloss.Color(corDigitandoNumero))
-	corErro      = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	corQuota     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	corQuotaAlta = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	corApagada     = tema.Pintar(tema.FgFaint, "")
+	corBarra       = tema.Pintar(tema.FgDefault, "")
+	corSelo        = tema.Pintar(tema.BgVoid, tema.StateBlock).Bold(true)
+	corTitulo      = tema.Pintar(tema.FgBright, "").Bold(true)
+	corBorda       = tema.Pintar(tema.LineDim, "")
+	corBordaFocada = tema.Pintar(tema.BrandLive, "").Bold(true)
+	corRolagem     = tema.Pintar(tema.StateBlock, "")
+	// Em DIGITAR a célula que tem o teclado fica verde phosphor: é o quarto
+	// sinal do modo, e o único aceso na tela. É o único lugar do aplicativo
+	// que usa essa cor — uma vez por tela, sempre.
+	corDigitando = tema.Pintar(tema.BrandPhosphor, "")
+	corErro      = tema.Pintar(tema.StateDead, "")
+	corQuota     = tema.Pintar(tema.FgMuted, "")
+	corQuotaAlta = tema.Pintar(tema.StateBlock, "")
+	// corGradeAtiva é a tira do projeto que está com o foco.
+	corGradeAtiva = tema.Pintar(tema.LineActive, "")
 )
-
-// corDigitandoNumero é o verde do modo DIGITAR, num lugar só para o teste
-// poder cobrar a cor.
-const corDigitandoNumero = "42"
 
 // paletaDeProjetos dá a cada coluna uma cor própria, para o olho achar o
-// projeto sem ler o nome.
+// projeto sem ler o nome. Sem verde: verde é posse do teclado, e um projeto
+// verde competiria com a célula que está digitando.
 var paletaDeProjetos = []lipgloss.Style{
-	lipgloss.NewStyle().Foreground(lipgloss.Color("39")),
-	lipgloss.NewStyle().Foreground(lipgloss.Color("141")),
-	lipgloss.NewStyle().Foreground(lipgloss.Color("42")),
-	lipgloss.NewStyle().Foreground(lipgloss.Color("214")),
-	lipgloss.NewStyle().Foreground(lipgloss.Color("205")),
-	lipgloss.NewStyle().Foreground(lipgloss.Color("80")),
+	tema.Pintar(tema.StateRead, ""),
+	tema.Pintar(tema.StateOrphan, ""),
+	tema.Pintar(tema.Flux, ""),
+	tema.Pintar(tema.StateBlock, ""),
+	tema.Pintar(tema.CorAnsiMagenta, ""),
+	tema.Pintar(tema.CorAnsiAmarelo, ""),
 }
 
 func corProjeto(cor int) lipgloss.Style {
@@ -55,16 +58,41 @@ func corProjeto(cor int) lipgloss.Style {
 type marcador struct {
 	simbolo string
 	cor     lipgloss.Style
+	// bloqueia marca o estado que não anda sem você. Ele não muda de matiz
+	// para chamar atenção: muda de área, virando barra sólida invertida.
+	bloqueia bool
 }
 
-// marcadores traduz o estado da célula no símbolo e na cor do marcador.
+// marcadores traduz o estado da célula no símbolo e na cor do marcador. As
+// cores saem todas de tema.Do — nenhum estado é verde ou ciano, porque esses
+// dois significam posse do teclado e estrutura.
 var marcadores = map[string]marcador{
-	"trabalhando": {"▸", lipgloss.NewStyle().Foreground(lipgloss.Color("39"))},
-	"respondeu":   {"⬤", lipgloss.NewStyle().Foreground(lipgloss.Color("42"))},
-	"aprovar":     {"⏵", lipgloss.NewStyle().Foreground(lipgloss.Color("214"))},
-	"caiu":        {"✖", lipgloss.NewStyle().Foreground(lipgloss.Color("203"))},
-	"parada":      {"○", lipgloss.NewStyle().Foreground(lipgloss.Color("244"))},
-	"orfa":        {"⚠", lipgloss.NewStyle().Foreground(lipgloss.Color("208"))},
+	"trabalhando": deTema(tema.Trabalhando),
+	"respondeu":   deTema(tema.Respondeu),
+	"aprovar":     deTema(tema.Aprovar),
+	"caiu":        deTema(tema.Caiu),
+	"parada":      deTema(tema.Parada),
+	"orfa":        deTema(tema.Orfa),
+}
+
+func deTema(estado tema.Estado) marcador {
+	m := tema.Do(estado)
+	return marcador{simbolo: m.Glifo, cor: m.Estilo(), bloqueia: m.Invertido}
+}
+
+// chip transforma uma cor de texto no selo preenchido do estado da célula: o
+// mesmo fundo elevado para todo estado, negrito, só a cor do texto muda.
+func chip(cor lipgloss.Style) lipgloss.Style {
+	return tema.Sobre(cor, tema.BgRaised).Bold(true)
+}
+
+// selo é como o marcador aparece na borda da célula. O estado que bloqueia já
+// vem invertido do tema e não ganha o fundo do chip: ele é a área preenchida.
+func (m marcador) selo() lipgloss.Style {
+	if m.bloqueia {
+		return m.cor
+	}
+	return chip(m.cor)
 }
 
 func marcadorDe(estado string) marcador {
@@ -249,6 +277,31 @@ func cortar(texto string, largura int) string {
 		visivel++
 	}
 	return saida.String()
+}
+
+// apagar tira a cor do conteúdo e devolve a linha inteira em cinza. É o que
+// faz só a célula focada ficar acesa: com muitas seções na tela, a cor vira
+// ruído se todas gritam ao mesmo tempo.
+func apagar(texto string) string {
+	var saida strings.Builder
+	dentroDoCodigo := false
+	for _, r := range texto {
+		if r == 0x1b {
+			dentroDoCodigo = true
+			continue
+		}
+		if dentroDoCodigo {
+			if r >= 0x40 && r <= 0x7e && r != '[' {
+				dentroDoCodigo = false
+			}
+			continue
+		}
+		saida.WriteRune(r)
+	}
+	if saida.Len() == 0 {
+		return ""
+	}
+	return corApagada.Render(saida.String())
 }
 
 // lar é o diretório da conta, lido uma vez só.

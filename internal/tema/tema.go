@@ -69,6 +69,17 @@ const (
 	StateOrphan  = "#C77DFF" // ⚠ órfã
 )
 
+// As quatro cores da ANSI 16 que não têm papel próprio na paleta. Existem
+// para o punhado de lugares que precisa de mais matizes distintas do que os
+// papéis oferecem — a faixa de cor dos projetos, por exemplo — sem cair no
+// verde nem no ciano, que têm dono.
+const (
+	CorAnsiVermelho = "#C22F38" // ANSI 1
+	CorAnsiAmarelo  = "#C9A227" // ANSI 3
+	CorAnsiAzul     = "#3E7FA8" // ANSI 4
+	CorAnsiMagenta  = "#8B4FC4" // ANSI 5
+)
+
 // Glifo de um caractere da marca. O símbolo cheio 7×5 mora no README.
 const Glifo = "⧉"
 
@@ -118,6 +129,11 @@ var ansi16 = map[string]string{
 	StateBlock:  "11",
 	StateDead:   "9",
 	StateOrphan: "13",
+
+	CorAnsiVermelho: "1",
+	CorAnsiAmarelo:  "3",
+	CorAnsiAzul:     "4",
+	CorAnsiMagenta:  "5",
 }
 
 // Atual é o perfil em vigor. É variável para o teste poder fixá-lo.
@@ -130,16 +146,16 @@ func Detectar() Perfil {
 		return SemCor
 	}
 	term := os.Getenv("TERM")
-	if term == "" || term == "dumb" {
+	if term == "dumb" {
 		return SemCor
 	}
-	if os.Getenv("COLORTERM") == "truecolor" || os.Getenv("COLORTERM") == "24bit" {
-		return CorTotal
+	if strings.Contains(term, "16color") {
+		return Cores16
 	}
-	if strings.Contains(term, "256color") || strings.Contains(term, "direct") {
-		return CorTotal
-	}
-	return Cores16
+	// Fora esses dois casos declarados, o tema entrega a cor cheia e deixa o
+	// lipgloss rebaixar para o que o terminal aguenta — ele já sabe fazer
+	// isso, e adivinhar aqui só criaria uma segunda verdade.
+	return CorTotal
 }
 
 // Pintar devolve o estilo com frente e fundo já resolvidos para o perfil
@@ -165,6 +181,19 @@ func Pintar(frente, fundo string) lipgloss.Style {
 		}
 	}
 	return e
+}
+
+// Sobre acrescenta um fundo a um estilo que já veio pintado. Sem cor, devolve
+// o estilo como está — fundo pintado não sobrevive a NO_COLOR.
+func Sobre(e lipgloss.Style, fundo string) lipgloss.Style {
+	switch Atual {
+	case SemCor:
+		return e
+	case Cores16:
+		return e.Background(lipgloss.Color(ansi16[fundo]))
+	default:
+		return e.Background(lipgloss.Color(fundo))
+	}
 }
 
 // ---------------------------------------------------------------------------

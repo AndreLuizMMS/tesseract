@@ -247,7 +247,10 @@ func TestCelulaFicaVerdeAoDigitar(t *testing.T) {
 	comTeclado := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Digitar, 120, 30, "")
 	semTeclado := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 120, 30, "")
 
-	if !strings.Contains(comTeclado, "38;5;"+corDigitandoNumero) {
+	// O escape sai do próprio estilo, e não de um número escrito à mão: o
+	// tema pode rebaixar a cor conforme o terminal, e o teste continua valendo.
+	if prefixo := strings.SplitN(corDigitando.Render("x"), "x", 2)[0]; prefixo != "" &&
+		!strings.Contains(comTeclado, prefixo) {
 		t.Error("a célula focada devia ficar verde em DIGITAR")
 	}
 	if strings.Contains(semTeclado, "┏") {
@@ -326,5 +329,24 @@ func TestOrigemDoCursorCaiDentroDaCelula(t *testing.T) {
 	}
 	if !strings.Contains(linhas[y-1], "testes") {
 		t.Fatalf("a linha acima da origem devia ser a borda da célula, veio %q", linhas[y-1])
+	}
+}
+
+// TestCelulaNaoFocadaPerdeACor: durante a navegação só a célula selecionada
+// fica acesa; o resto vira cinza para o olho achar onde está.
+func TestCelulaNaoFocadaPerdeACor(t *testing.T) {
+	celula := protocolo.Celula{
+		ID: "c1", Tipo: "claude", Nome: "um", Estado: "parada",
+		AoVivo: true, Linhas: []string{"\x1b[31mvermelho\x1b[0m"},
+	}
+	if focada := strings.Join(caixaDaCelula(celula, teclado.Navegar, true, 30, 4), ""); !strings.Contains(focada, "\x1b[31m") {
+		t.Fatal("a célula focada tinha que manter a cor do conteúdo")
+	}
+	apagada := strings.Join(caixaDaCelula(celula, teclado.Navegar, false, 30, 4), "")
+	if strings.Contains(apagada, "\x1b[31m") {
+		t.Fatal("a célula não focada tinha que sair sem a cor do conteúdo")
+	}
+	if !strings.Contains(historico.LimparCodigos(apagada), "vermelho") {
+		t.Fatal("apagar a cor não pode comer o texto")
 	}
 }
