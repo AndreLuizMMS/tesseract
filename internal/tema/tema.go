@@ -109,33 +109,42 @@ var mascaraDoSimbolo = []string{
 	" cccccc",
 }
 
-// SimboloPintado é a marca 7×5 já colorida: quadrado de trás em flux, o da
-// frente em brand.core, a tessera em brand.phosphor. Sem cor, devolve o
-// desenho puro — ele foi feito para ler sem cor nenhuma.
+// CorDoSimbolo é o estilo do caractere do símbolo naquela posição: o quadrado
+// de trás em flux, o da frente em brand.core, a tessera em brand.phosphor. A
+// segunda devolutiva diz se ali há desenho — posição vazia não se pinta.
+func CorDoSimbolo(linha, coluna int) (lipgloss.Style, bool) {
+	if linha < 0 || linha >= len(mascaraDoSimbolo) {
+		return lipgloss.NewStyle(), false
+	}
+	mascara := []rune(mascaraDoSimbolo[linha])
+	if coluna < 0 || coluna >= len(mascara) {
+		return lipgloss.NewStyle(), false
+	}
+	switch mascara[coluna] {
+	case 'v':
+		return Pintar(BrandCore, ""), true
+	case 'c':
+		return Pintar(Flux, ""), true
+	case 'f':
+		return Pintar(BrandPhosphor, "").Bold(true), true
+	}
+	return lipgloss.NewStyle(), false
+}
+
+// SimboloPintado é a marca 7×5 já colorida. Sem cor, devolve o desenho puro —
+// ele foi feito para ler sem cor nenhuma.
 func SimboloPintado() []string {
 	if Atual == SemCor {
 		return append([]string(nil), Simbolo...)
 	}
-	verde := Pintar(BrandCore, "")
-	ciano := Pintar(Flux, "")
-	fosforo := Pintar(BrandPhosphor, "").Bold(true)
-
 	linhas := make([]string, len(Simbolo))
 	for i, linha := range Simbolo {
-		mascara := []rune(mascaraDoSimbolo[i])
 		var saida strings.Builder
 		for j, r := range []rune(linha) {
-			pintar := ciano
-			if j < len(mascara) {
-				switch mascara[j] {
-				case 'v':
-					pintar = verde
-				case 'f':
-					pintar = fosforo
-				case ' ':
-					saida.WriteRune(r)
-					continue
-				}
+			pintar, tem := CorDoSimbolo(i, j)
+			if !tem {
+				saida.WriteRune(r)
+				continue
 			}
 			saida.WriteString(pintar.Render(string(r)))
 		}
