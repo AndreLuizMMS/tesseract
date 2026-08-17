@@ -9,6 +9,7 @@ import (
 
 	"github.com/andreluiz/tesseract/internal/protocolo"
 	"github.com/andreluiz/tesseract/internal/teclado"
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
 // linhasPorGiro é quanto a roda do mouse anda de cada vez.
@@ -691,6 +692,13 @@ func (m *Modelo) View() tea.View {
 	vista := tea.NewView("")
 	vista.AltScreen = true
 	vista.MouseMode = tea.MouseModeCellMotion
+	// O Tesseract manda no fundo do terminal enquanto está aberto, e devolve
+	// ao sair. Sem isso o mosaico herda o fundo de quem chamou, e o preto do
+	// tema aparece só por baixo do que o próprio aplicativo pinta — o resto,
+	// inclusive a saída dos agentes, fica com o fundo de fora.
+	vista.BackgroundColor = tema.FundoDaTela()
+	vista.ForegroundColor = tema.FrenteDaTela()
+	vista.WindowTitle = tema.Glifo + " Tesseract"
 	if m.largura == 0 || m.altura == 0 {
 		return vista
 	}

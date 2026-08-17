@@ -183,6 +183,24 @@ func Pintar(frente, fundo string) lipgloss.Style {
 	return e
 }
 
+// FundoDaTela e FrenteDaTela são o fundo e o texto que o aplicativo impõe ao
+// terminal enquanto está aberto. O fundo é o BgVoid — o mais fundo da paleta —
+// porque a grade só lê bem quando o preto atrás dela é mesmo preto. Com
+// NO_COLOR nada é imposto: devolvem nil, e o terminal fica como estava.
+func FundoDaTela() color.Color {
+	if Atual == SemCor {
+		return nil
+	}
+	return cor(BgVoid)
+}
+
+func FrenteDaTela() color.Color {
+	if Atual == SemCor {
+		return nil
+	}
+	return cor(FgDefault)
+}
+
 // Sobre acrescenta um fundo a um estilo que já veio pintado. Sem cor, devolve
 // o estilo como está — fundo pintado não sobrevive a NO_COLOR.
 func Sobre(e lipgloss.Style, fundo string) lipgloss.Style {
