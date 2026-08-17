@@ -132,33 +132,36 @@ func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quot
 		nome, pintarNome, pintarSinais = "tesseract", corApagada, corApagada
 	}
 
-	// A marca fica na tela o tempo todo, à esquerda do nome, em ciano: é
-	// estrutura, e é o único lugar em que ela aparece.
-	esquerda := " " + corMarca(modo).Render(tema.Glifo) + " " + pintarNome.Render(nome)
+	// A marca fica no meio do topo, o tempo inteiro: é o eixo da tela, e é para
+	// lá que o olho volta entre uma célula e outra. O glifo em ciano, porque é
+	// estrutura.
+	meio := corMarca(modo).Render(tema.Glifo) + " " + pintarNome.Render(nome)
+
+	// À esquerda, quem está chamando você — a única informação da barra que
+	// pede ação.
 	var sinais []string
 	for _, estado := range []string{"respondeu", "aprovar"} {
 		if chamados[estado] > 0 {
 			sinais = append(sinais, marcadorDe(estado).simbolo+" "+strconv.Itoa(chamados[estado]))
 		}
 	}
+	esquerda := ""
 	if len(sinais) > 0 {
-		esquerda += "   " + pintarSinais.Render(strings.Join(sinais, "   "))
+		esquerda = " " + pintarSinais.Render(strings.Join(sinais, "   "))
 	}
 
-	meio := pintarSinais.Render(modo.String())
-	direita := ""
-	if quota != nil && modo != teclado.Digitar {
+	// À direita, o estado da janela: a quota e de quem é o teclado. O canto
+	// superior direito é onde o olho procura isso, e é lá que mora o único
+	// selo invertido que pode estar visível de cada vez.
+	direita := pintarSinais.Render(modo.String())
+	if modo == teclado.Digitar {
+		direita = corSelo.Render(" ▓ DIGITAR ▓ ")
+	} else if quota != nil {
 		pintar := corQuota
 		if quota.Percentual >= 80 {
 			pintar = corQuotaAlta
 		}
-		direita = pintar.Render("⏳ " + strconv.Itoa(quota.Percentual) + "% " + quota.Vira)
-	}
-	// O selo do modo mora no canto superior direito, sozinho: é o único selo
-	// invertido que pode estar visível de cada vez, e o canto é onde o olho
-	// procura estado de janela.
-	if modo == teclado.Digitar {
-		meio, direita = "", corSelo.Render(" ▓ DIGITAR ▓ ")
+		direita = pintar.Render("⏳ "+strconv.Itoa(quota.Percentual)+"% "+quota.Vira) + "   " + direita
 	}
 	return tresPartes(esquerda, meio, direita, largura)
 }

@@ -1,4 +1,4 @@
- ⧉ TESSERACT   ⬤ 1   ⏵ 1                                NAVEGAR
+ ⬤ 1   ⏵ 1                                            ⧉ TESSERACT                                               NAVEGAR
 ┌──────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────┐
 │ DOXAR-API …/dev/doxar-api    │ sessao · testes                                                                       │
 │  ⬤ sessao refatora auth      │                                                                                       │

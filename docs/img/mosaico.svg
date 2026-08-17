@@ -1645,11 +1645,11 @@
   <rect x="998.8" y="412.5" width="4.9" height="1.3" fill="#128c86"/>
   <rect x="1002.4" y="404.1" width="1.3" height="9.7" fill="#128c86"/>
   <g font-family="ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace" font-size="14.0" xml:space="preserve">
-    <text x="24.4" y="22.0" xml:space="preserve" fill="#22e0d0">⧉</text>
-    <text x="41.2 49.6 58.0 66.4 74.8 83.2 91.6 100.0 108.4" y="22.0" xml:space="preserve" fill="#e8f4ec" font-weight="700">TESSERACT</text>
-    <text x="142.0 150.4 158.8 167.2 175.6 184.0 192.4 200.8 209.2" y="22.0" xml:space="preserve" fill="#bfd1c6">⬤ 1   ⏵ 1</text>
-    <text x="478.0 486.4 494.8 503.2 511.6 520.0 528.4" y="22.0" xml:space="preserve" fill="#bfd1c6">NAVEGAR</text>
-    <text x="906.4 914.8 923.2 931.6 940.0 948.4 956.8 965.2 973.6 982.0" y="22.0" xml:space="preserve" fill="#6c8076">⏳ 21% 3:12</text>
+    <text x="24.4 32.8 41.2 49.6 58.0 66.4 74.8 83.2 91.6" y="22.0" xml:space="preserve" fill="#bfd1c6">⬤ 1   ⏵ 1</text>
+    <text x="461.2" y="22.0" xml:space="preserve" fill="#22e0d0">⧉</text>
+    <text x="478.0 486.4 494.8 503.2 511.6 520.0 528.4 536.8 545.2" y="22.0" xml:space="preserve" fill="#e8f4ec" font-weight="700">TESSERACT</text>
+    <text x="822.4 830.8 839.2 847.6 856.0 864.4 872.8 881.2 889.6 898.0" y="22.0" xml:space="preserve" fill="#6c8076">⏳ 21% 3:12</text>
+    <text x="931.6 940.0 948.4 956.8 965.2 973.6 982.0" y="22.0" xml:space="preserve" fill="#bfd1c6">NAVEGAR</text>
     <text x="41.2 49.6 58.0 66.4 74.8 83.2 91.6 100.0 108.4" y="40.0" xml:space="preserve" fill="#e8f4ec" font-weight="700">DOXAR-API</text>
     <text x="133.6 142.0 150.4 158.8 167.2 175.6 184.0 192.4 200.8 209.2 217.6 226.0 234.4 242.8 251.2 259.6 268.0 276.4 284.8" y="40.0" xml:space="preserve" fill="#3e534e">/home/dev/doxar-api</text>
     <text x="923.2 931.6 940.0 948.4 956.8 965.2 973.6 982.0 990.4" y="40.0" xml:space="preserve" fill="#205047">⬤1  ● 4/5</text>
