@@ -45,13 +45,14 @@ type projeto struct {
 }
 
 type celulaViva struct {
-	id       string
-	tipo     string
-	nome     string
-	alvo     string
-	conversa string
-	viva     celula.Celula
-	registro *historico.Historico
+	id        string
+	tipo      string
+	nome      string
+	alvo      string
+	aba       string
+	conversas map[string]string
+	viva      celula.Celula
+	registro  *historico.Historico
 	// ultimoEstado é o que o vigia viu da última vez, para notificar só a
 	// mudança e não o estado parado.
 	ultimoEstado celula.Estado
@@ -93,11 +94,19 @@ func (m *Motor) Iniciar() error {
 		}
 		for _, celulaSalva := range salvo.Celulas {
 			c := &celulaViva{
-				id:       celulaSalva.ID,
-				tipo:     celulaSalva.Tipo,
-				nome:     celulaSalva.Nome,
-				alvo:     celulaSalva.Alvo,
-				conversa: celulaSalva.Conversa,
+				id:        celulaSalva.ID,
+				tipo:      celulaSalva.Tipo,
+				nome:      celulaSalva.Nome,
+				alvo:      celulaSalva.Alvo,
+				aba:       celulaSalva.Aba,
+				conversas: map[string]string{},
+			}
+			for aba, conversa := range celulaSalva.Conversas {
+				c.conversas[aba] = conversa
+			}
+			// Estado escrito antes das abas guardava uma conversa só.
+			if celulaSalva.Conversa != "" && len(c.conversas) == 0 {
+				c.conversas[celulaSalva.Tipo] = celulaSalva.Conversa
 			}
 			if c.id == "" {
 				c.id = novaIdentidade()
@@ -127,8 +136,11 @@ func (m *Motor) acordar(p *projeto, c *celulaViva) error {
 	c.viva = nova
 	c.ultimoEstado = celula.Trabalhando
 
-	perfil := m.config.Agentes[c.tipo]
 	idCelula := c.id
+	conversas := map[string]string{}
+	for aba, conversa := range c.conversas {
+		conversas[aba] = conversa
+	}
 	return nova.Nascer(celula.Config{
 		ID:        c.id,
 		Diretorio: p.caminho,
@@ -139,33 +151,60 @@ func (m *Motor) acordar(p *projeto, c *celulaViva) error {
 		Linhas:    24,
 		Avisar:    m.marcarSujo,
 
-		Conversa: c.conversa,
+		Aba:       c.aba,
+		Conversa:  conversas[c.tipo],
+		Conversas: conversas,
 		// Fora da linha: quem chama isto pode ser o próprio nascimento da
 		// célula, que já está com o cadeado do motor na mão.
-		AoDescobrirConversa: func(id string) { go m.guardarConversa(idCelula, id) },
+		AoDescobrirConversa: func(aba, id string) { go m.guardarConversa(idCelula, aba, id) },
 
-		Programa:        perfil.Programa,
-		Args:            perfil.Args,
-		ComandoRenomear: perfil.ComandoRenomear,
-		Marcadores: celula.Marcadores{
-			Trabalho: perfil.MarcadoresTrabalho,
-			Pergunta: perfil.MarcadoresPergunta,
+		Perfis: m.perfis(),
+		AbrirHistorico: func(sufixo string) (*historico.Historico, error) {
+			return historico.Abrir(CaminhoHistorico(m.dirEstado, idCelula+"-"+sufixo), m.config.TetoHistorico)
 		},
 	})
 }
 
+// perfis traduz a configuração do usuário no que as células entendem.
+func (m *Motor) perfis() map[string]celula.Perfil {
+	perfis := map[string]celula.Perfil{}
+	for tipo, perfil := range m.config.Agentes {
+		perfis[tipo] = celula.Perfil{
+			Programa:        perfil.Programa,
+			Args:            perfil.Args,
+			ComandoRenomear: perfil.ComandoRenomear,
+			Marcadores: celula.Marcadores{
+				Trabalho: perfil.MarcadoresTrabalho,
+				Pergunta: perfil.MarcadoresPergunta,
+			},
+		}
+	}
+	return perfis
+}
+
 // guardarConversa anota a identidade da conversa que o agente abriu, para ele
-// poder ser reatado depois de uma queda.
-func (m *Motor) guardarConversa(idCelula, conversa string) {
+// poder ser reatado depois de uma queda. Numa célula com abas, cada aba tem a
+// sua.
+func (m *Motor) guardarConversa(idCelula, aba, conversa string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, p := range m.projetos {
 		for _, c := range p.celulas {
-			if c.id == idCelula && c.conversa != conversa {
-				c.conversa = conversa
-				m.salvar()
+			if c.id != idCelula {
+				continue
+			}
+			if aba == "" {
+				aba = c.tipo
+			}
+			if c.conversas == nil {
+				c.conversas = map[string]string{}
+			}
+			if c.conversas[aba] == conversa {
 				return
 			}
+			c.conversas[aba] = conversa
+			m.salvar()
+			return
 		}
 	}
 }
@@ -177,9 +216,7 @@ func (m *Motor) Criar(pedido protocolo.Criar) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if pedido.Tipo == "" {
-		return "", fmt.Errorf("a célula precisa de um tipo")
-	}
+	pedido.Tipo = tipoPedido(pedido)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -191,10 +228,11 @@ func (m *Motor) Criar(pedido protocolo.Criar) (string, error) {
 	}
 
 	c := &celulaViva{
-		id:   novaIdentidade(),
-		tipo: pedido.Tipo,
-		nome: strings.TrimSpace(pedido.Nome),
-		alvo: pedido.Alvo,
+		id:        novaIdentidade(),
+		tipo:      pedido.Tipo,
+		nome:      strings.TrimSpace(pedido.Nome),
+		alvo:      pedido.Alvo,
+		conversas: map[string]string{},
 	}
 	if c.nome == "" {
 		c.nome = nomeAutomatico(p, pedido.Tipo)
@@ -214,6 +252,20 @@ func (m *Motor) Criar(pedido protocolo.Criar) (string, error) {
 	m.salvar()
 	m.marcarSujo()
 	return c.id, nil
+}
+
+// tipoPedido decide o que nasce quando o pedido não diz o tipo: um arquivo de
+// markdown vira célula de leitura, e o resto vira sessão — que já traz os
+// agentes por dentro, sem obrigar ninguém a escolher na hora de criar.
+func tipoPedido(pedido protocolo.Criar) string {
+	if pedido.Tipo != "" {
+		return pedido.Tipo
+	}
+	alvo := strings.ToLower(strings.TrimSpace(pedido.Alvo))
+	if strings.HasSuffix(alvo, ".md") || strings.HasSuffix(alvo, ".markdown") {
+		return "md"
+	}
+	return "sessao"
 }
 
 // Matar remove a célula. Se for a última do projeto, o projeto sai da tela — e
@@ -304,10 +356,21 @@ func (m *Motor) Rolar(idCelula string, delta int, aoVivo bool) error {
 // Buscar procura um termo no histórico da célula.
 func (m *Motor) Buscar(idCelula, termo string) ([]historico.Ocorrencia, error) {
 	c := m.acharCelula(idCelula)
-	if c == nil || c.registro == nil {
+	if c == nil {
 		return nil, fmt.Errorf("célula %s não existe", idCelula)
 	}
-	return c.registro.Buscar(termo)
+	return m.registroDe(c).Buscar(termo)
+}
+
+// registroDe é o histórico que a busca e a rolagem devem olhar: numa célula com
+// abas, o da aba que está aparecendo.
+func (m *Motor) registroDe(c *celulaViva) *historico.Historico {
+	if comHistorico, tem := c.viva.(celula.ComHistorico); tem {
+		if registro := comHistorico.HistoricoAtivo(); registro != nil {
+			return registro
+		}
+	}
+	return c.registro
 }
 
 // Renomear troca o rótulo da célula. Nome é rótulo: não mexe em processo,
@@ -354,6 +417,10 @@ func (m *Motor) Retrato() protocolo.Estado {
 				Nome:   c.nome,
 				Estado: string(celula.Parada),
 				AoVivo: true,
+			}
+			if comAbas, tem := c.viva.(celula.ComAbas); tem {
+				retratoCelula.Abas = comAbas.Abas()
+				retratoCelula.Aba = comAbas.AbaAtiva()
 			}
 			if c.viva != nil {
 				quadro := c.viva.Desenhar()
@@ -472,9 +539,11 @@ func (m *Motor) salvar() {
 	for _, p := range m.projetos {
 		salvo := ProjetoSalvo{ID: p.id, Caminho: p.caminho, Cor: p.cor}
 		for _, c := range p.celulas {
-			salvo.Celulas = append(salvo.Celulas, CelulaSalva{
-				ID: c.id, Tipo: c.tipo, Nome: c.nome, Alvo: c.alvo, Conversa: c.conversa,
-			})
+			guardada := CelulaSalva{ID: c.id, Tipo: c.tipo, Nome: c.nome, Alvo: c.alvo, Aba: c.aba}
+			if len(c.conversas) > 0 {
+				guardada.Conversas = c.conversas
+			}
+			salvo.Celulas = append(salvo.Celulas, guardada)
 		}
 		estado.Projetos = append(estado.Projetos, salvo)
 	}

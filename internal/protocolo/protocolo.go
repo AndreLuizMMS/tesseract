@@ -16,6 +16,7 @@ const (
 	TipoRenomear    = "renomear"
 	TipoAdotar      = "adotar"
 	TipoRetomar     = "retomar"
+	TipoAba         = "aba"
 	TipoPrompt      = "prompt"
 	TipoCompletar   = "completar"
 	TipoTela        = "tela"
@@ -85,6 +86,13 @@ type Renomear struct {
 // Adotar puxa para a célula o nome que o agente deu à conversa.
 type Adotar struct {
 	Celula string `json:"celula"`
+}
+
+// Aba troca a aba ativa de uma célula que tem várias. Passo positivo anda para
+// a direita.
+type Aba struct {
+	Celula string `json:"celula"`
+	Passo  int    `json:"passo"`
 }
 
 // Retomar sobe de novo uma célula parada ou caída.
@@ -202,6 +210,10 @@ type Celula struct {
 	CursorY int      `json:"cursorY"`
 	Rolagem int      `json:"rolagem"`
 	AoVivo  bool     `json:"aoVivo"`
+	// Abas e Aba existem nas células que têm mais de um agente por dentro. A
+	// tela desenha as abas no lugar do tipo.
+	Abas []string `json:"abas,omitempty"`
+	Aba  string   `json:"aba,omitempty"`
 }
 
 // Projeto é uma coluna do mosaico.

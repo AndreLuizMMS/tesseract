@@ -12,11 +12,16 @@ import (
 // CelulaSalva é a intenção guardada de uma célula: o que ela é, não o processo
 // que ela estava rodando. O processo morre; isto fica.
 type CelulaSalva struct {
-	ID       string `json:"id"`
-	Tipo     string `json:"tipo"`
-	Nome     string `json:"nome"`
-	Alvo     string `json:"alvo,omitempty"`
-	Conversa string `json:"conversa,omitempty"`
+	ID   string `json:"id"`
+	Tipo string `json:"tipo"`
+	Nome string `json:"nome"`
+	Alvo string `json:"alvo,omitempty"`
+	// Aba é qual aba estava aparecendo, nas células que têm várias.
+	Aba string `json:"aba,omitempty"`
+	// Conversas é a identidade da conversa de cada aba, para reatar sem perder
+	// nada. Conversa é o formato antigo, de quando a célula tinha uma só.
+	Conversas map[string]string `json:"conversas,omitempty"`
+	Conversa  string            `json:"conversa,omitempty"`
 }
 
 // ProjetoSalvo é uma coluna do mosaico guardada em disco.

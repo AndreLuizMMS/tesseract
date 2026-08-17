@@ -41,6 +41,28 @@ func (m *Motor) Retomar(idCelula string) error {
 	return fmt.Errorf("célula %s não existe", idCelula)
 }
 
+// TrocarAba anda para a aba do lado dentro da célula. É o que permite uma
+// sessão ter claude, cursor e shell sem escolher nada na criação.
+func (m *Motor) TrocarAba(idCelula string, passo int) error {
+	c := m.acharCelula(idCelula)
+	if c == nil || c.viva == nil {
+		return fmt.Errorf("célula %s não existe", idCelula)
+	}
+	comAbas, tem := c.viva.(celula.ComAbas)
+	if !tem {
+		return fmt.Errorf("a célula %s não tem abas", c.nome)
+	}
+	if err := comAbas.TrocarAba(passo); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	c.aba = comAbas.AbaAtiva()
+	m.salvar()
+	m.mu.Unlock()
+	m.marcarSujo()
+	return nil
+}
+
 // Prompt manda trabalho para a célula sem o usuário entrar nela.
 func (m *Motor) Prompt(idCelula, texto string) error {
 	c := m.acharCelula(idCelula)
@@ -124,10 +146,10 @@ func (m *Motor) AbrirNoEditor(idProjeto string) error {
 // busca termina.
 func (m *Motor) IrParaLinha(idCelula string, linha int) error {
 	c := m.acharCelula(idCelula)
-	if c == nil || c.viva == nil || c.registro == nil {
+	if c == nil || c.viva == nil {
 		return fmt.Errorf("célula %s não existe", idCelula)
 	}
-	total, err := c.registro.Linhas()
+	total, err := m.registroDe(c).Linhas()
 	if err != nil {
 		return err
 	}

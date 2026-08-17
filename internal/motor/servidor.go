@@ -193,6 +193,14 @@ func (s *Servidor) atenderPedido(envelope protocolo.Mensagem, responder func(str
 		}
 		falhou(s.motor.AdotarNomeDoAgente(pedido.Celula))
 
+	case protocolo.TipoAba:
+		pedido, err := protocolo.Desempacotar[protocolo.Aba](envelope)
+		if err != nil {
+			falhou(err)
+			return
+		}
+		falhou(s.motor.TrocarAba(pedido.Celula, pedido.Passo))
+
 	case protocolo.TipoRetomar:
 		pedido, err := protocolo.Desempacotar[protocolo.Retomar](envelope)
 		if err != nil {

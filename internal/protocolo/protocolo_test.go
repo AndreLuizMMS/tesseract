@@ -26,6 +26,7 @@ func casos() []caso {
 		{"renomear", TipoRenomear, Renomear{Celula: "c1", Nome: "fix nav"}, func() any { return new(Renomear) }},
 		{"adotar", TipoAdotar, Adotar{Celula: "c1"}, func() any { return new(Adotar) }},
 		{"retomar", TipoRetomar, Retomar{Celula: "c1"}, func() any { return new(Retomar) }},
+		{"aba", TipoAba, Aba{Celula: "c1", Passo: 1}, func() any { return new(Aba) }},
 		{"prompt", TipoPrompt, Prompt{Celula: "c1", Texto: "cobre o menu mobile"}, func() any { return new(Prompt) }},
 		{"completar", TipoCompletar, Completar{Caminho: "~/dev/cor", SoDiretorio: true}, func() any { return new(Completar) }},
 		{"completado", TipoCompletado, Completado{Caminho: "/home/a/dev/cortz", Quantidade: 3}, func() any { return new(Completado) }},
@@ -55,6 +56,7 @@ func casos() []caso {
 					ID: "c1", Tipo: "bash", Nome: "testes", Estado: "trabalhando",
 					Linhas: []string{"$ pnpm test", "  ok"}, CursorX: 2, CursorY: 1,
 					Rolagem: 4, AoVivo: false,
+					Abas: []string{"claude", "cursor", "bash"}, Aba: "claude",
 				}},
 			}},
 		}, func() any { return new(Estado) }},
@@ -104,7 +106,7 @@ func TestIdaEVolta(t *testing.T) {
 func TestTodoTipoTemCaso(t *testing.T) {
 	todos := []string{
 		TipoTecla, TipoTamanho, TipoRolar, TipoCriar, TipoMatar, TipoRenomear,
-		TipoAdotar, TipoRetomar, TipoPrompt, TipoCompletar, TipoTela, TipoBuscar,
+		TipoAdotar, TipoRetomar, TipoAba, TipoPrompt, TipoCompletar, TipoTela, TipoBuscar,
 		TipoDocker, TipoEditor, TipoIrParaLinha, TipoStatus, TipoParar, TipoEstado, TipoCompletado,
 		TipoAchados, TipoServicos, TipoResumo, TipoErro,
 	}

@@ -105,9 +105,9 @@ func TestReconstituirReataAMesmaConversa(t *testing.T) {
 	if err != nil {
 		t.Fatalf("carregar: %v", err)
 	}
-	conversa := salvo.Projetos[0].Celulas[0].Conversa
+	conversa := salvo.Projetos[0].Celulas[0].Conversas["claude"]
 	if conversa == "" {
-		t.Fatal("a identidade da conversa não foi guardada")
+		t.Fatalf("a identidade da conversa não foi guardada: %#v", salvo.Projetos[0].Celulas[0])
 	}
 
 	segundo := Novo(dirEstado, configComAgenteDeMentira(programa))
@@ -121,8 +121,8 @@ func TestReconstituirReataAMesmaConversa(t *testing.T) {
 	if err != nil {
 		t.Fatalf("carregar: %v", err)
 	}
-	if depois.Projetos[0].Celulas[0].Conversa != conversa {
-		t.Fatalf("a conversa mudou na reconstituição: %q → %q", conversa, depois.Projetos[0].Celulas[0].Conversa)
+	if depois.Projetos[0].Celulas[0].Conversas["claude"] != conversa {
+		t.Fatalf("a conversa mudou na reconstituição: %q → %q", conversa, depois.Projetos[0].Celulas[0].Conversas["claude"])
 	}
 }
 
