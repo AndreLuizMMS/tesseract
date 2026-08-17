@@ -79,7 +79,7 @@ func linhasDoIndice(estado protocolo.Estado, foco Foco, altura int) []string {
 				linhaDoFoco = len(linhas)
 			}
 			marcador := marcadorDe(celula.Estado)
-			linhas = append(linhas, marca+marcador.cor.Render(marcador.simbolo)+" "+
+			linhas = append(linhas, marca+marcador.cor().Render(marcador.simbolo)+" "+
 				corBarra.Render(preencher(celula.Tipo, 7))+corApagada.Render(cortar(celula.Nome, larguraDoIndice-13)))
 		}
 		if projeto.TemCompose {

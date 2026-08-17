@@ -24,6 +24,16 @@ const cadenciaDoGiro = 120 * time.Millisecond
 // ficando verdes na tela, em vez de tudo mudar de uma vez no fim.
 const giroPorConferida = 10
 
+// A barra do estado que bloqueia pisca a cada 2 segundos: 1,8s acesa, 200ms
+// apagada. É o quarto sinal de "aprovar", junto da forma, da área e do vídeo
+// invertido — e é o único movimento do aplicativo. O relógio só existe
+// enquanto há célula travada; sem nenhuma, ele para e a tela volta a ficar
+// parada.
+const (
+	avisoAceso   = 1800 * time.Millisecond
+	avisoApagado = 200 * time.Millisecond
+)
+
 const (
 	visaoMosaico = "mosaico"
 	visaoLista   = "lista"
@@ -43,6 +53,9 @@ type morreuMotor struct{}
 
 // tiqueDoPainel move o desenho de trabalho em andamento do painel Docker.
 type tiqueDoPainel struct{ contagem int }
+
+// tiqueDoAviso vira o quadro da barra do estado que bloqueia.
+type tiqueDoAviso struct{}
 
 // Modelo é a tela. Ela guarda o que o motor mandou desenhar, o modo do teclado
 // e onde está o foco — nenhuma regra de negócio mora aqui.
@@ -66,6 +79,36 @@ type Modelo struct {
 	ajuda           bool
 	achados         *protocolo.Achados
 	achadoEscolhido int
+	// piscando evita dois relógios da barra de aviso ao mesmo tempo.
+	piscando bool
+}
+
+// piscarOAviso agenda o próximo quadro da barra do estado que bloqueia, e
+// devolve nada quando não há o que piscar — é assim que o relógio para
+// sozinho.
+func (m *Modelo) piscarOAviso() tea.Cmd {
+	if !tema.PiscaLigado() || !m.temCelulaTravada() {
+		m.piscando, tema.Apagado = false, false
+		return nil
+	}
+	m.piscando = true
+	espera := avisoAceso
+	if tema.Apagado {
+		espera = avisoApagado
+	}
+	return tea.Tick(espera, func(time.Time) tea.Msg { return tiqueDoAviso{} })
+}
+
+// temCelulaTravada diz se alguma célula da grade está esperando você.
+func (m *Modelo) temCelulaTravada() bool {
+	for _, projeto := range m.estado.Projetos {
+		for _, celula := range projeto.Celulas {
+			if celula.Estado == "aprovar" && celula.AoVivo {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // NovoModelo prepara a tela ligada a um motor já conectado, partindo do
@@ -118,7 +161,9 @@ func (m *Modelo) Ouvir(programa *tea.Program) {
 	}()
 }
 
-func (m *Modelo) Init() tea.Cmd { return nil }
+// Init liga o relógio da barra de aviso quando a grade já abre com alguma
+// célula travada — o caso de quem fechou a tela e voltou depois.
+func (m *Modelo) Init() tea.Cmd { return m.piscarOAviso() }
 
 func (m *Modelo) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -130,6 +175,9 @@ func (m *Modelo) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.estado = protocolo.Estado(msg)
 		m.foco = Ajustar(m.estado, m.foco)
 		m.avisarTamanhos()
+		if !m.piscando {
+			return m, m.piscarOAviso()
+		}
 
 	case chegouCompletado:
 		if m.formulario != nil {
@@ -153,6 +201,10 @@ func (m *Modelo) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tiqueDoPainel:
 		return m, m.girarOPainel(msg)
+
+	case tiqueDoAviso:
+		tema.Apagado = !tema.Apagado
+		return m, m.piscarOAviso()
 
 	case tea.MouseWheelMsg:
 		return m, m.rolar(msg)
@@ -698,7 +750,7 @@ func (m *Modelo) View() tea.View {
 	// inclusive a saída dos agentes, fica com o fundo de fora.
 	vista.BackgroundColor = tema.FundoDaTela()
 	vista.ForegroundColor = tema.FrenteDaTela()
-	vista.WindowTitle = tema.Glifo + " Tesseract"
+	vista.WindowTitle = m.tituloDaJanela()
 	if m.largura == 0 || m.altura == 0 {
 		return vista
 	}
@@ -747,6 +799,16 @@ func (m *Modelo) View() tea.View {
 		}
 	}
 	return vista
+}
+
+// tituloDaJanela põe a marca na aba do terminal e diz onde o teclado está.
+// Quem passa o dia com a janela minimizada vê o Tesseract mesmo assim.
+func (m *Modelo) tituloDaJanela() string {
+	projeto, celula := m.focoAtual()
+	if projeto == nil || celula == nil {
+		return tema.Glifo + " ts"
+	}
+	return tema.Glifo + " ts — " + projeto.Nome + "/" + celula.Nome
 }
 
 func (m *Modelo) mostrandoMosaico() bool { return m.visao != visaoLista }

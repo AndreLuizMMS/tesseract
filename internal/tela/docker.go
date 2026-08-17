@@ -154,7 +154,7 @@ func (p *PainelDocker) Desenhar(largura int) []string {
 		}
 		bolinha, pintar := "○", corApagada
 		if strings.HasPrefix(servico.Estado, "up") {
-			bolinha, pintar = "●", marcadorDe("respondeu").cor
+			bolinha, pintar = "●", marcadorDe("respondeu").cor()
 		}
 		corpo = append(corpo, marca+
 			corBarra.Render(preencher(servico.Nome, 14))+

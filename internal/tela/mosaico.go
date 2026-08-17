@@ -369,7 +369,7 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	miolo := max(largura-2, 1)
 	enfeite := miolo - lipgloss.Width(rotulo) - lipgloss.Width(estado)
 	if enfeite < 0 {
-		estado, pintarEstado = " "+marcador.simbolo+" ", marcador.cor
+		estado, pintarEstado = " "+marcador.simbolo+" ", marcador.cor()
 		enfeite = miolo - lipgloss.Width(rotulo) - lipgloss.Width(estado)
 	}
 	if enfeite < 0 {
@@ -391,7 +391,8 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	// lá o verde manda.
 	pintarTopo := pintarQuadro
 	if marcador.bloqueia && celula.AoVivo && !(focada && modo == teclado.Digitar) {
-		pintarTopo, pintarNome, pintarEstado = marcador.cor, marcador.cor, marcador.cor
+		barra := marcador.cor()
+		pintarTopo, pintarNome, pintarEstado = barra, barra, barra
 	}
 
 	linhas := []string{

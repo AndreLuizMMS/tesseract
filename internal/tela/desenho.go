@@ -18,11 +18,14 @@ import (
 // que está mudo: barra e tiras apagam, o selo aparece e a borda da célula
 // focada engrossa.
 var (
-	corApagada     = tema.Pintar(tema.FgFaint, "")
-	corBarra       = tema.Pintar(tema.FgDefault, "")
-	corSelo        = tema.Pintar(tema.BgVoid, tema.StateBlock).Bold(true)
-	corTitulo      = tema.Pintar(tema.FgBright, "").Bold(true)
-	corBorda       = tema.Pintar(tema.LineDim, "")
+	corApagada = tema.Pintar(tema.FgFaint, "")
+	corBarra   = tema.Pintar(tema.FgDefault, "")
+	corSelo    = tema.Pintar(tema.BgVoid, tema.StateBlock).Bold(true)
+	corTitulo  = tema.Pintar(tema.FgBright, "").Bold(true)
+	// A grade das células é ciano: estrutura. É o segundo quadrado do símbolo
+	// desenhado na tela inteira, e é metade da identidade — em cinza ela some
+	// e o Tesseract vira mais um painel escuro.
+	corBorda       = tema.Pintar(tema.FluxCore, "")
 	corBordaFocada = tema.Pintar(tema.BrandLive, "").Bold(true)
 	corRolagem     = tema.Pintar(tema.StateBlock, "")
 	// Em DIGITAR a célula que tem o teclado fica verde phosphor: é o quarto
@@ -36,23 +39,24 @@ var (
 	corGradeAtiva = tema.Pintar(tema.LineActive, "")
 )
 
-// corProjeto é o nome do projeto na tira. Um ciano só para todos: o nome do
-// projeto é estrutura, não decoração. Uma cor por projeto virava arco-íris na
-// tela e brigava com o único sinal que precisa gritar — a célula que está com
-// o teclado. Quem separa um projeto do outro é a tira, o nome e a posição.
+// corProjeto é o nome do projeto na tira: caixa alta em fg.bright, o topo da
+// hierarquia de texto. Uma cor por projeto virava arco-íris e brigava com o
+// único sinal que precisa gritar — a célula que está com o teclado. Quem
+// separa um projeto do outro é a tira, o nome e a posição, não o matiz.
 func corProjeto(int) lipgloss.Style {
-	return tema.Pintar(tema.FluxCore, "")
+	return tema.Pintar(tema.FgBright, "")
 }
 
 type marcador struct {
 	simbolo string
-	cor     lipgloss.Style
+	estado  tema.Estado
 	// bloqueia marca o estado que não anda sem você. Ele não muda de matiz
-	// para chamar atenção: muda de área, virando barra sólida invertida.
+	// para chamar atenção: muda de área, virando barra sólida invertida — e é
+	// o único que pisca.
 	bloqueia bool
 }
 
-// marcadores traduz o estado da célula no símbolo e na cor do marcador. As
+// marcadores traduz o estado da célula no símbolo e no estado do tema. As
 // cores saem todas de tema.Do — nenhum estado é verde ou ciano, porque esses
 // dois significam posse do teclado e estrutura.
 var marcadores = map[string]marcador{
@@ -66,8 +70,13 @@ var marcadores = map[string]marcador{
 
 func deTema(estado tema.Estado) marcador {
 	m := tema.Do(estado)
-	return marcador{simbolo: m.Glifo, cor: m.Estilo(), bloqueia: m.Invertido}
+	return marcador{simbolo: m.Glifo, estado: estado, bloqueia: m.Invertido}
 }
+
+// cor pergunta ao tema a cada quadro, em vez de guardar o estilo pronto: a
+// barra que pisca muda de aparência entre um desenho e o outro, e um estilo
+// congelado no início do programa nunca piscaria.
+func (m marcador) cor() lipgloss.Style { return tema.Do(m.estado).Estilo() }
 
 // chip transforma uma cor de texto no selo preenchido do estado da célula: o
 // mesmo fundo elevado para todo estado, negrito, só a cor do texto muda.
@@ -79,9 +88,9 @@ func chip(cor lipgloss.Style) lipgloss.Style {
 // vem invertido do tema e não ganha o fundo do chip: ele é a área preenchida.
 func (m marcador) selo() lipgloss.Style {
 	if m.bloqueia {
-		return m.cor
+		return m.cor()
 	}
-	return chip(m.cor)
+	return chip(m.cor())
 }
 
 func marcadorDe(estado string) marcador {
@@ -137,10 +146,6 @@ func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quot
 	}
 
 	meio := pintarSinais.Render(modo.String())
-	if modo == teclado.Digitar {
-		meio = corSelo.Render(" ▓ DIGITAR ▓ ")
-	}
-
 	direita := ""
 	if quota != nil && modo != teclado.Digitar {
 		pintar := corQuota
@@ -148,6 +153,12 @@ func barraDeTitulo(modo teclado.Modo, largura int, chamados map[string]int, quot
 			pintar = corQuotaAlta
 		}
 		direita = pintar.Render("⏳ " + strconv.Itoa(quota.Percentual) + "% " + quota.Vira)
+	}
+	// O selo do modo mora no canto superior direito, sozinho: é o único selo
+	// invertido que pode estar visível de cada vez, e o canto é onde o olho
+	// procura estado de janela.
+	if modo == teclado.Digitar {
+		meio, direita = "", corSelo.Render(" ▓ DIGITAR ▓ ")
 	}
 	return tresPartes(esquerda, meio, direita, largura)
 }
@@ -178,10 +189,15 @@ func telaVazia(modo teclado.Modo, largura, altura int, erro, aviso string) strin
 	if aviso != "" {
 		recado = aviso
 	}
+	// A grade vazia é o único momento em que a marca cabe inteira na tela sem
+	// roubar espaço de trabalho. Todo estado vazio termina numa tecla.
+	miolo := append(tema.SimboloPintado(), "", corApagada.Render(recado))
+
 	corpo := max(altura-2, 1)
+	topo := max((corpo-len(miolo))/2, 0)
 	for i := range corpo {
-		if i == corpo/2 {
-			linhas = append(linhas, preencher(centralizarEm(corApagada.Render(recado), largura), largura))
+		if i >= topo && i-topo < len(miolo) {
+			linhas = append(linhas, preencher(centralizarEm(miolo[i-topo], largura), largura))
 			continue
 		}
 		linhas = append(linhas, strings.Repeat(" ", largura))

@@ -13,6 +13,7 @@ import (
 	"github.com/andreluiz/tesseract/internal/motor/historico"
 	"github.com/andreluiz/tesseract/internal/protocolo"
 	"github.com/andreluiz/tesseract/internal/teclado"
+	"github.com/andreluiz/tesseract/internal/tema"
 )
 
 var atualizarGolden = flag.Bool("atualizar", false, "regrava os arquivos de referência do desenho")
@@ -348,5 +349,66 @@ func TestCelulaNaoFocadaPerdeACor(t *testing.T) {
 	}
 	if !strings.Contains(historico.LimparCodigos(apagada), "vermelho") {
 		t.Fatal("apagar a cor não pode comer o texto")
+	}
+}
+
+// TestSeloDoModoFicaNoCantoDireito — só um selo invertido visível por vez, e
+// ele mora onde o olho procura estado de janela.
+func TestSeloDoModoFicaNoCantoDireito(t *testing.T) {
+	estado := gradeDeTeste()
+	linha := semEstilo(Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Digitar, 120, 30, ""))
+	primeira := strings.SplitN(linha, "\n", 2)[0]
+
+	selo := strings.Index(primeira, "▓ DIGITAR ▓")
+	if selo < 0 {
+		t.Fatalf("o selo do modo sumiu da barra: %q", primeira)
+	}
+	if selo < len([]rune(primeira))/2 {
+		t.Fatalf("o selo devia estar na metade direita da barra, e está na coluna %d de %d", selo, len(primeira))
+	}
+}
+
+// TestBarraDeAvisoSoPiscaComCelulaTravada — o relógio existe enquanto alguém
+// espera você, e para sozinho quando ninguém mais espera.
+func TestBarraDeAvisoSoPiscaComCelulaTravada(t *testing.T) {
+	m := &Modelo{estado: gradeDeTeste()}
+	if !m.temCelulaTravada() {
+		t.Fatal("a grade de teste tem uma célula em aprovar")
+	}
+	if m.piscarOAviso() == nil {
+		t.Fatal("com célula travada o relógio devia começar")
+	}
+
+	for i := range m.estado.Projetos {
+		for j := range m.estado.Projetos[i].Celulas {
+			m.estado.Projetos[i].Celulas[j].Estado = "parada"
+		}
+	}
+	if m.piscarOAviso() != nil {
+		t.Fatal("sem célula travada o relógio devia parar")
+	}
+	if m.piscando {
+		t.Fatal("o relógio parado não pode ficar marcado como ligado")
+	}
+}
+
+// TestBarraDeAvisoMudaEntreOsQuadros — o teste que pega o estilo congelado: se
+// o marcador guardar a cor pronta em vez de perguntar ao tema, os dois quadros
+// saem idênticos e a barra nunca pisca na tela de verdade.
+func TestBarraDeAvisoMudaEntreOsQuadros(t *testing.T) {
+	antes := tema.Apagado
+	defer func() { tema.Apagado = antes }()
+
+	estado := gradeDeTeste()
+	tema.Apagado = false
+	aceso := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 120, 30, "")
+	tema.Apagado = true
+	apagado := Desenhar(estado, Foco{Projeto: 0, Celula: 0}, teclado.Navegar, 120, 30, "")
+
+	if aceso == apagado {
+		t.Fatal("o quadro apagado devia desenhar diferente do aceso")
+	}
+	if semEstilo(aceso) != semEstilo(apagado) {
+		t.Fatal("a piscada é só de cor: o texto da tela não pode mudar")
 	}
 }
