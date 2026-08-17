@@ -29,23 +29,24 @@ type Cursor struct {
 }
 
 func (c *Cursor) Nascer(cfg Config) error {
-	programa := cfg.Programa
+	perfil := cfg.Perfis["cursor"]
+	programa := perfil.Programa
 	if programa == "" {
 		programa = "cursor-agent"
 	}
-	c.comandoRenomear = cfg.ComandoRenomear
+	c.comandoRenomear = perfil.ComandoRenomear
 	if c.comandoRenomear == "" {
 		c.comandoRenomear = "/rename-chat"
 	}
 	c.lerNome = nomeDaConversaDoCursor
 	c.acharConversa = conversaNovaDoCursor
 
-	args := append([]string{}, cfg.Args...)
+	args := append([]string{}, perfil.Args...)
 	// Mesma regra do Claude: só retoma o que existe no disco do agente.
 	if cfg.Conversa != "" && temConversaDoCursor(cfg.Conversa) {
 		args = append(args, "--resume", cfg.Conversa)
 	}
-	return c.nascer(cfg, programa, args, marcadoresDoCursor)
+	return c.nascer(cfg, perfil, programa, args, marcadoresDoCursor)
 }
 
 // temConversaDoCursor diz se a conversa ainda existe no disco do agente.

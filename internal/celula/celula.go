@@ -54,13 +54,26 @@ type Config struct {
 	Linhas    int                  // altura da área reservada pela tela
 	Avisar    func()               // chamado quando a célula tem algo novo para mostrar
 
-	// Conversa é a identidade da conversa a reatar. Vazia, o agente começa
-	// uma nova e avisa qual é por AoDescobrirConversa.
+	// Conversa é a identidade da conversa a reatar. Vazia, o agente começa uma
+	// nova e avisa qual é por AoDescobrirConversa. Numa célula com abas, cada
+	// aba tem a sua.
 	Conversa            string
-	AoDescobrirConversa func(id string)
+	Conversas           map[string]string
+	AoDescobrirConversa func(aba, id string)
 
-	// Perfil do agente, quando o tipo é de agente. Vazio, o tipo usa o seu
-	// padrão.
+	// Aba é qual aba nasce ativa numa célula que tem várias.
+	Aba string
+
+	// Perfis é como cada tipo de agente sobe nesta máquina. A célula procura o
+	// perfil do próprio tipo; a que tem abas procura o de cada aba.
+	Perfis map[string]Perfil
+
+	// AbrirHistorico serve às células com abas: cada aba tem o seu arquivo.
+	AbrirHistorico func(sufixo string) (*historico.Historico, error)
+}
+
+// Perfil é como um tipo de agente sobe nesta máquina.
+type Perfil struct {
 	Programa        string
 	Args            []string
 	ComandoRenomear string
@@ -83,6 +96,19 @@ type Quadro struct {
 	CursorY int
 	Rolagem int  // quantas linhas acima do vivo a leitura está
 	AoVivo  bool // falso quando o usuário rolou para trás
+}
+
+// ComAbas é a célula que tem mais de um agente por dentro e troca entre eles.
+type ComAbas interface {
+	Abas() []string
+	AbaAtiva() string
+	TrocarAba(passo int) error
+}
+
+// ComHistorico é a célula que guarda mais de um histórico por dentro e sabe
+// qual deles a busca deve olhar.
+type ComHistorico interface {
+	HistoricoAtivo() *historico.Historico
 }
 
 // Celula é o contrato. Um tipo declara quatro coisas: como nasce, como se

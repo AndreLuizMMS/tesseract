@@ -39,11 +39,12 @@ type Claude struct {
 }
 
 func (c *Claude) Nascer(cfg Config) error {
-	programa := cfg.Programa
+	perfil := cfg.Perfis["claude"]
+	programa := perfil.Programa
 	if programa == "" {
 		programa = "claude"
 	}
-	c.comandoRenomear = cfg.ComandoRenomear
+	c.comandoRenomear = perfil.ComandoRenomear
 	if c.comandoRenomear == "" {
 		c.comandoRenomear = "/rename"
 	}
@@ -51,11 +52,11 @@ func (c *Claude) Nascer(cfg Config) error {
 
 	// A conversa tem identidade própria: com ela o agente reata de onde parou
 	// depois de uma queda da WSL, e é por ela que o nome da conversa é lido.
-	args := append([]string{}, cfg.Args...)
+	args := append([]string{}, perfil.Args...)
 	if cfg.Conversa == "" {
 		cfg.Conversa = novaIdentidadeDeConversa()
 		if cfg.AoDescobrirConversa != nil {
-			cfg.AoDescobrirConversa(cfg.Conversa)
+			cfg.AoDescobrirConversa(cfg.Aba, cfg.Conversa)
 		}
 	}
 	// Retomar só vale se a conversa chegou a existir em disco. Uma célula que
@@ -68,7 +69,7 @@ func (c *Claude) Nascer(cfg Config) error {
 		args = append(args, "--session-id", cfg.Conversa)
 	}
 
-	return c.nascer(cfg, programa, args, marcadoresDoClaude)
+	return c.nascer(cfg, perfil, programa, args, marcadoresDoClaude)
 }
 
 // temTranscricao diz se a conversa já existe no disco do agente.

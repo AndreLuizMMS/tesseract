@@ -16,10 +16,14 @@ func prepararTipo(t *testing.T, tipo, dir string) Config {
 	cfg := Config{ID: "c-" + tipo, Diretorio: dir, Nome: tipo, Colunas: 60, Linhas: 12}
 
 	switch tipo {
-	case "claude", "cursor":
-		// Um agente de mentira, que aceita qualquer argumento e fica de pé: o
+	case "claude", "cursor", "sessao":
+		// Agentes de mentira, que aceitam qualquer argumento e ficam de pé: o
 		// contrato é da célula, não do agente.
-		cfg.Programa = agenteDeMentira(t, dir)
+		fingido := agenteDeMentira(t, dir)
+		cfg.Perfis = map[string]Perfil{
+			"claude": {Programa: fingido},
+			"cursor": {Programa: fingido},
+		}
 	case "logs":
 		compose := filepath.Join(dir, "docker-compose.yml")
 		if err := os.WriteFile(compose, []byte("services:\n  web:\n    image: nginx\n"), 0o644); err != nil {

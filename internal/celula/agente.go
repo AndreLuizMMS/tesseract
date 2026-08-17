@@ -50,14 +50,14 @@ type Agente struct {
 }
 
 // nascer sobe o agente e começa a acompanhar o turno dele.
-func (a *Agente) nascer(cfg Config, programa string, args []string, marcadores Marcadores) error {
+func (a *Agente) nascer(cfg Config, perfil Perfil, programa string, args []string, marcadores Marcadores) error {
 	// A configuração do usuário manda: ela existe para o dia em que o agente
 	// trocar o texto que escreve na própria tela.
-	if len(cfg.Marcadores.Trabalho) > 0 {
-		marcadores.Trabalho = cfg.Marcadores.Trabalho
+	if len(perfil.Marcadores.Trabalho) > 0 {
+		marcadores.Trabalho = perfil.Marcadores.Trabalho
 	}
-	if len(cfg.Marcadores.Pergunta) > 0 {
-		marcadores.Pergunta = cfg.Marcadores.Pergunta
+	if len(perfil.Marcadores.Pergunta) > 0 {
+		marcadores.Pergunta = perfil.Marcadores.Pergunta
 	}
 	a.turno = NovoTurno(marcadores)
 	a.conversa = cfg.Conversa
@@ -93,7 +93,7 @@ func (a *Agente) acompanharTurno() {
 				if achada := a.acharConversa(a.config.Diretorio, a.nascidoEm); achada != "" {
 					a.conversa = achada
 					if a.config.AoDescobrirConversa != nil {
-						a.config.AoDescobrirConversa(achada)
+						a.config.AoDescobrirConversa(a.config.Aba, achada)
 					}
 				}
 			}
@@ -126,6 +126,7 @@ func (a *Agente) Estados() []Estado {
 
 // Tecla marca a célula como lida: quem entrou nela já viu o que tinha para ver.
 func (a *Agente) Tecla(toque Toque) error {
+	a.turno.Interagir()
 	a.turno.Visto()
 	return a.Processo.Tecla(toque)
 }
@@ -136,6 +137,7 @@ func (a *Agente) Prompt(texto string) error {
 	if texto == "" {
 		return fmt.Errorf("o prompt está vazio")
 	}
+	a.turno.Interagir()
 	if err := a.Processo.Tecla(Toque{Colar: texto}); err != nil {
 		return err
 	}
