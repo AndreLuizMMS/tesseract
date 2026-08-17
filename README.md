@@ -5,23 +5,25 @@ Docker e arquivos markdown vivendo lado a lado, num painel só, com um motor que
 de pé quando você fecha a tela — e reconstrói tudo depois de um `wsl --shutdown`.
 
 ```
- TESSERACT   ⬤ 1   ⏵ 1                                  NAVEGAR              ⏳ 26% 2:30
-┌───────────────────────────────────────────────── DOXAR-API ──────────────────────────────────────────────────┬───┬───┐
-│┌ claude · refatora auth ─────────────────────────────────────────────────────────────────────── ⬤ RESPONDEU ┐│ C │ A │
-││Movi a validação de token                                                                                   ││ O │ P │
-││pro guard.                                                                                                  ││ R │ I │
-││Qual você prefere?                                                                                          ││ T │ - │
-││                                                                                                            ││ Z │ L │
-│└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘│ - │ E │
-│┌ bash · testes ────────────────────────────────────────────────────────────────────────────── ▸ TRABALHANDO ┐│ W │ G │
-││$ go test ./...                                                                                             ││ E │ A │
-││ok                                                                                                          ││ B │ D │
-│└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘│   │ O │
-│┌ logs · worker ────────────────────────────────────────────────────────────────────────────── ▸ TRABALHANDO ┐│ 1 │   │
-││worker-1  | processando fila…                                                                               ││⏵1 │ 1 │
-│└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘│   │   │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────┴───┴───┘
- ↑↓ célula   ←→ projeto   ↵ digitar   v lista   n criar   d docker   ? ajuda
+ TESSERACT   ⬤ 1   ⏵ 1                                  NAVEGAR
+━━ DOXAR-API  /home/dev/doxar-api ─────────────────────────────────────────────────────────────────────────── ⬤1  ● 4/5
+┌  claude  cursor  bash  refatora auth ─────── ⬤ RESPONDEU ┐┌  claude  cursor  bash  testes ──────────── ▸ TRABALHANDO ┐
+│Movi a validação de token                                 ││$ go test ./...                                           │
+│pro guard.                                                ││ok                                                        │
+│Qual você prefere?                                        ││                                                          │
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+── CORTZ-WEB  /home/dev/cortz-web ────────────────────────────────────────────────────────────────────────────────── ⏵1
+┌  claude  cursor  bash  fix nav ─────────────────────────────────────────────────────────────────────────── ⏵ APROVAR ┐
+│posso mexer no Header?                                                                                                │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+── API-LEGADO  /home/dev/api-legado ────────────────────────────────────────────────────────────────────────────────────
+┌ md · spec-m7.md ─────────────────────────────────────────────────────────────────────────────────────────── ○ PARADA ┐
+│# Módulo 7                                                                                                            │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓ célula   ←→ projeto   tab aba   ↵ digitar   v lista   n criar   d docker   ? ajuda
 ```
 
 ## O problema
@@ -33,10 +35,10 @@ tudo junto: os agentes, as conversas, o histórico.
 
 O Tesseract resolve os dois:
 
-- **Uma tela só.** Todos os projetos ao mesmo tempo, cada um numa coluna. A coluna do
-  projeto em foco fica larga e mostra o conteúdo vivo das células; as outras encolhem numa
-  tira que nunca some — nome na vertical, quantas células, quantas pedem atenção, estado
-  do Docker.
+- **Uma tela só.** Todas as células abertas ao mesmo tempo, de todos os projetos, cada uma
+  com o conteúdo vivo. O projeto é a divisão: uma faixa com o nome, o caminho, quantas
+  células pedem atenção e o estado da stack. As células de um projeto dividem a largura
+  entre si, e a tela se rearranja sozinha conforme quantas existem.
 - **Um motor que não morre com a tela.** Ele é um serviço da sua conta. Fecha a tela, o
   trabalho continua. A WSL cai, ele volta com o serviço e remonta a grade nas mesmas
   posições — com as conversas reatadas e **nenhum agente trabalhando sozinho**.
@@ -71,15 +73,17 @@ o projeto sair da tela não apaga, não move e não altera nada.
 
 ### Célula
 
-A unidade de trabalho. Cinco tipos, **uma regra só para todos**: a mesma tecla cria, mata,
-nomeia, foca e navega em qualquer um.
+A unidade de trabalho. **Uma regra só para todas**: a mesma tecla cria, mata, nomeia, foca
+e navega em qualquer uma.
+
+Criar não pergunta o que a célula vai ser. Uma **sessão** nasce com três abas por dentro —
+Claude Code, Cursor CLI e um shell, todas no diretório do projeto — e `tab` troca entre
+elas. Só a aba que você está usando tem processo: as outras sobem quando você chega nelas.
 
 | Tipo | O que é |
 |---|---|
-| `claude` | Claude Code no diretório do projeto |
-| `cursor` | Cursor CLI no diretório do projeto |
-| `bash` | shell no diretório do projeto |
-| `logs` | log ao vivo de um serviço do compose |
+| `sessao` | as abas `claude`, `cursor` e `bash` no diretório do projeto |
+| `logs` | log ao vivo de um serviço do compose, criado pelo painel Docker |
 | `md` | arquivo markdown renderizado, recarrega quando o disco muda |
 
 Cada célula tem um estado, e é ele que aparece no marcador:
@@ -102,9 +106,11 @@ silêncio antes de declarar o turno encerrado.
 
 ### Painel Docker
 
-Pertence ao **projeto**, não à célula. Existe quando há arquivo de compose na raiz. Lista os
-serviços com estado, porta, saúde e tempo de pé; sobe, para, reinicia e rebuilda serviço ou
-stack inteira; e transforma o log de um serviço numa célula do mosaico.
+Pertence ao **projeto**, não à célula. O arquivo de compose é procurado na raiz e nas
+pastas de primeiro nível — porque projeto de verdade guarda a stack em `docker/`, `infra/`
+e afins — e **arquivo de produção nunca é escolhido**. O painel lista os serviços com
+estado, porta, saúde e tempo de pé; sobe, para, reinicia e rebuilda serviço ou stack
+inteira; e transforma o log de um serviço numa célula do mosaico.
 
 **Nenhuma ação destrutiva existe aqui.** Não há `down -v`, não há apagar volume.
 
@@ -116,8 +122,8 @@ Por padrão você está em **NAVEGAR**: toda tecla é do aplicativo.
 nem `tab`, nem as setas. `ctrl-l` devolve o teclado.
 
 Nunca há dois donos do teclado ao mesmo tempo — então colisão de atalho é estruturalmente
-impossível. E o modo é impossível de errar: em DIGITAR a barra e as tiras apagam, aparece o
-selo `▓ DIGITAR ▓` e a borda da célula engrossa.
+impossível. E o modo é impossível de errar: em DIGITAR o resto da tela apaga, aparece o
+selo `▓ DIGITAR ▓`, e a célula que tem o teclado fica **verde e com a borda grossa**.
 
 ## Teclado
 
@@ -125,10 +131,11 @@ selo `▓ DIGITAR ▓` e a borda da célula engrossa.
 
 | Tecla | Ação |
 |---|---|
-| `↑` `↓` | célula anterior / próxima na coluna |
-| `←` `→` | projeto anterior / próximo (a coluna engorda) |
+| `↑` `↓` | célula anterior / próxima, atravessando projeto |
+| `←` `→` | projeto anterior / próximo |
 | `espaço` | pula para a próxima célula que pede atenção, atravessando projeto |
 | `1`…`9` | vai direto para o projeto N |
+| `tab` | troca a aba da célula: claude, cursor, shell (`shift-tab` volta) |
 
 **Teclado e tela**
 
@@ -143,7 +150,7 @@ selo `▓ DIGITAR ▓` e a borda da célula engrossa.
 
 | Tecla | Ação |
 |---|---|
-| `n` | criar — pede o projeto, depois a célula, num formulário só |
+| `n` | criar — um formulário só, que começa na sua casa e não pergunta o tipo |
 | `r` | retoma célula parada, ou sobe célula caída |
 | `D` | mata a célula focada — sempre confirma |
 | `R` | renomeia a célula **e propaga o nome para dentro do agente** |
@@ -179,8 +186,8 @@ reconstrói a grade:
 
 | Tipo | O que acontece |
 |---|---|
-| `claude` `cursor` | reata a conversa de onde parou e acorda **parado**. Nenhum prompt é disparado |
-| `bash` | shell novo e limpo; o histórico anterior fica rolável acima da linha de queda |
+| `sessao` | volta na mesma aba, com a conversa de cada agente reatada e **parada**. Nenhum prompt é disparado |
+| aba `bash` | shell novo e limpo; o histórico anterior fica rolável acima da linha de queda |
 | `logs` | volta a acompanhar o serviço; se a stack estiver parada, engata sozinha quando ele subir |
 | `md` | relê o arquivo |
 | Docker | **não sobe sozinho**. Subir stack é decisão sua |
@@ -229,7 +236,7 @@ Três regras duras, e cada uma tem um teste que quebra se ela for violada:
 1. **Tipo de célula é uma peça fechada.** Um tipo declara como nasce, como se desenha, o que
    faz com uma tecla e quais estados tem. Adicionar um tipo é escrever um arquivo em
    `internal/celula/` e uma linha no registro — o mosaico, a lista, os atalhos e o motor não
-   são tocados.
+   são tocados. A sessão com abas é só mais um tipo, feito dos outros.
 2. **Feature nova não ganha tecla nova.** O mapa de teclas mora num arquivo só. Um teste
    percorre o mapa inteiro e falha se a mesma tecla tiver dois significados no mesmo modo,
    se qualquer tecla ficar sem texto de ajuda, ou se alguma letra andar pela grade.
