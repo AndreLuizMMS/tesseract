@@ -89,8 +89,13 @@ processo: as outras sobem quando você chega nelas.
 
 A aba `md` abre numa lista de todo markdown do projeto, com uma **barra de busca no topo**.
 Entre em DIGITAR (`↵`), digite parte do nome para filtrar, `↑↓` escolhe e `↵` abre o
-arquivo renderizado. `esc` volta para a lista. O arquivo aberto recarrega sozinho quando o
-disco muda — dá para ver o agente escrevendo a spec ao lado.
+arquivo. `esc` volta para a lista. O arquivo aberto recarrega sozinho quando o disco muda —
+dá para ver o agente escrevendo a spec ao lado.
+
+O documento é desenhado **como página, não como saída de terminal**: medida de leitura
+fixa e centralizada, margem dos dois lados, título em faixa, seções com filete, citação
+com barra, tabela com régua fina e código em caixa própria. Linha de código mais larga que
+a página é **cortada com `›`**, nunca quebrada — diagrama partido no meio não se lê.
 
 Existem ainda duas células que não são sessão:
 
@@ -124,6 +129,9 @@ pastas de primeiro nível — porque projeto de verdade guarda a stack em `docke
 e afins — e **arquivo de produção nunca é escolhido**. O painel lista os serviços com
 estado, porta, saúde e tempo de pé; sobe, para, reinicia e rebuilda serviço ou stack
 inteira; e transforma o log de um serviço numa célula do mosaico.
+
+Enquanto o Docker trabalha, o painel diz o que está fazendo e vai atualizando a lista —
+os serviços ficam verdes um a um em vez de tudo mudar de uma vez no fim.
 
 **Nenhuma ação destrutiva existe aqui.** Não há `down -v`, não há apagar volume.
 
