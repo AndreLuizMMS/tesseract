@@ -310,6 +310,7 @@ carregam o significado e a cor só reforça.
 |---|---|
 | `NO_COLOR` | tira a cor inteira; sobra negrito, vídeo invertido e borda |
 | `TESSERACT_SEM_PISCA` | para a piscada da barra de `aprovar`, mantendo a barra |
+| `TESSERACT_SEM_ABERTURA` | pula a animação de partida e vai direto para a grade |
 
 ### Onde a marca aparece
 
@@ -317,14 +318,39 @@ O símbolo não vive só no README. Dentro do produto ele tem quatro casas:
 
 | Lugar | Forma |
 |---|---|
-| Banner de partida | símbolo 7×5 completo, enquanto o motor é procurado |
+| Abertura | o símbolo se desenhando, traço a traço, na partida |
 | Barra de título | glifo `⧉`, sempre à esquerda do nome |
 | Grade vazia | símbolo 7×5 no centro, com a tecla que cria a primeira célula |
 | Título da janela | `⧉ ts — projeto/célula`, acompanhando o foco |
 
-O banner de partida **não tem espera inventada**: ele fica na tela exatamente o tempo que a
-conexão levar. Com o motor de pé é um piscar de olhos; quando ele precisa subir, o banner
-vira o aviso de que alguma coisa está acontecendo.
+### A abertura
+
+A marca não aparece pronta na partida: **ela se monta**. O quadrado de trás nasce primeiro,
+traço a traço, com a ponta da caneta acesa em fósforo correndo pelo caminho. Depois o
+quadrado da frente por cima. A tessera acende, o símbolo inteiro estoura num quadro só e
+assenta. Só então o nome abre, letra a letra, e as linhas do motor entram uma a uma.
+
+```
+   ┌────┐
+   │┌───┼┐    T E S S E R A C T
+   ││ ▓ ││    o mosaico não desmonta
+   └┼───┘│
+    └────┘    ts 0.1.0 // MIT
+
+   > motor de sessão: vivo
+   > 8 células recuperadas · 3 projetos · mesma posição
+   > grade montada em 41ms
+```
+
+Dura cerca de um segundo e meio, e **roda em paralelo com a conexão** — enquanto a marca se
+desenha, o motor é procurado e a grade é remontada na outra linha de execução. O cronômetro
+de `grade montada em` conta só o motor, nunca a animação: é um número que existe para ser
+verdade.
+
+Nada disso é brilho, scanline ou glitch — o terminal não emite luz e a regra continua
+valendo. O que se move é a **ordem em que as coisas passam a existir**, não a textura delas.
+Sem terminal de verdade (saída num arquivo, num pipe), a abertura vira o bloco estático de
+uma vez só.
 
 ### O mesmo tema no resto da mesa
 
