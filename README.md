@@ -76,15 +76,28 @@ o projeto sair da tela não apaga, não move e não altera nada.
 A unidade de trabalho. **Uma regra só para todas**: a mesma tecla cria, mata, nomeia, foca
 e navega em qualquer uma.
 
-Criar não pergunta o que a célula vai ser. Uma **sessão** nasce com três abas por dentro —
-Claude Code, Cursor CLI e um shell, todas no diretório do projeto — e `tab` troca entre
-elas. Só a aba que você está usando tem processo: as outras sobem quando você chega nelas.
+Criar não pergunta o que a célula vai ser. Uma **sessão** nasce com quatro abas por dentro,
+todas no diretório do projeto, e `tab` troca entre elas. Só a aba que você está usando tem
+processo: as outras sobem quando você chega nelas.
+
+| Aba | O que é |
+|---|---|
+| `claude` | Claude Code |
+| `cursor` | Cursor CLI |
+| `bash` | um shell |
+| `md` | os markdowns do projeto: lista com busca por nome, e o escolhido renderizado |
+
+A aba `md` abre numa lista de todo markdown do projeto, com uma **barra de busca no topo**.
+Entre em DIGITAR (`↵`), digite parte do nome para filtrar, `↑↓` escolhe e `↵` abre o
+arquivo renderizado. `esc` volta para a lista. O arquivo aberto recarrega sozinho quando o
+disco muda — dá para ver o agente escrevendo a spec ao lado.
+
+Existem ainda duas células que não são sessão:
 
 | Tipo | O que é |
 |---|---|
-| `sessao` | as abas `claude`, `cursor` e `bash` no diretório do projeto |
 | `logs` | log ao vivo de um serviço do compose, criado pelo painel Docker |
-| `md` | arquivo markdown renderizado, recarrega quando o disco muda |
+| `md` | um markdown específico, quando você preenche o campo MD na criação |
 
 Cada célula tem um estado, e é ele que aparece no marcador:
 
@@ -135,7 +148,7 @@ selo `▓ DIGITAR ▓`, e a célula que tem o teclado fica **verde e com a borda
 | `←` `→` | projeto anterior / próximo |
 | `espaço` | pula para a próxima célula que pede atenção, atravessando projeto |
 | `1`…`9` | vai direto para o projeto N |
-| `tab` | troca a aba da célula: claude, cursor, shell (`shift-tab` volta) |
+| `tab` | troca a aba da célula: claude, cursor, shell, md (`shift-tab` volta) |
 
 **Teclado e tela**
 
