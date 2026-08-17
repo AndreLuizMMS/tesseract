@@ -46,22 +46,23 @@ func comando(t *testing.T, casa string, argumentos ...string) *exec.Cmd {
 		"XDG_RUNTIME_DIR="+filepath.Join(casa, "run"),
 		"XDG_CONFIG_HOME="+filepath.Join(casa, "config"),
 		// Sem systemd no teste: o motor sobe como processo solto.
-		"PATH="+semSystemctl(),
+		"PATH="+filepath.Join(casa, "atalhos")+string(filepath.ListSeparator)+os.Getenv("PATH"),
 	)
 	return cmd
 }
 
-// semSystemctl tira o systemctl do caminho para o teste não mexer no serviço de
-// verdade da máquina.
-func semSystemctl() string {
-	var mantidos []string
-	for _, pedaco := range filepath.SplitList(os.Getenv("PATH")) {
-		if _, err := os.Stat(filepath.Join(pedaco, "systemctl")); err == nil {
-			continue
-		}
-		mantidos = append(mantidos, pedaco)
+// prepararAtalhos põe na frente do caminho um systemctl que recusa tudo, para
+// o teste nunca encostar no serviço de verdade da máquina — e sem tirar do
+// caminho as ferramentas que as células precisam.
+func prepararAtalhos(t *testing.T, casa string) {
+	t.Helper()
+	pasta := filepath.Join(casa, "atalhos")
+	if err := os.MkdirAll(pasta, 0o755); err != nil {
+		t.Fatalf("preparar atalhos: %v", err)
 	}
-	return strings.Join(mantidos, string(filepath.ListSeparator))
+	if err := os.WriteFile(filepath.Join(pasta, "systemctl"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatalf("preparar systemctl de mentira: %v", err)
+	}
 }
 
 // casaDeTeste é um lar curto: o socket unix não aceita caminho comprido. A
@@ -73,6 +74,7 @@ func casaDeTeste(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("preparar casa: %v", err)
 	}
+	prepararAtalhos(t, casa)
 	fingido := filepath.Join(casa, "agente-de-mentira")
 	if err := os.WriteFile(fingido, []byte("#!/bin/sh\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
 		t.Fatalf("preparar agente: %v", err)
@@ -268,6 +270,7 @@ func TestTelaAbreDesenhaEFecha(t *testing.T) {
 	defer terminal.Close()
 	go func() { _, _ = copiar(tela, terminal) }()
 	go func() { _, _ = copiar(terminal, tela) }()
+	defer func() { telaDoTeste = tela.Render() }()
 
 	// A tela abre com uma célula bash em tela cheia.
 	esperarAte(t, 10*time.Second, func() bool {
@@ -300,7 +303,10 @@ func TestTelaAbreDesenhaEFecha(t *testing.T) {
 	_, _ = terminal.Write([]byte("\r"))
 	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
 	_, _ = terminal.Write([]byte("echo tesseract-vivo\r"))
-	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "tesseract-vivo") })
+	esperarAte(t, 5*time.Second, func() bool {
+		telaDoTeste = tela.Render()
+		return strings.Contains(tela.Render(), "tesseract-vivo")
+	})
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
 	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
 
@@ -312,6 +318,18 @@ func TestTelaAbreDesenhaEFecha(t *testing.T) {
 	saida, codigo := rodar(t, casa, "status")
 	if codigo != 0 || !strings.Contains(saida, "1 célula") {
 		t.Fatalf("o motor devia continuar vivo com a célula: %q", saida)
+	}
+}
+
+// irAteAAbaDoShell troca de aba até chegar no shell, que é a única aba que um
+// teste consegue dirigir sem depender de agente de verdade.
+func irAteAAbaDoShell(terminal *os.File, tela *vt.SafeEmulator) {
+	for range 4 {
+		if strings.Contains(tela.Render(), "$ ") || strings.Contains(tela.Render(), "➜") {
+			return
+		}
+		_, _ = terminal.Write([]byte("\t"))
+		time.Sleep(900 * time.Millisecond)
 	}
 }
 
@@ -337,9 +355,13 @@ func esperarAte(t *testing.T, prazo time.Duration, condicao func() bool) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	if !condicao() {
-		t.Fatalf("a condição não aconteceu em %s", prazo)
+		t.Fatalf("a condição não aconteceu em %s\n%s", prazo, telaDoTeste)
 	}
 }
+
+// telaDoTeste guarda a última tela desenhada, para a falha dizer o que estava
+// escrito nela.
+var telaDoTeste string
 
 // copiar liga as duas pontas do pseudo terminal.
 func copiar(destino interface{ Write([]byte) (int, error) }, origem interface {
@@ -501,6 +523,9 @@ func TestBuscaNoHistoricoPelaTela(t *testing.T) {
 
 	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "bash") })
 
+	// Vai até a aba do shell, que é onde dá para escrever num teste.
+	irAteAAbaDoShell(terminal, tela)
+
 	// Escreve algo no shell para haver histórico.
 	_, _ = terminal.Write([]byte("\r"))
 	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
@@ -557,11 +582,8 @@ func TestTabTrocaDeAbaNaSessao(t *testing.T) {
 		t.Errorf("o rodapé devia mostrar a tecla de aba:\n%s", tela.Render())
 	}
 
-	// Duas trocas levam até a aba do shell, onde dá para escrever.
-	_, _ = terminal.Write([]byte("\t"))
-	time.Sleep(600 * time.Millisecond)
-	_, _ = terminal.Write([]byte("\t"))
-	time.Sleep(600 * time.Millisecond)
+	// A tecla de aba leva até o shell, onde dá para escrever.
+	irAteAAbaDoShell(terminal, tela)
 
 	_, _ = terminal.Write([]byte("\r"))
 	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
@@ -611,6 +633,85 @@ func TestFormularioComecaNaCasaDoUsuario(t *testing.T) {
 	}
 
 	_, _ = terminal.Write([]byte{0x1b})
+	_, _ = terminal.Write([]byte("q"))
+	_ = esperarSaida(cmd, 5*time.Second)
+}
+
+// TestAbaDeMarkdownListaBuscaEAbre — a aba de markdown mostra os arquivos do
+// projeto, filtra pelo nome enquanto se digita e abre o escolhido no enter.
+func TestAbaDeMarkdownListaBuscaEAbre(t *testing.T) {
+	casa := casaDeTeste(t)
+	projeto := filepath.Join(casa, "projeto")
+	if err := os.MkdirAll(filepath.Join(projeto, "docs"), 0o755); err != nil {
+		t.Fatalf("preparar: %v", err)
+	}
+	arquivos := map[string]string{
+		"README.md":        "# Leia isto\n\ncomeço de tudo\n",
+		"docs/spec-m7.md":  "# Módulo 7\n\nfichas clínicas com PHI\n",
+		"docs/decisoes.md": "# Decisões\n\nnada aqui\n",
+	}
+	for nome, conteudo := range arquivos {
+		if err := os.WriteFile(filepath.Join(projeto, nome), []byte(conteudo), 0o644); err != nil {
+			t.Fatalf("preparar: %v", err)
+		}
+	}
+
+	cmd := comando(t, casa)
+	cmd.Dir = projeto
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	tela := vt.NewSafeEmulator(120, 30)
+	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
+	if err != nil {
+		t.Fatalf("abrir a tela: %v", err)
+	}
+	defer terminal.Close()
+	go func() { _, _ = copiar(tela, terminal) }()
+	go func() { _, _ = copiar(terminal, tela) }()
+	defer func() { telaDoTeste = tela.Render() }()
+
+	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "md") })
+
+	// Anda até a aba de markdown.
+	for range 4 {
+		if strings.Contains(tela.Render(), "buscar:") {
+			break
+		}
+		_, _ = terminal.Write([]byte("\t"))
+		time.Sleep(700 * time.Millisecond)
+	}
+	esperarAte(t, 5*time.Second, func() bool {
+		telaDoTeste = tela.Render()
+		desenho := tela.Render()
+		return strings.Contains(desenho, "buscar:") && strings.Contains(desenho, "README.md") &&
+			strings.Contains(desenho, "spec-m7.md")
+	})
+
+	// A busca filtra pelo nome enquanto se digita.
+	_, _ = terminal.Write([]byte("\r")) // entra em DIGITAR
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
+	_, _ = terminal.Write([]byte("m7"))
+	esperarAte(t, 3*time.Second, func() bool {
+		telaDoTeste = tela.Render()
+		desenho := tela.Render()
+		return strings.Contains(desenho, "spec-m7.md") && !strings.Contains(desenho, "decisoes.md")
+	})
+
+	// Enter abre o arquivo escolhido.
+	_, _ = terminal.Write([]byte("\r"))
+	esperarAte(t, 5*time.Second, func() bool {
+		telaDoTeste = tela.Render()
+		return strings.Contains(tela.Render(), "fichas clínicas")
+	})
+
+	// Esc volta para a lista.
+	_, _ = terminal.Write([]byte{0x1b})
+	esperarAte(t, 3*time.Second, func() bool {
+		telaDoTeste = tela.Render()
+		return strings.Contains(tela.Render(), "buscar:")
+	})
+
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
 	_, _ = terminal.Write([]byte("q"))
 	_ = esperarSaida(cmd, 5*time.Second)
 }
