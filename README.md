@@ -135,9 +135,15 @@ ao mesmo tempo — um glifo, uma cor e uma forma — para que nenhum deles seja 
 | `⚠ ÓRFÃ` | o diretório do projeto sumiu do disco | recrie o caminho ou mate a célula |
 
 `⏵ APROVAR` é o único que vira **barra sólida invertida ocupando a linha inteira** do
-cabeçalho da célula. Os outros cinco são um glifo e um rótulo. É de propósito: urgência
-aqui é área preenchida, não matiz — funciona de longe, funciona no canto do olho e funciona
-sem cor nenhuma.
+cabeçalho da célula, e o único que **pisca** — 1,8s aceso, 200ms apagado, para sempre,
+enquanto alguém estiver esperando você. Os outros cinco são um glifo e um rótulo, parados.
+É de propósito: urgência aqui é área preenchida, não matiz — funciona de longe, funciona no
+canto do olho e funciona sem cor nenhuma.
+
+No quadro apagado a barra **continua barra**: só o fundo muda. A área preenchida é o que
+diz "isto trava o trabalho", e ela nunca some. E o relógio só existe enquanto há célula
+travada — sem nenhuma, a tela fica completamente parada. `TESSERACT_SEM_PISCA=1` desliga a
+piscada para quem prefere a tela imóvel.
 
 **Respondeu ≠ aprovar.** É a distinção que faz o alarme valer alguma coisa: agente parado
 numa pergunta bloqueia o trabalho; agente que terminou o turno apenas tem algo para ler.
@@ -299,6 +305,26 @@ usar verde ou ciano como cor de estado, ou escrever hex fora do arquivo de tema.
 O tema tem três perfis e escolhe sozinho: cor cheia, 16 cores, ou nenhuma (`NO_COLOR=1` ou
 `TERM=dumb`). Nos três o alfabeto de estados continua legível, porque o glifo e a forma
 carregam o significado e a cor só reforça.
+
+| Variável | O que faz |
+|---|---|
+| `NO_COLOR` | tira a cor inteira; sobra negrito, vídeo invertido e borda |
+| `TESSERACT_SEM_PISCA` | para a piscada da barra de `aprovar`, mantendo a barra |
+
+### Onde a marca aparece
+
+O símbolo não vive só no README. Dentro do produto ele tem quatro casas:
+
+| Lugar | Forma |
+|---|---|
+| Banner de partida | símbolo 7×5 completo, enquanto o motor é procurado |
+| Barra de título | glifo `⧉`, sempre à esquerda do nome |
+| Grade vazia | símbolo 7×5 no centro, com a tecla que cria a primeira célula |
+| Título da janela | `⧉ ts — projeto/célula`, acompanhando o foco |
+
+O banner de partida **não tem espera inventada**: ele fica na tela exatamente o tempo que a
+conexão levar. Com o motor de pé é um piscar de olhos; quando ele precisa subir, o banner
+vira o aviso de que alguma coisa está acontecendo.
 
 ### O mesmo tema no resto da mesa
 
