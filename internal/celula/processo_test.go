@@ -291,3 +291,35 @@ func TestNascerComHistoricoQuePerguntaAoTerminal(t *testing.T) {
 		t.Fatal("a célula travou ao reencenar um histórico com perguntas ao terminal")
 	}
 }
+
+// TestRedimensionarParaOMesmoTamanhoNaoLimpaATela é a regressão de uma aba que
+// aparecia em branco: a tela interna era zerada por um redimensionamento que
+// não mudava nada, e o programa lá dentro não tinha motivo para redesenhar.
+func TestRedimensionarParaOMesmoTamanhoNaoLimpaATela(t *testing.T) {
+	dir := t.TempDir()
+	c, err := Nova("bash")
+	if err != nil {
+		t.Fatalf("fabricar célula: %v", err)
+	}
+	if err := c.Nascer(Config{ID: "c1", Diretorio: dir, Colunas: 60, Linhas: 12}); err != nil {
+		t.Fatalf("nascer: %v", err)
+	}
+	defer c.Matar()
+
+	if err := c.Tecla(Toque{Colar: "echo marca-na-tela\n"}); err != nil {
+		t.Fatalf("tecla: %v", err)
+	}
+	if !esperarPor(t, 3*time.Second, func() bool {
+		return strings.Contains(telaDe(c), "marca-na-tela")
+	}) {
+		t.Fatalf("a saída não apareceu:\n%s", telaDe(c))
+	}
+
+	if err := c.Redimensionar(60, 12); err != nil {
+		t.Fatalf("redimensionar: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if !strings.Contains(telaDe(c), "marca-na-tela") {
+		t.Fatalf("o mesmo tamanho não podia limpar a tela:\n%s", telaDe(c))
+	}
+}

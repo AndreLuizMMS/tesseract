@@ -253,6 +253,13 @@ func (p *Processo) Redimensionar(colunas, linhas int) error {
 		return nil
 	}
 	p.mu.Lock()
+	// Redimensionar de novo para o mesmo tamanho limpa a tela interna, e o
+	// programa lá dentro só redesenha quando tem o que dizer — foi assim que
+	// uma aba recém-aberta aparecia em branco.
+	if p.config.Colunas == colunas && p.config.Linhas == linhas {
+		p.mu.Unlock()
+		return nil
+	}
 	terminal := p.terminal
 	p.config.Colunas, p.config.Linhas = colunas, linhas
 	p.mu.Unlock()
