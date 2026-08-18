@@ -131,8 +131,16 @@ func (p *PainelDocker) pedir(acao, servico string) *protocolo.Docker {
 // Desenhar monta a caixa do painel.
 func (p *PainelDocker) Desenhar(largura int) []string {
 	interno := min(largura-8, 76)
+	// A coluna do nome acompanha o serviço mais longo: nome de stack real
+	// estoura os 14 do desenho original e ficava cortado.
+	colunaNome := 14
+	for _, servico := range p.Lista {
+		if n := larguraDe(servico.Nome) + 2; n > colunaNome {
+			colunaNome = min(n, 32)
+		}
+	}
 	corpo := []string{
-		"  " + corApagada.Render(preencher("SERVIÇO", 14)+preencher("ESTADO", 16)+preencher("PORTA", 9)+preencher("SAÚDE", 12)+"UPTIME"),
+		"  " + corApagada.Render(preencher("SERVIÇO", colunaNome)+preencher("ESTADO", 16)+preencher("PORTA", 9)+preencher("SAÚDE", 12)+"UPTIME"),
 	}
 	switch {
 	case p.Trabalhando != "":
@@ -157,7 +165,7 @@ func (p *PainelDocker) Desenhar(largura int) []string {
 			bolinha, pintar = "●", marcadorDe("respondeu").cor()
 		}
 		corpo = append(corpo, marca+
-			corBarra.Render(preencher(servico.Nome, 14))+
+			corBarra.Render(preencher(servico.Nome, colunaNome))+
 			pintar.Render(preencher(bolinha+" "+servico.Estado, 16))+
 			corApagada.Render(preencher(ouTraco(servico.Porta), 9))+
 			corApagada.Render(preencher(ouTraco(servico.Saude), 12))+
