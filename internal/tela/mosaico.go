@@ -347,12 +347,12 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	if focada && modo == teclado.Digitar {
 		traco = [6]string{"┏", "┓", "┗", "┛", "━", "┃"}
 	}
-	pintarQuadro := corBorda
+	// Célula sem o foco é célula apagada por inteiro: miolo e borda. A cor da
+	// estrutura fica para a que está com o cursor.
+	pintarQuadro := corApagada
 	switch {
 	case focada && modo == teclado.Digitar:
 		pintarQuadro = corDigitando
-	case modo == teclado.Digitar:
-		pintarQuadro = corApagada
 	case focada:
 		pintarQuadro = corBordaFocada
 	}
