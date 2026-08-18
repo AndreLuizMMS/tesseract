@@ -12,322 +12,323 @@ import (
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 
-	"github.com/andreluiz/tesseract/internal/tema"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 var (
-	compilarUmaVez sync.Once
-	binario        string
-	erroDeCompilar error
+	buildOnce sync.Once
+	binPath   string
+	buildErr  error
 )
 
-// comando compila o `ts` uma vez e devolve um comando pronto, apontando para um
-// estado de mentira — nada do teste encosta no Tesseract de verdade.
-func comando(t *testing.T, casa string, argumentos ...string) *exec.Cmd {
+// command compiles `ts` once and returns a ready command, pointing at a fake
+// state — nothing in the test touches the real Tesseract.
+func command(t *testing.T, home string, args ...string) *exec.Cmd {
 	t.Helper()
-	compilarUmaVez.Do(func() {
-		destino, err := os.MkdirTemp("/tmp", "ts-bin")
+	buildOnce.Do(func() {
+		dest, err := os.MkdirTemp("/tmp", "ts-bin")
 		if err != nil {
-			erroDeCompilar = err
+			buildErr = err
 			return
 		}
-		binario = filepath.Join(destino, "ts")
-		saida, err := exec.Command("go", "build", "-o", binario, ".").CombinedOutput()
+		binPath = filepath.Join(dest, "ts")
+		out, err := exec.Command("go", "build", "-o", binPath, ".").CombinedOutput()
 		if err != nil {
-			erroDeCompilar = err
-			t.Logf("compilar: %s", saida)
+			buildErr = err
+			t.Logf("build: %s", out)
 		}
 	})
-	if erroDeCompilar != nil {
-		t.Fatalf("compilar: %v", erroDeCompilar)
+	if buildErr != nil {
+		t.Fatalf("build: %v", buildErr)
 	}
 
-	cmd := exec.Command(binario, argumentos...)
+	cmd := exec.Command(binPath, args...)
 	cmd.Env = append(os.Environ(),
-		"XDG_STATE_HOME="+filepath.Join(casa, "estado"),
-		"XDG_RUNTIME_DIR="+filepath.Join(casa, "run"),
-		"XDG_CONFIG_HOME="+filepath.Join(casa, "config"),
-		// Sem systemd no teste: o motor sobe como processo solto.
-		"PATH="+filepath.Join(casa, "atalhos")+string(filepath.ListSeparator)+os.Getenv("PATH"),
+		"XDG_STATE_HOME="+filepath.Join(home, "state"),
+		"XDG_RUNTIME_DIR="+filepath.Join(home, "run"),
+		"XDG_CONFIG_HOME="+filepath.Join(home, "config"),
+		// No systemd in the test: the engine starts as a bare process.
+		"PATH="+filepath.Join(home, "shortcuts")+string(filepath.ListSeparator)+os.Getenv("PATH"),
 	)
 	return cmd
 }
 
-// prepararAtalhos põe na frente do caminho um systemctl que recusa tudo, para
-// o teste nunca encostar no serviço de verdade da máquina — e sem tirar do
-// caminho as ferramentas que as células precisam.
-func prepararAtalhos(t *testing.T, casa string) {
+// prepareShortcuts puts a systemctl that refuses everything ahead on the
+// path, so the test never touches the machine's real service — without
+// taking out of the path the tools the cells need.
+func prepareShortcuts(t *testing.T, home string) {
 	t.Helper()
-	pasta := filepath.Join(casa, "atalhos")
-	if err := os.MkdirAll(pasta, 0o755); err != nil {
-		t.Fatalf("preparar atalhos: %v", err)
+	dir := filepath.Join(home, "shortcuts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("prepare shortcuts: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(pasta, "systemctl"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
-		t.Fatalf("preparar systemctl de mentira: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, "systemctl"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatalf("prepare fake systemctl: %v", err)
 	}
 }
 
-// casaDeTeste é um lar curto: o socket unix não aceita caminho comprido. A
-// configuração aponta os agentes para um programa de mentira, para o teste não
-// depender de claude nem de cursor instalados.
-func casaDeTeste(t *testing.T) string {
+// testHome is a short home: the unix socket doesn't take a long path. The
+// configuration points the agents to a fake program, so the test doesn't
+// depend on claude or cursor being installed.
+func testHome(t *testing.T) string {
 	t.Helper()
-	casa, err := os.MkdirTemp("/tmp", "ts")
+	home, err := os.MkdirTemp("/tmp", "ts")
 	if err != nil {
-		t.Fatalf("preparar casa: %v", err)
+		t.Fatalf("prepare home: %v", err)
 	}
-	prepararAtalhos(t, casa)
-	fingido := filepath.Join(casa, "agente-de-mentira")
-	if err := os.WriteFile(fingido, []byte("#!/bin/sh\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
-		t.Fatalf("preparar agente: %v", err)
+	prepareShortcuts(t, home)
+	fakeAgent := filepath.Join(home, "fake-agent")
+	if err := os.WriteFile(fakeAgent, []byte("#!/bin/sh\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
+		t.Fatalf("prepare agent: %v", err)
 	}
-	config := filepath.Join(casa, "config", "tesseract", "config.json")
+	config := filepath.Join(home, "config", "tesseract", "config.json")
 	if err := os.MkdirAll(filepath.Dir(config), 0o755); err != nil {
-		t.Fatalf("preparar configuração: %v", err)
+		t.Fatalf("prepare configuration: %v", err)
 	}
-	corpo := `{"som":false,"notificar":false,"agentes":{"claude":{"programa":"` + fingido + `"},"cursor":{"programa":"` + fingido + `"}}}`
-	if err := os.WriteFile(config, []byte(corpo), 0o644); err != nil {
-		t.Fatalf("preparar configuração: %v", err)
+	body := `{"sound":false,"notify":false,"agents":{"claude":{"program":"` + fakeAgent + `"},"cursor":{"program":"` + fakeAgent + `"}}}`
+	if err := os.WriteFile(config, []byte(body), 0o644); err != nil {
+		t.Fatalf("prepare configuration: %v", err)
 	}
 	t.Cleanup(func() {
-		parar := comando(t, casa, "stop")
-		_ = parar.Run()
-		os.RemoveAll(casa)
+		stop := command(t, home, "stop")
+		_ = stop.Run()
+		os.RemoveAll(home)
 	})
-	return casa
+	return home
 }
 
-func rodar(t *testing.T, casa string, argumentos ...string) (string, int) {
+func run(t *testing.T, home string, args ...string) (string, int) {
 	t.Helper()
-	cmd := comando(t, casa, argumentos...)
-	saida, err := cmd.CombinedOutput()
-	codigo := 0
-	var comErro *exec.ExitError
+	cmd := command(t, home, args...)
+	out, err := cmd.CombinedOutput()
+	code := 0
+	var exitErr *exec.ExitError
 	if err != nil {
-		if ok := comoExitError(err, &comErro); ok {
-			codigo = comErro.ExitCode()
+		if ok := asExitError(err, &exitErr); ok {
+			code = exitErr.ExitCode()
 		} else {
-			t.Fatalf("rodar %v: %v", argumentos, err)
+			t.Fatalf("run %v: %v", args, err)
 		}
 	}
-	return string(saida), codigo
+	return string(out), code
 }
 
-func comoExitError(err error, destino **exec.ExitError) bool {
-	comErro, ok := err.(*exec.ExitError)
+func asExitError(err error, dest **exec.ExitError) bool {
+	exitErr, ok := err.(*exec.ExitError)
 	if ok {
-		*destino = comErro
+		*dest = exitErr
 	}
 	return ok
 }
 
-// TestStatusSemMotor — sem motor de pé, o status diz isso e sai bem.
-func TestStatusSemMotor(t *testing.T) {
-	casa := casaDeTeste(t)
-	saida, codigo := rodar(t, casa, "status")
-	if codigo != 0 {
-		t.Fatalf("status saiu com %d: %s", codigo, saida)
+// TestStatusWithNoEngine — with no engine up, status says so and exits
+// clean.
+func TestStatusWithNoEngine(t *testing.T) {
+	home := testHome(t)
+	out, code := run(t, home, "status")
+	if code != 0 {
+		t.Fatalf("status exited with %d: %s", code, out)
 	}
-	if !strings.Contains(saida, "não está rodando") {
-		t.Fatalf("status devia dizer que o motor não está rodando: %q", saida)
-	}
-}
-
-// TestNovoSobeOMotorECriaOProjeto — `ts novo` funciona sem abrir a tela, e sobe
-// o motor se ele não estiver de pé.
-func TestNovoSobeOMotorECriaOProjeto(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "meu-projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-
-	saida, codigo := rodar(t, casa, "novo", projeto)
-	if codigo != 0 {
-		t.Fatalf("novo saiu com %d: %s", codigo, saida)
-	}
-	if !strings.Contains(saida, "meu-projeto") {
-		t.Fatalf("novo devia confirmar o projeto: %q", saida)
-	}
-
-	saida, codigo = rodar(t, casa, "status")
-	if codigo != 0 {
-		t.Fatalf("status saiu com %d: %s", codigo, saida)
-	}
-	if !strings.Contains(saida, "1 projeto") || !strings.Contains(saida, "meu-projeto") {
-		t.Fatalf("status devia mostrar o projeto novo: %q", saida)
+	if !strings.Contains(out, "not running") {
+		t.Fatalf("status should say the engine isn't running: %q", out)
 	}
 }
 
-// TestNovoEmCaminhoInexistenteFalha — erro claro e código de saída de erro.
-func TestNovoEmCaminhoInexistenteFalha(t *testing.T) {
-	casa := casaDeTeste(t)
-	saida, codigo := rodar(t, casa, "novo", filepath.Join(casa, "não-existe"))
-	if codigo != 1 {
-		t.Fatalf("esperava código 1, veio %d: %s", codigo, saida)
+// TestNewStartsEngineAndCreatesProject — `ts new` works without opening the
+// screen, and starts the engine if it isn't up.
+func TestNewStartsEngineAndCreatesProject(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "my-project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
-	if !strings.Contains(saida, "não existe") {
-		t.Fatalf("mensagem pouco clara: %q", saida)
+
+	out, code := run(t, home, "new", project)
+	if code != 0 {
+		t.Fatalf("new exited with %d: %s", code, out)
+	}
+	if !strings.Contains(out, "my-project") {
+		t.Fatalf("new should confirm the project: %q", out)
+	}
+
+	out, code = run(t, home, "status")
+	if code != 0 {
+		t.Fatalf("status exited with %d: %s", code, out)
+	}
+	if !strings.Contains(out, "1 project") || !strings.Contains(out, "my-project") {
+		t.Fatalf("status should show the new project: %q", out)
 	}
 }
 
-// TestStopDesligaOMotor.
-func TestStopDesligaOMotor(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestNewOnMissingPathFails — a clear error and an error exit code.
+func TestNewOnMissingPathFails(t *testing.T) {
+	home := testHome(t)
+	out, code := run(t, home, "new", filepath.Join(home, "does-not-exist"))
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d: %s", code, out)
 	}
-	if _, codigo := rodar(t, casa, "novo", projeto); codigo != 0 {
-		t.Fatal("não consegui criar o projeto")
+	if !strings.Contains(out, "does not exist") {
+		t.Fatalf("unclear message: %q", out)
+	}
+}
+
+// TestStopShutsDownEngine.
+func TestStopShutsDownEngine(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if _, code := run(t, home, "new", project); code != 0 {
+		t.Fatal("couldn't create the project")
 	}
 
-	saida, codigo := rodar(t, casa, "stop")
-	if codigo != 0 {
-		t.Fatalf("stop saiu com %d: %s", codigo, saida)
+	out, code := run(t, home, "stop")
+	if code != 0 {
+		t.Fatalf("stop exited with %d: %s", code, out)
 	}
-	esperarAte(t, 5*time.Second, func() bool {
-		texto, _ := rodar(t, casa, "status")
-		return strings.Contains(texto, "não está rodando")
+	waitUntil(t, 5*time.Second, func() bool {
+		text, _ := run(t, home, "status")
+		return strings.Contains(text, "not running")
 	})
 }
 
-// TestResetApagaOEstadoEPreservaAConfiguracao.
-func TestResetApagaOEstadoEPreservaAConfiguracao(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestResetClearsStateAndKeepsConfig.
+func TestResetClearsStateAndKeepsConfig(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
-	config := filepath.Join(casa, "config", "tesseract", "config.json")
+	config := filepath.Join(home, "config", "tesseract", "config.json")
 
-	if _, codigo := rodar(t, casa, "novo", projeto); codigo != 0 {
-		t.Fatal("não consegui criar o projeto")
+	if _, code := run(t, home, "new", project); code != 0 {
+		t.Fatal("couldn't create the project")
 	}
-	arquivoDeEstado := filepath.Join(casa, "estado", "tesseract", "estado.json")
-	if _, err := os.Stat(arquivoDeEstado); err != nil {
-		t.Fatalf("o estado devia ter sido salvo: %v", err)
+	stateFile := filepath.Join(home, "state", "tesseract", "state.json")
+	if _, err := os.Stat(stateFile); err != nil {
+		t.Fatalf("the state should have been saved: %v", err)
 	}
 
-	saida, codigo := rodar(t, casa, "reset")
-	if codigo != 0 {
-		t.Fatalf("reset saiu com %d: %s", codigo, saida)
+	out, code := run(t, home, "reset")
+	if code != 0 {
+		t.Fatalf("reset exited with %d: %s", code, out)
 	}
-	if _, err := os.Stat(arquivoDeEstado); !os.IsNotExist(err) {
-		t.Fatalf("o estado devia ter sumido: %v", err)
+	if _, err := os.Stat(stateFile); !os.IsNotExist(err) {
+		t.Fatalf("the state should have disappeared: %v", err)
 	}
 	if _, err := os.Stat(config); err != nil {
-		t.Fatalf("a configuração tinha que ser preservada: %v", err)
+		t.Fatalf("the configuration had to be preserved: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(casa, "estado", "tesseract", "historico")); !os.IsNotExist(err) {
-		t.Fatal("os históricos deviam ter sumido junto com o estado")
-	}
-}
-
-// TestComandoDesconhecidoSaiComDois.
-func TestComandoDesconhecidoSaiComDois(t *testing.T) {
-	casa := casaDeTeste(t)
-	saida, codigo := rodar(t, casa, "voar")
-	if codigo != 2 {
-		t.Fatalf("esperava código 2, veio %d: %s", codigo, saida)
-	}
-	if !strings.Contains(saida, "ts novo") {
-		t.Fatalf("o uso devia ser mostrado: %q", saida)
+	if _, err := os.Stat(filepath.Join(home, "state", "tesseract", "history")); !os.IsNotExist(err) {
+		t.Fatal("the history should have disappeared along with the state")
 	}
 }
 
-// TestAjudaListaOsCincoComandos.
-func TestAjudaListaOsCincoComandos(t *testing.T) {
-	casa := casaDeTeste(t)
-	saida, codigo := rodar(t, casa, "--help")
-	if codigo != 0 {
-		t.Fatalf("ajuda saiu com %d", codigo)
+// TestUnknownCommandExitsWithTwo.
+func TestUnknownCommandExitsWithTwo(t *testing.T) {
+	home := testHome(t)
+	out, code := run(t, home, "fly")
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d: %s", code, out)
 	}
-	for _, comando := range []string{"ts novo", "ts status", "ts stop", "ts reset"} {
-		if !strings.Contains(saida, comando) {
-			t.Errorf("a ajuda não fala de %q", comando)
+	if !strings.Contains(out, "ts new") {
+		t.Fatalf("usage should have been shown: %q", out)
+	}
+}
+
+// TestHelpListsTheCommands.
+func TestHelpListsTheCommands(t *testing.T) {
+	home := testHome(t)
+	out, code := run(t, home, "--help")
+	if code != 0 {
+		t.Fatalf("help exited with %d", code)
+	}
+	for _, cmd := range []string{"ts new", "ts status", "ts stop", "ts reset"} {
+		if !strings.Contains(out, cmd) {
+			t.Errorf("help doesn't mention %q", cmd)
 		}
 	}
 }
 
-// TestTelaAbreDesenhaEFecha é a prova de que a tela funciona de ponta a ponta:
-// o `ts` sobe o motor, desenha o mosaico com uma célula, aceita tecla e fecha
-// deixando o motor vivo.
-func TestTelaAbreDesenhaEFecha(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestScreenOpensDrawsAndCloses is the proof that the screen works end to
+// end: `ts` starts the engine, draws the mosaic with a cell, accepts a key
+// and closes, leaving the engine alive.
+func TestScreenOpensDrawsAndCloses(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = projeto
+	cmd := command(t, home)
+	cmd.Dir = project
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-	tela := vt.NewSafeEmulator(100, 30)
+	term := vt.NewSafeEmulator(100, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 100, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
-	defer func() { telaDoTeste = tela.Render() }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
+	defer func() { lastScreen = term.Render() }()
 
-	// A tela abre com uma célula bash em tela cheia.
-	esperarAte(t, 10*time.Second, func() bool {
-		return strings.Contains(tela.Render(), tema.Nome) && strings.Contains(tela.Render(), "claude")
+	// The screen opens with a bash cell in full screen.
+	waitUntil(t, 10*time.Second, func() bool {
+		return strings.Contains(term.Render(), theme.Name) && strings.Contains(term.Render(), "claude")
 	})
-	desenho := tela.Render()
-	if !strings.Contains(desenho, "NAVEGAR") {
-		t.Fatalf("a tela devia abrir em NAVEGAR:\n%s", desenho)
+	render := term.Render()
+	if !strings.Contains(render, "BROWSE") {
+		t.Fatalf("the screen should open in BROWSE:\n%s", render)
 	}
-	if !strings.Contains(desenho, "n criar") {
-		t.Fatalf("o rodapé devia estar aceso:\n%s", desenho)
+	if !strings.Contains(render, "n create") {
+		t.Fatalf("the footer should be lit:\n%s", render)
 	}
 
-	// A ajuda abre e fecha.
+	// Help opens and closes.
 	_, _ = terminal.Write([]byte("?"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "AJUDA") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "HELP") })
 	_, _ = terminal.Write([]byte{0x1b})
-	esperarAte(t, 3*time.Second, func() bool { return !strings.Contains(tela.Render(), "AJUDA") })
+	waitUntil(t, 3*time.Second, func() bool { return !strings.Contains(term.Render(), "HELP") })
 
-	// O formulário de criação abre com o projeto focado preenchido.
+	// The create form opens with the focused project already filled in.
 	_, _ = terminal.Write([]byte("n"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NOVA") })
-	if !strings.Contains(tela.Render(), "PROJETO") {
-		t.Fatalf("o formulário devia perguntar o projeto:\n%s", tela.Render())
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "NEW") })
+	if !strings.Contains(term.Render(), "PROJECT") {
+		t.Fatalf("the form should ask for the project:\n%s", term.Render())
 	}
 	_, _ = terminal.Write([]byte{0x1b})
-	esperarAte(t, 3*time.Second, func() bool { return !strings.Contains(tela.Render(), "NOVA") })
+	waitUntil(t, 3*time.Second, func() bool { return !strings.Contains(term.Render(), "NEW") })
 
-	// Entra em DIGITAR, escreve no shell e volta.
+	// Enters TYPE, types in the shell and comes back.
 	_, _ = terminal.Write([]byte("\r"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
-	_, _ = terminal.Write([]byte("echo tesseract-vivo\r"))
-	esperarAte(t, 5*time.Second, func() bool {
-		telaDoTeste = tela.Render()
-		return strings.Contains(tela.Render(), "tesseract-vivo")
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "TYPE") })
+	_, _ = terminal.Write([]byte("echo tesseract-alive\r"))
+	waitUntil(t, 5*time.Second, func() bool {
+		lastScreen = term.Render()
+		return strings.Contains(term.Render(), "tesseract-alive")
 	})
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 
-	// Fecha a tela — e o motor continua rodando.
+	// Closes the screen — and the engine keeps running.
 	_, _ = terminal.Write([]byte("q"))
-	if err := esperarSaida(cmd, 5*time.Second); err != nil {
-		t.Fatalf("a tela não fechou: %v", err)
+	if err := waitExit(cmd, 5*time.Second); err != nil {
+		t.Fatalf("the screen didn't close: %v", err)
 	}
-	saida, codigo := rodar(t, casa, "status")
-	if codigo != 0 || !strings.Contains(saida, "1 célula") {
-		t.Fatalf("o motor devia continuar vivo com a célula: %q", saida)
+	out, code := run(t, home, "status")
+	if code != 0 || !strings.Contains(out, "1 cell") {
+		t.Fatalf("the engine should still be alive with the cell: %q", out)
 	}
 }
 
-// irAteAAbaDoShell troca de aba até chegar no shell, que é a única aba que um
-// teste consegue dirigir sem depender de agente de verdade.
-func irAteAAbaDoShell(terminal *os.File, tela *vt.SafeEmulator) {
+// goToShellTab switches tabs until it reaches the shell, the only tab a
+// test can drive without depending on a real agent.
+func goToShellTab(terminal *os.File, term *vt.SafeEmulator) {
 	for range 4 {
-		if strings.Contains(tela.Render(), "$ ") || strings.Contains(tela.Render(), "➜") {
+		if strings.Contains(term.Render(), "$ ") || strings.Contains(term.Render(), "➜") {
 			return
 		}
 		_, _ = terminal.Write([]byte("\t"))
@@ -335,50 +336,50 @@ func irAteAAbaDoShell(terminal *os.File, tela *vt.SafeEmulator) {
 	}
 }
 
-func esperarSaida(cmd *exec.Cmd, prazo time.Duration) error {
-	pronto := make(chan error, 1)
-	go func() { pronto <- cmd.Wait() }()
+func waitExit(cmd *exec.Cmd, deadline time.Duration) error {
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
 	select {
-	case err := <-pronto:
+	case err := <-done:
 		return err
-	case <-time.After(prazo):
+	case <-time.After(deadline):
 		_ = cmd.Process.Kill()
 		return os.ErrDeadlineExceeded
 	}
 }
 
-func esperarAte(t *testing.T, prazo time.Duration, condicao func() bool) {
+func waitUntil(t *testing.T, deadline time.Duration, condition func() bool) {
 	t.Helper()
-	limite := time.Now().Add(prazo)
-	for time.Now().Before(limite) {
-		if condicao() {
+	limit := time.Now().Add(deadline)
+	for time.Now().Before(limit) {
+		if condition() {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if !condicao() {
-		t.Fatalf("a condição não aconteceu em %s\n%s", prazo, telaDoTeste)
+	if !condition() {
+		t.Fatalf("the condition didn't happen within %s\n%s", deadline, lastScreen)
 	}
 }
 
-// telaDoTeste guarda a última tela desenhada, para a falha dizer o que estava
-// escrito nela.
-var telaDoTeste string
+// lastScreen keeps the last drawn screen, so a failure can say what was
+// written on it.
+var lastScreen string
 
-// copiar liga as duas pontas do pseudo terminal.
-func copiar(destino interface{ Write([]byte) (int, error) }, origem interface {
+// pipe wires up both ends of the pseudo terminal.
+func pipe(dest interface{ Write([]byte) (int, error) }, src interface {
 	Read([]byte) (int, error)
 },
 ) (int64, error) {
 	buf := make([]byte, 32<<10)
 	var total int64
 	for {
-		n, err := origem.Read(buf)
+		n, err := src.Read(buf)
 		if n > 0 {
-			escrito, erroEscrita := destino.Write(buf[:n])
-			total += int64(escrito)
-			if erroEscrita != nil {
-				return total, erroEscrita
+			written, writeErr := dest.Write(buf[:n])
+			total += int64(written)
+			if writeErr != nil {
+				return total, writeErr
 			}
 		}
 		if err != nil {
@@ -387,333 +388,336 @@ func copiar(destino interface{ Write([]byte) (int, error) }, origem interface {
 	}
 }
 
-// TestMosaicoComDoisProjetos é a prova visual do mosaico: os dois projetos
-// aparecem ao mesmo tempo, com todas as células à vista, e a seta anda entre
-// eles. Matar a última célula tira o projeto da tela.
-func TestMosaicoComDoisProjetos(t *testing.T) {
-	casa := casaDeTeste(t)
-	primeiro := filepath.Join(casa, "cortz-web")
-	segundo := filepath.Join(casa, "doxar-api")
-	for _, dir := range []string{primeiro, segundo} {
+// TestGridWithTwoProjects is the mosaic's visual proof: both projects show
+// up at the same time, with every cell in view, and the arrow moves between
+// them. Killing the last cell takes the project off the screen.
+func TestGridWithTwoProjects(t *testing.T) {
+	home := testHome(t)
+	first := filepath.Join(home, "cortz-web")
+	second := filepath.Join(home, "doxar-api")
+	for _, dir := range []string{first, second} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("preparar: %v", err)
+			t.Fatalf("prepare: %v", err)
 		}
-		if saida, codigo := rodar(t, casa, "novo", dir); codigo != 0 {
-			t.Fatalf("criar projeto: %s", saida)
+		if out, code := run(t, home, "new", dir); code != 0 {
+			t.Fatalf("create project: %s", out)
 		}
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = primeiro
+	cmd := command(t, home)
+	cmd.Dir = first
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-	tela := vt.NewSafeEmulator(120, 30)
+	term := vt.NewSafeEmulator(120, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "CORTZ-WEB") })
-	// Os dois projetos ficam na tela ao mesmo tempo, nenhum vira tira.
-	esperarAte(t, 5*time.Second, func() bool {
-		desenho := tela.Render()
-		return strings.Contains(desenho, "CORTZ-WEB") && strings.Contains(desenho, "DOXAR-API")
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "CORTZ-WEB") })
+	// Both projects stay on screen at once, neither turns into a strip.
+	waitUntil(t, 5*time.Second, func() bool {
+		render := term.Render()
+		return strings.Contains(render, "CORTZ-WEB") && strings.Contains(render, "DOXAR-API")
 	})
 
-	// A seta anda para o projeto do lado.
-	_, _ = terminal.Write([]byte("\x1b[C")) // seta para a direita
+	// The arrow moves to the project on the side.
+	_, _ = terminal.Write([]byte("\x1b[C")) // right arrow
 	time.Sleep(500 * time.Millisecond)
 
-	// D pede confirmação, e avisa que o projeto sai da tela.
+	// D asks for confirmation, and warns that the project leaves the screen.
 	_, _ = terminal.Write([]byte("D"))
-	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "MATAR") })
-	if !strings.Contains(tela.Render(), "sai da tela") {
-		t.Fatalf("a confirmação devia avisar que o projeto sai da tela:\n%s", tela.Render())
+	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "KILL") })
+	if !strings.Contains(term.Render(), "leaves the screen") {
+		t.Fatalf("the confirmation should warn the project leaves the screen:\n%s", term.Render())
 	}
 
-	_, _ = terminal.Write([]byte("\r")) // confirma
-	esperarAte(t, 10*time.Second, func() bool { return !strings.Contains(tela.Render(), "DOXAR-API") })
+	_, _ = terminal.Write([]byte("\r")) // confirm
+	waitUntil(t, 10*time.Second, func() bool { return !strings.Contains(term.Render(), "DOXAR-API") })
 
-	// O diretório continua intacto no disco.
-	if _, err := os.Stat(segundo); err != nil {
-		t.Fatalf("o disco foi tocado: %v", err)
+	// The directory stays untouched on disk.
+	if _, err := os.Stat(second); err != nil {
+		t.Fatalf("the disk was touched: %v", err)
 	}
 
 	_, _ = terminal.Write([]byte("q"))
-	_ = esperarSaida(cmd, 5*time.Second)
+	_ = waitExit(cmd, 5*time.Second)
 }
 
-// TestListaMostraOMesmoQueOMosaico — a tecla de trocar de tela leva ao índice,
-// com os mesmos projetos e células.
-func TestListaMostraOMesmoQueOMosaico(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "cortz-web")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestListShowsSameAsGrid — the switch-screen key leads to the index, with
+// the same projects and cells.
+func TestListShowsSameAsGrid(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "cortz-web")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
-	if saida, codigo := rodar(t, casa, "novo", projeto); codigo != 0 {
-		t.Fatalf("criar projeto: %s", saida)
+	if out, code := run(t, home, "new", project); code != 0 {
+		t.Fatalf("create project: %s", out)
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = projeto
+	cmd := command(t, home)
+	cmd.Dir = project
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
-	tela := vt.NewSafeEmulator(120, 30)
+	term := vt.NewSafeEmulator(120, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "CORTZ-WEB") })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "CORTZ-WEB") })
 
 	_, _ = terminal.Write([]byte("v"))
-	esperarAte(t, 5*time.Second, func() bool {
-		desenho := tela.Render()
-		return strings.Contains(desenho, "CORTZ-WEB") && strings.Contains(desenho, "bash")
+	waitUntil(t, 5*time.Second, func() bool {
+		render := term.Render()
+		return strings.Contains(render, "CORTZ-WEB") && strings.Contains(render, "bash")
 	})
 
 	_, _ = terminal.Write([]byte("q"))
-	_ = esperarSaida(cmd, 5*time.Second)
+	_ = waitExit(cmd, 5*time.Second)
 
-	// A tela escolhida é lembrada entre execuções.
-	segunda := comando(t, casa)
-	segunda.Dir = projeto
-	segunda.Env = append(segunda.Env, "TERM=xterm-256color")
-	tela2 := vt.NewSafeEmulator(120, 30)
-	terminal2, err := pty.StartWithSize(segunda, &pty.Winsize{Cols: 120, Rows: 30})
+	// The chosen screen is remembered across runs.
+	second := command(t, home)
+	second.Dir = project
+	second.Env = append(second.Env, "TERM=xterm-256color")
+	term2 := vt.NewSafeEmulator(120, 30)
+	terminal2, err := pty.StartWithSize(second, &pty.Winsize{Cols: 120, Rows: 30})
 	if err != nil {
-		t.Fatalf("reabrir a tela: %v", err)
+		t.Fatalf("reopen the screen: %v", err)
 	}
 	defer terminal2.Close()
-	go func() { _, _ = copiar(tela2, terminal2) }()
-	go func() { _, _ = copiar(terminal2, tela2) }()
+	go func() { _, _ = pipe(term2, terminal2) }()
+	go func() { _, _ = pipe(terminal2, term2) }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela2.Render(), "CORTZ-WEB") })
-	if !strings.Contains(tela2.Render(), "┬") && !strings.Contains(tela2.Render(), "│") {
-		t.Fatalf("a tela devia ter reaberto:\n%s", tela2.Render())
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term2.Render(), "CORTZ-WEB") })
+	if !strings.Contains(term2.Render(), "┬") && !strings.Contains(term2.Render(), "│") {
+		t.Fatalf("the screen should have reopened:\n%s", term2.Render())
 	}
 	_, _ = terminal2.Write([]byte("q"))
-	_ = esperarSaida(segunda, 5*time.Second)
+	_ = waitExit(second, 5*time.Second)
 }
 
-// TestBuscaNoHistoricoPelaTela — a tecla de busca pergunta o termo, o motor
-// procura no histórico da célula focada e a tela mostra o que achou.
-func TestBuscaNoHistoricoPelaTela(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestSearchInHistoryFromScreen — the search key asks for the term, the
+// engine searches the focused cell's history and the screen shows what it
+// found.
+func TestSearchInHistoryFromScreen(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = projeto
+	cmd := command(t, home)
+	cmd.Dir = project
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
-	tela := vt.NewSafeEmulator(110, 30)
+	term := vt.NewSafeEmulator(110, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 110, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "bash") })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "bash") })
 
-	// Vai até a aba do shell, que é onde dá para escrever num teste.
-	irAteAAbaDoShell(terminal, tela)
+	// Goes to the shell tab, the only place a test can type into.
+	goToShellTab(terminal, term)
 
-	// Escreve algo no shell para haver histórico.
+	// Types something in the shell so there's history.
 	_, _ = terminal.Write([]byte("\r"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
-	_, _ = terminal.Write([]byte("echo agulha-procurada\r"))
-	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "agulha-procurada") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "TYPE") })
+	_, _ = terminal.Write([]byte("echo needle-in-the-haystack\r"))
+	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "needle-in-the-haystack") })
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 
-	// Busca.
+	// Search.
 	_, _ = terminal.Write([]byte("/"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "BUSCAR") })
-	_, _ = terminal.Write([]byte("agulha-procurada\r"))
-	esperarAte(t, 5*time.Second, func() bool { return strings.Contains(tela.Render(), "BUSCA · agulha-procurada") })
-	if !strings.Contains(tela.Render(), "agulha-procurada") {
-		t.Fatalf("a busca devia mostrar a linha achada:\n%s", tela.Render())
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "SEARCH") })
+	_, _ = terminal.Write([]byte("needle-in-the-haystack\r"))
+	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "SEARCH · needle-in-the-haystack") })
+	if !strings.Contains(term.Render(), "needle-in-the-haystack") {
+		t.Fatalf("the search should show the matched line:\n%s", term.Render())
 	}
 
-	_, _ = terminal.Write([]byte{0x1b}) // esc fecha
-	esperarAte(t, 3*time.Second, func() bool { return !strings.Contains(tela.Render(), "BUSCA ·") })
+	_, _ = terminal.Write([]byte{0x1b}) // esc closes
+	waitUntil(t, 3*time.Second, func() bool { return !strings.Contains(term.Render(), "SEARCH ·") })
 
 	_, _ = terminal.Write([]byte("q"))
-	_ = esperarSaida(cmd, 5*time.Second)
+	_ = waitExit(cmd, 5*time.Second)
 }
 
-// TestTabTrocaDeAbaNaSessao — criar não pergunta o que a sessão será, e a tecla
-// de aba anda entre claude, cursor e shell dentro da mesma célula.
-func TestTabTrocaDeAbaNaSessao(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestTabSwitchesTabInSession — creating doesn't ask what the session will
+// be, and the tab key moves between claude, cursor and shell inside the
+// same cell.
+func TestTabSwitchesTabInSession(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = projeto
+	cmd := command(t, home)
+	cmd.Dir = project
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
-	tela := vt.NewSafeEmulator(120, 30)
+	term := vt.NewSafeEmulator(120, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
 
-	// A célula nasce com as três abas na borda, sem ninguém ter escolhido nada.
-	esperarAte(t, 10*time.Second, func() bool {
-		desenho := tela.Render()
-		return strings.Contains(desenho, "claude") && strings.Contains(desenho, "cursor") && strings.Contains(desenho, "bash")
+	// The cell is born with the three tabs on the border, with nobody having
+	// chosen anything.
+	waitUntil(t, 10*time.Second, func() bool {
+		render := term.Render()
+		return strings.Contains(render, "claude") && strings.Contains(render, "cursor") && strings.Contains(render, "bash")
 	})
 
-	// O rodapé conta que a tecla existe.
-	if !strings.Contains(tela.Render(), "tab aba") {
-		t.Errorf("o rodapé devia mostrar a tecla de aba:\n%s", tela.Render())
+	// The footer tells us the key exists.
+	if !strings.Contains(term.Render(), "tab tab") {
+		t.Errorf("the footer should show the tab key:\n%s", term.Render())
 	}
 
-	// A tecla de aba leva até o shell, onde dá para escrever.
-	irAteAAbaDoShell(terminal, tela)
+	// The tab key leads to the shell, where it's possible to type.
+	goToShellTab(terminal, term)
 
 	_, _ = terminal.Write([]byte("\r"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
-	_, _ = terminal.Write([]byte("echo estou-na-aba-do-shell\r"))
-	esperarAte(t, 6*time.Second, func() bool { return strings.Contains(tela.Render(), "estou-na-aba-do-shell") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "TYPE") })
+	_, _ = terminal.Write([]byte("echo im-on-the-shell-tab\r"))
+	waitUntil(t, 6*time.Second, func() bool { return strings.Contains(term.Render(), "im-on-the-shell-tab") })
 
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 	_, _ = terminal.Write([]byte("q"))
-	_ = esperarSaida(cmd, 5*time.Second)
+	_ = waitExit(cmd, 5*time.Second)
 }
 
-// TestFormularioComecaNaCasaDoUsuario — o campo do caminho já vem apontando
-// para a casa.
-func TestFormularioComecaNaCasaDoUsuario(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(projeto, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestFormStartsAtUserHome — the path field already points to home.
+func TestFormStartsAtUserHome(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = projeto
+	cmd := command(t, home)
+	cmd.Dir = project
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
-	tela := vt.NewSafeEmulator(120, 30)
+	term := vt.NewSafeEmulator(120, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), tema.Nome) })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), theme.Name) })
 	_, _ = terminal.Write([]byte("n"))
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NOVA") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "NEW") })
 
-	desenho := tela.Render()
-	if !strings.Contains(desenho, os.Getenv("HOME")) {
-		t.Errorf("o formulário devia começar na casa do usuário:\n%s", desenho)
+	render := term.Render()
+	if !strings.Contains(render, os.Getenv("HOME")) {
+		t.Errorf("the form should start at the user's home:\n%s", render)
 	}
-	if strings.Contains(desenho, "TIPO") {
-		t.Errorf("o formulário não pergunta mais o tipo:\n%s", desenho)
+	if strings.Contains(render, "TYPE") {
+		t.Errorf("the form no longer asks for the type:\n%s", render)
 	}
-	if !strings.Contains(desenho, "MD") {
-		t.Errorf("o formulário devia oferecer o campo de markdown:\n%s", desenho)
+	if !strings.Contains(render, "MD") {
+		t.Errorf("the form should offer the markdown field:\n%s", render)
 	}
 
 	_, _ = terminal.Write([]byte{0x1b})
 	_, _ = terminal.Write([]byte("q"))
-	_ = esperarSaida(cmd, 5*time.Second)
+	_ = waitExit(cmd, 5*time.Second)
 }
 
-// TestAbaDeMarkdownListaBuscaEAbre — a aba de markdown mostra os arquivos do
-// projeto, filtra pelo nome enquanto se digita e abre o escolhido no enter.
-func TestAbaDeMarkdownListaBuscaEAbre(t *testing.T) {
-	casa := casaDeTeste(t)
-	projeto := filepath.Join(casa, "projeto")
-	if err := os.MkdirAll(filepath.Join(projeto, "docs"), 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+// TestMarkdownTabListsSearchesAndOpens — the markdown tab shows the
+// project's files, filters by name as you type and opens the chosen one on
+// enter.
+func TestMarkdownTabListsSearchesAndOpens(t *testing.T) {
+	home := testHome(t)
+	project := filepath.Join(home, "project")
+	if err := os.MkdirAll(filepath.Join(project, "docs"), 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
 	}
-	arquivos := map[string]string{
-		"README.md":        "# Leia isto\n\ncomeço de tudo\n",
-		"docs/spec-m7.md":  "# Módulo 7\n\nfichas clínicas com PHI\n",
-		"docs/decisoes.md": "# Decisões\n\nnada aqui\n",
+	files := map[string]string{
+		"README.md":         "# Read this\n\nthe start of everything\n",
+		"docs/spec-m7.md":   "# Module 7\n\nclinical charts with PHI\n",
+		"docs/decisions.md": "# Decisions\n\nnothing here\n",
 	}
-	for nome, conteudo := range arquivos {
-		if err := os.WriteFile(filepath.Join(projeto, nome), []byte(conteudo), 0o644); err != nil {
-			t.Fatalf("preparar: %v", err)
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(project, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("prepare: %v", err)
 		}
 	}
 
-	cmd := comando(t, casa)
-	cmd.Dir = projeto
+	cmd := command(t, home)
+	cmd.Dir = project
 	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
-	tela := vt.NewSafeEmulator(120, 30)
+	term := vt.NewSafeEmulator(120, 30)
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 120, Rows: 30})
 	if err != nil {
-		t.Fatalf("abrir a tela: %v", err)
+		t.Fatalf("open the screen: %v", err)
 	}
 	defer terminal.Close()
-	go func() { _, _ = copiar(tela, terminal) }()
-	go func() { _, _ = copiar(terminal, tela) }()
-	defer func() { telaDoTeste = tela.Render() }()
+	go func() { _, _ = pipe(term, terminal) }()
+	go func() { _, _ = pipe(terminal, term) }()
+	defer func() { lastScreen = term.Render() }()
 
-	esperarAte(t, 10*time.Second, func() bool { return strings.Contains(tela.Render(), "md") })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "md") })
 
-	// Anda até a aba de markdown.
+	// Moves to the markdown tab.
 	for range 4 {
-		if strings.Contains(tela.Render(), "buscar:") {
+		if strings.Contains(term.Render(), "search:") {
 			break
 		}
 		_, _ = terminal.Write([]byte("\t"))
 		time.Sleep(700 * time.Millisecond)
 	}
-	esperarAte(t, 5*time.Second, func() bool {
-		telaDoTeste = tela.Render()
-		desenho := tela.Render()
-		return strings.Contains(desenho, "buscar:") && strings.Contains(desenho, "README.md") &&
-			strings.Contains(desenho, "spec-m7.md")
+	waitUntil(t, 5*time.Second, func() bool {
+		lastScreen = term.Render()
+		render := term.Render()
+		return strings.Contains(render, "search:") && strings.Contains(render, "README.md") &&
+			strings.Contains(render, "spec-m7.md")
 	})
 
-	// A busca filtra pelo nome enquanto se digita.
-	_, _ = terminal.Write([]byte("\r")) // entra em DIGITAR
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "DIGITAR") })
+	// The search filters by name as you type.
+	_, _ = terminal.Write([]byte("\r")) // enters TYPE
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "TYPE") })
 	_, _ = terminal.Write([]byte("m7"))
-	esperarAte(t, 3*time.Second, func() bool {
-		telaDoTeste = tela.Render()
-		desenho := tela.Render()
-		return strings.Contains(desenho, "spec-m7.md") && !strings.Contains(desenho, "decisoes.md")
+	waitUntil(t, 3*time.Second, func() bool {
+		lastScreen = term.Render()
+		render := term.Render()
+		return strings.Contains(render, "spec-m7.md") && !strings.Contains(render, "decisions.md")
 	})
 
-	// Enter abre o arquivo escolhido.
+	// Enter opens the chosen file.
 	_, _ = terminal.Write([]byte("\r"))
-	esperarAte(t, 5*time.Second, func() bool {
-		telaDoTeste = tela.Render()
-		return strings.Contains(tela.Render(), "fichas clínicas")
+	waitUntil(t, 5*time.Second, func() bool {
+		lastScreen = term.Render()
+		return strings.Contains(term.Render(), "clinical charts")
 	})
 
-	// Esc volta para a lista.
+	// Esc goes back to the list.
 	_, _ = terminal.Write([]byte{0x1b})
-	esperarAte(t, 3*time.Second, func() bool {
-		telaDoTeste = tela.Render()
-		return strings.Contains(tela.Render(), "buscar:")
+	waitUntil(t, 3*time.Second, func() bool {
+		lastScreen = term.Render()
+		return strings.Contains(term.Render(), "search:")
 	})
 
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
-	esperarAte(t, 3*time.Second, func() bool { return strings.Contains(tela.Render(), "NAVEGAR") })
+	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 	_, _ = terminal.Write([]byte("q"))
-	_ = esperarSaida(cmd, 5*time.Second)
+	_ = waitExit(cmd, 5*time.Second)
 }

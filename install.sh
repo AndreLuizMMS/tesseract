@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Instala o Tesseract inteiro, numa linha só:
+# Installs Tesseract entirely, in one line:
 #
 #   curl -fsSL https://raw.githubusercontent.com/AndreLuizMMS/tesseract/main/install.sh | bash
 #
-# Tudo se resolve aqui dentro: baixa o código se ele não estiver por perto,
-# baixa o Go se a máquina não tiver um que sirva, compila o comando `ts`,
-# instala o serviço de usuário, põe o diretório no PATH e reinicia o motor com
-# o código novo. Rodar de novo por cima é seguro — é assim que se atualiza.
+# Everything is handled right here: downloads the code if it isn't around,
+# downloads Go if the machine doesn't have a version that works, builds the
+# `ts` command, installs the user service, puts the directory on PATH and
+# restarts the engine with the new code. Running it again on top is safe —
+# that's how you update.
 set -euo pipefail
-# Sem isso, erro dentro de $( ) não derruba o script: um download que falha
-# seguiria adiante e quebraria mais na frente, com a mensagem errada.
+# Without this, an error inside $( ) wouldn't bring the script down: a failed
+# download would carry on and break further ahead, with the wrong message.
 shopt -s inherit_errexit
 
 repositorio="AndreLuizMMS/tesseract"
@@ -18,8 +19,8 @@ destino="${HOME}/.local/bin"
 servicos="${HOME}/.config/systemd/user"
 suporte="${HOME}/.local/share/tesseract"
 
-# O que o script diz vai para o erro padrão: a saída padrão é o valor que as
-# funções devolvem umas para as outras.
+# What the script says goes to stderr: stdout is the value functions hand
+# each other.
 aviso() { printf '→ %s\n' "$*" >&2; }
 erro() {
 	printf '! %s\n' "$*" >&2
@@ -27,10 +28,10 @@ erro() {
 }
 
 tem() { command -v "$1" >/dev/null 2>&1; }
-precisa() { tem "$1" || erro "$1 não está instalado, e o instalador precisa dele"; }
+precisa() { tem "$1" || erro "$1 is not installed, and the installer needs it"; }
 
-# fonte devolve o diretório com o código. Rodando de dentro de um clone, é o
-# próprio clone; vindo do curl, o código é baixado.
+# fonte returns the directory holding the code. Running from inside a clone,
+# it's the clone itself; coming from curl, the code gets downloaded.
 fonte() {
 	local aqui
 	aqui="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)" || aqui=""
@@ -38,18 +39,18 @@ fonte() {
 		printf '%s' "$aqui"
 		return
 	fi
-	aviso "baixando o código ($ramo)"
+	aviso "downloading the code ($ramo)"
 	rm -rf "${suporte:?}/fonte"
 	mkdir -p "$suporte/fonte"
-	# Há proxy que barra o tarball do GitHub e deixa o git passar, então o
-	# segundo caminho existe para quando o primeiro não passa.
+	# Some proxies block the GitHub tarball but let git through, so the
+	# second path exists for when the first one doesn't.
 	if ! tarball 2>/dev/null && tem git; then
-		aviso "o tarball do GitHub não passou — indo pelo git"
+		aviso "the GitHub tarball didn't go through — falling back to git"
 		rm -rf "${suporte:?}/fonte"
 		git clone --quiet --depth 1 --branch "$ramo" \
 			"https://github.com/${repositorio}.git" "$suporte/fonte" || true
 	fi
-	[ -f "$suporte/fonte/go.mod" ] || erro "não deu para baixar o código de ${repositorio} (${ramo})"
+	[ -f "$suporte/fonte/go.mod" ] || erro "couldn't download the code from ${repositorio} (${ramo})"
 	printf '%s' "$suporte/fonte"
 }
 
@@ -59,8 +60,8 @@ tarball() {
 		tar xz -C "$suporte/fonte" --strip-components=1
 }
 
-# serve diz se o Go da máquina é novo o bastante. De 1.21 em diante o próprio Go
-# baixa a versão exata que o go.mod pede — abaixo disso, não adianta.
+# serve says whether the machine's Go is new enough. From 1.21 onward Go
+# itself downloads the exact version go.mod asks for — below that, it's no use.
 serve() {
 	local versao="${1#go}" maior menor
 	maior="${versao%%.*}"
@@ -70,8 +71,9 @@ serve() {
 	[ "$maior" -gt 1 ] || { [ "$maior" -eq 1 ] && [ "$menor" -ge 21 ]; }
 }
 
-# comandoGo devolve o Go que vai compilar, baixando um se for preciso. O Go
-# baixado fica num canto do Tesseract e não mexe no PATH de ninguém.
+# comandoGo returns the Go that will do the build, downloading one if needed.
+# A downloaded Go stays tucked inside Tesseract's own space and doesn't touch
+# anyone's PATH.
 comandoGo() {
 	if tem go && serve "$(go env GOVERSION 2>/dev/null || echo go0)"; then
 		command -v go
@@ -87,18 +89,18 @@ comandoGo() {
 	case "$(uname -m)" in
 	x86_64 | amd64) arquitetura=amd64 ;;
 	aarch64 | arm64) arquitetura=arm64 ;;
-	*) erro "não há Go pronto para $(uname -m) — instale o Go 1.21+ na mão e rode de novo" ;;
+	*) erro "no ready-made Go for $(uname -m) — install Go 1.21+ by hand and run again" ;;
 	esac
 	versao="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n1)"
-	[ -n "$versao" ] || erro "não deu para descobrir a versão do Go"
-	aviso "baixando o $versao — a máquina não tem um Go que sirva"
+	[ -n "$versao" ] || erro "couldn't figure out the Go version"
+	aviso "downloading $versao — this machine has no Go that works"
 	rm -rf "${suporte:?}/go"
 	mkdir -p "$suporte"
 	curl -fsSL "https://go.dev/dl/${versao}.linux-${arquitetura}.tar.gz" | tar xz -C "$suporte"
 	printf '%s' "$suporte/go/bin/go"
 }
 
-# garantirPath só mexe no seu shell quando o diretório não está no caminho.
+# garantirPath only touches your shell when the directory isn't on the path.
 garantirPath() {
 	case ":$PATH:" in *":$destino:"*) return ;; esac
 	local arquivo linha='export PATH="$HOME/.local/bin:$PATH"'
@@ -110,40 +112,40 @@ garantirPath() {
 	if ! grep -qsF "$linha" "$arquivo"; then
 		printf '\n# tesseract\n%s\n' "$linha" >>"$arquivo"
 	fi
-	aviso "$destino entrou no PATH pelo $arquivo — abra um terminal novo, ou rode: source $arquivo"
+	aviso "$destino was added to PATH via $arquivo — open a new terminal, or run: source $arquivo"
 }
 
-[ "$(uname -s)" = "Linux" ] || erro "o Tesseract roda em Linux (WSL com systemd); esta máquina é $(uname -s)"
+[ "$(uname -s)" = "Linux" ] || erro "Tesseract runs on Linux (WSL with systemd); this machine is $(uname -s)"
 
 raiz="$(fonte)"
 go="$(comandoGo)"
 
-aviso "compilando o ts"
+aviso "building ts"
 mkdir -p "$destino"
 provisorio="$(mktemp "${destino}/.ts.XXXXXX")"
 trap 'rm -f "$provisorio"' EXIT
 (cd "$raiz" && "$go" build -trimpath -ldflags="-s -w" -o "$provisorio" ./cmd/tess)
 chmod 755 "$provisorio"
-# Troca por rename: o motor que está de pé continua no binário antigo até o
-# restart, em vez de o build esbarrar num arquivo em uso.
+# Swap by rename: the engine that's already running stays on the old binary
+# until the restart, instead of the build tripping over a file in use.
 mv -f "$provisorio" "$destino/ts"
 trap - EXIT
 
-aviso "instalando o serviço"
+aviso "installing the service"
 mkdir -p "$servicos"
 cp "$raiz/systemd/tesseract.service" "$servicos/tesseract.service"
 
 if tem systemctl && systemctl --user show-environment >/dev/null 2>&1; then
 	systemctl --user daemon-reload
 	systemctl --user enable tesseract.service >/dev/null
-	# restart, não start: numa atualização o motor já está de pé com o código
-	# velho, e é o restart que o faz ler o binário novo.
+	# restart, not start: on an update the engine is already up with the old
+	# code, and it's the restart that makes it pick up the new binary.
 	systemctl --user restart tesseract.service
-	aviso "motor no ar com o código novo"
+	aviso "engine up with the new code"
 else
-	aviso "systemd de usuário indisponível: o motor sobe sozinho quando você rodar 'ts'"
+	aviso "user systemd unavailable: the engine will come up on its own when you run 'ts'"
 fi
 
 garantirPath
 
-printf '\npronto. rode `ts` dentro de um projeto.\n' >&2
+printf '\ndone. run `ts` inside a project.\n' >&2

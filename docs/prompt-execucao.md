@@ -1,339 +1,345 @@
-# Implementar o Tesseract
+# Implement Tesseract
 
-## Objetivo
+## Goal
 
-Entregar o Tesseract funcionando: um gerenciador de instâncias de agentes em terminal,
-rodando na WSL como serviço, com mosaico de células por projeto, painel Docker e
-recuperação automática depois de queda do WSL.
+Deliver Tesseract working: a terminal agent instance manager, running on WSL as a service,
+with a mosaic of cells per project, a Docker panel and automatic recovery after a WSL
+crash.
 
-## Fonte da verdade
+## Source of truth
 
-`~/tesseract/docs/specs/2026-08-17-tesseract-design.md` — spec aprovada, 11 seções.
-Ela manda. Onde este prompt e a spec discordarem, a spec vence. Leia inteira antes
-de escrever a primeira linha.
+`~/tesseract/docs/specs/2026-08-17-tesseract-design.md` — approved spec, 11 sections.
+It rules. Where this prompt and the spec disagree, the spec wins. Read it whole before
+writing the first line.
 
-Conflito real entre spec e realidade técnica: pare, relate, proponha. Não decida sozinho.
+Real conflict between the spec and technical reality: stop, report, propose. Don't decide
+alone.
 
-## Contexto
+## Context
 
-Projeto novo, em `~/tesseract`, ainda vazio fora da pasta `docs/`.
+New project, at `~/tesseract`, still empty outside the `docs/` folder.
 
-Existe um fork pessoal em `~/claude-squad-andre` (Go, ~15k linhas, fork de
-smtg-ai/claude-squad). **Nenhuma linha dele é reaproveitada.** Ele serve como
-referência de comportamento em três pontos específicos, e só:
+There's a personal fork at `~/claude-squad-andre` (Go, ~15k lines, fork of
+smtg-ai/claude-squad). **No line of it is reused.** It serves as a behavior reference on
+three specific points, and only those:
 
-- `session/instance.go` e `app/notify.go` — a heurística que evita alarme falso ao
-  detectar fim de turno do agente (N leituras de trabalho para armar, M de silêncio
-  para declarar encerrado)
-- `session/quota.go` — leitura do arquivo de consumo da janela de 5h
-- `README.md` §3.5 — o formato desse arquivo
+- `session/instance.go` and `app/notify.go` — the heuristic that avoids a false alarm when
+  detecting the end of an agent's turn (N reads of work to arm, M of silence to declare it
+  over)
+- `session/quota.go` — reading the 5h-window usage file
+- `README.md` §3.5 — that file's format
 
-Ambiente verificado nesta máquina:
+Environment verified on this machine:
 
-| Item | Estado |
+| Item | State |
 |---|---|
 | Go | 1.25.8 |
-| systemd na WSL | ativo como pid 1 (`systemd=true` em `/etc/wsl.conf`) |
-| Docker Compose | v2.35.1, aceita `--format json` |
-| Interop Windows | ligado; `powershell.exe` e `cmd.exe` alcançáveis |
-| `wsl-notify-send.exe` | **não instalado** — notificação sai por `powershell.exe` |
+| systemd on WSL | active as pid 1 (`systemd=true` in `/etc/wsl.conf`) |
+| Docker Compose | v2.35.1, accepts `--format json` |
+| Windows interop | on; `powershell.exe` and `cmd.exe` reachable |
+| `wsl-notify-send.exe` | **not installed** — notification goes through `powershell.exe` |
 | Terminal | Windows Terminal (`xterm-256color`) |
 
-## Stack — fixa
+## Stack — fixed
 
-Go 1.25. Exatamente seis dependências, nenhuma a mais:
+Go 1.25. Exactly six dependencies, not one more:
 
-| Uso | Módulo |
+| Use | Module |
 |---|---|
 | PTY | `github.com/creack/pty` |
-| Emulação de terminal | `github.com/charmbracelet/x/vt` |
-| Interface de terminal | `github.com/charmbracelet/bubbletea` v2 |
-| Estilo | `github.com/charmbracelet/lipgloss` v2 |
-| Markdown renderizado | `github.com/charmbracelet/glamour` |
-| Arquivo mudou | `github.com/fsnotify/fsnotify` |
+| Terminal emulation | `github.com/charmbracelet/x/vt` |
+| Terminal interface | `github.com/charmbracelet/bubbletea` v2 |
+| Styling | `github.com/charmbracelet/lipgloss` v2 |
+| Rendered markdown | `github.com/charmbracelet/glamour` |
+| File changed | `github.com/fsnotify/fsnotify` |
 
-Todo o resto é biblioteca padrão. Docker por `exec` de `docker compose`, sem SDK.
-Notificação por `exec` de `powershell.exe`, sem biblioteca. Comunicação entre motor e
-tela por socket unix com JSON por linha, sem gRPC. Estado e histórico em arquivo, sem
-banco. Testes com `testing` da stdlib, sem framework.
+Everything else is the standard library. Docker via `exec` of `docker compose`, no SDK.
+Notification via `exec` of `powershell.exe`, no library. Communication between engine and
+screen over a unix socket with JSON per line, no gRPC. State and history in a file, no
+database. Tests with stdlib `testing`, no framework.
 
-Precisar de uma sétima dependência: pare e proponha antes de adicionar.
+Need a seventh dependency: stop and propose before adding it.
 
-## Estrutura — fixa
+## Structure — fixed
 
 ```
 tesseract/
-├── cmd/tess/              entrada única: sobe o motor ou conecta nele
+├── cmd/tess/              single entry point: starts the engine or connects to it
 ├── internal/
-│   ├── motor/             estado, projetos, ciclo de vida, persistência
-│   │   └── historico/     gravação, rotação, busca
-│   ├── celula/            um arquivo por tipo
-│   │   ├── celula.go         o contrato: nasce, desenha, recebe tecla, tem estados
-│   │   ├── processo.go       base compartilhada das que rodam algo
+│   ├── motor/             state, projects, lifecycle, persistence
+│   │   └── historico/     recording, rotation, search
+│   ├── celula/            one file per type
+│   │   ├── celula.go         the contract: is born, draws, receives keys, has states
+│   │   ├── processo.go       shared base for the ones that run something
 │   │   ├── claude.go  cursor.go  bash.go  logs.go  md.go
-│   ├── docker/            ler o compose, agir na stack e no serviço
-│   ├── protocolo/         contrato motor↔tela
-│   ├── teclado/           o mapa de teclas, num arquivo só
+│   ├── docker/            reads the compose file, acts on the stack and the service
+│   ├── protocolo/         engine↔screen contract
+│   ├── teclado/           the keymap, in a single file
 │   └── tela/              mosaico.go  lista.go  docker.go  formulario.go
 └── systemd/tesseract.service
 ```
 
-Essa estrutura existe para sustentar três regras da spec §8. Elas são obrigatórias:
+That structure exists to support three rules from spec §8. They're mandatory:
 
-1. Tipo de célula novo é um arquivo em `celula/` mais uma linha no registro. `tela/`,
-   `teclado/` e `motor/` não são tocados.
-2. O mapa de teclas mora só em `teclado/`. Nenhum arquivo fora dele associa tecla a ação.
-3. `tela/` desenha o que o motor manda e devolve tecla. Nenhuma regra de negócio ali.
+1. A new cell type is a file in `celula/` plus a line in the registry. `tela/`, `teclado/`
+   and `motor/` aren't touched.
+2. The keymap lives only in `teclado/`. No file outside it ties a key to an action.
+3. `tela/` draws what the engine tells it and returns keys. No business rule lives there.
 
-## Como executar: seis fases com portão
+## How to execute: six gated phases
 
-Dentro de uma fase, itere sozinho: implementa, roda `go build ./... && go vet ./... &&
-go test ./...`, corrige, repete até verde. Não peça nada ao humano no meio de uma fase.
+Inside a phase, iterate on your own: implement, run `go build ./... && go vet ./... &&
+go test ./...`, fix, repeat until green. Don't ask the human anything mid-phase.
 
-No fim de cada fase: pare, entregue o roteiro manual daquela fase, e espere o retorno.
-Erro reportado na validação manual volta pra dentro da fase — corrige e devolve o roteiro
-de novo. Só avance quando o humano der o OK.
-
----
-
-### Fase 1 — fatia vertical
-
-Motor com uma célula `bash`: PTY, emulação de terminal em memória, histórico em arquivo,
-socket unix, e uma tela que mostra essa célula em tela cheia com os dois modos.
-
-**Testes automatizados obrigatórios**
-
-- `protocolo`: serializar e desserializar toda mensagem devolve o valor original.
-- `celula/processo`: sobe `bash`, escreve `echo tesseract\n`, e a tela em memória do
-  motor passa a conter `tesseract` em até 2s.
-- `motor/historico`: escreve além do teto de tamanho e o arquivo descarta do começo,
-  mantendo o fim; busca por termo devolve as linhas certas com o número da linha.
-- `motor`: estado desejado é escrito atomicamente; arquivo corrompido carrega o que dá,
-  preserva o original com sufixo e devolve o erro.
-
-**Validação manual**
-
-1. `go run ./cmd/tess` — abre com uma célula `bash` em tela cheia, modo NAVEGAR, com a
-   barra de título e o rodapé acesos.
-2. `↵` — entra em DIGITAR: barra e rodapé apagam, aparece o selo `▓ DIGITAR ▓`, a borda
-   da célula engrossa.
-3. Digite `q` e `D` — as duas letras aparecem no shell, nada acontece no aplicativo.
-4. `ls -la` + `↵` — a saída aparece. `ctrl-l` — volta pra NAVEGAR, chrome acende.
-5. `q` — a tela fecha. `tess status` mostra o motor vivo com uma célula.
-6. `go run ./cmd/tess` de novo — a mesma célula está lá, com a saída do `ls` ainda
-   visível, e o shell responde.
-7. Role com a roda do mouse — o histórico sobe; `esc` volta ao vivo.
+At the end of each phase: stop, deliver that phase's manual test script, and wait for
+feedback. An error reported during manual validation goes back inside the phase — fix it
+and hand back the script again. Only move on once the human gives the OK.
 
 ---
 
-### Fase 2 — projetos e mosaico
+### Phase 1 — vertical slice
 
-Projetos como coluna, tira de status para os não focados, navegação por seta, formulário
-único de criação, `n` `D` `o` `v`.
+Engine with one `bash` cell: PTY, in-memory terminal emulation, history in a file, unix
+socket, and a screen showing that cell full-screen with the two modes.
 
-**Testes automatizados obrigatórios**
+**Required automated tests**
 
-- `teclado`: **nenhuma tecla tem dois significados** no mesmo modo; em DIGITAR a única
-  tecla reservada é `ctrl-l`; toda tecla do mapa tem texto de ajuda. Esse teste é a
-  garantia mecânica da regra 2 — se ele quebrar, a regra foi violada.
-- `tela/mosaico`: com 3 projetos e largura fixa de 120 colunas, a coluna focada recebe
-  largura de leitura e as outras viram tira; a saída renderizada bate com um golden file.
-  Mudar o foco muda qual coluna engorda.
-- `motor`: matar a última célula de um projeto remove o projeto do estado; matar uma
-  célula não-última não remove.
-- `motor`: criar célula em caminho inexistente ou sem permissão de escrita falha com
-  erro claro e não altera o estado.
+- `protocolo`: serializing and deserializing every message returns the original value.
+- `celula/processo`: starts `bash`, writes `echo tesseract\n`, and the engine's in-memory
+  screen comes to contain `tesseract` within 2s.
+- `motor/historico`: writing past the size ceiling discards from the start, keeping the
+  end; search by term returns the right lines with the line number.
+- `motor`: desired state is written atomically; a corrupted file loads what it can,
+  preserves the original with a suffix and returns the error.
 
-**Validação manual**
+**Manual validation**
 
-1. `n` — o formulário abre com PROJETO preenchido com o projeto focado.
-2. Digite um caminho novo, `tab` completa e mostra quantas pastas casam. Escolha `bash`,
-   dê um nome, `↵`.
-3. O segundo projeto aparece como coluna. A coluna focada está larga; a outra virou tira
-   com iniciais na vertical, contagem de células e indicador de Docker.
-4. `←` `→` — a coluna vizinha engorda e a atual encolhe. `↑` `↓` andam entre células.
-5. Digite `j`, `k`, `h`, `l` em NAVEGAR — nada acontece; essas letras não navegam.
-6. `o` — a célula focada ocupa a tela. `shift` + arrastar seleciona texto só dela, sem
-   pegar vizinho. `esc` volta ao mosaico.
-7. `D` — pede confirmação. Na última célula do projeto, a confirmação avisa que o projeto
-   sai da tela. Confirme: o projeto some, e o diretório continua intacto no disco.
+1. `go run ./cmd/tess` — opens with one `bash` cell full-screen, NAVIGATE mode, with the
+   title bar and footer lit.
+2. `↵` — enters TYPE: bar and footer dim, the `▓ TYPE ▓` badge appears, the cell's border
+   thickens.
+3. Type `q` and `D` — both letters show up in the shell, nothing happens in the app.
+4. `ls -la` + `↵` — the output shows up. `ctrl-l` — back to NAVIGATE, chrome lights up.
+5. `q` — the screen closes. `tess status` shows the engine alive with one cell.
+6. `go run ./cmd/tess` again — the same cell is there, with the `ls` output still visible,
+   and the shell responds.
+7. Scroll with the mouse wheel — the history scrolls up; `esc` goes back to live.
 
 ---
 
-### Fase 3 — os outros tipos de célula
+### Phase 2 — projects and mosaic
 
-`claude`, `cursor`, `logs`, `md`. Estados de turno com a heurística anti-alarme-falso.
-`p`, `r`, `R`, `ctrl-r`, `espaço`, `1`…`9`.
+Projects as a column, a status strip for the unfocused ones, arrow navigation, a single
+creation form, `n` `D` `o` `v`.
 
-**Testes automatizados obrigatórios**
+**Required automated tests**
 
-- Estado de turno: alimentando a heurística com um fluxo sintético de bytes, spinner
-  piscando e cursor se mexendo **não** disparam `respondeu`; trabalho seguido de silêncio
-  dispara; pergunta bloqueante vira `aprovar` e não `respondeu`.
-- `celula/md`: alterar o arquivo em disco atualiza a célula em até 1s; arquivo apagado
-  vira estado de erro legível, não pânico.
-- `celula/logs`: serviço parado deixa a célula em `parada` e ela engata quando o serviço
-  sobe.
-- `celula`: cada tipo implementa o contrato inteiro — teste de tabela que percorre o
-  registro de tipos e falha se algum não responder a nascer, desenhar, receber tecla e
-  informar estados.
+- `teclado`: **no key has two meanings** in the same mode; in TYPE mode the only reserved
+  key is `ctrl-l`; every key in the map has help text. That test is the mechanical
+  guarantee of rule 2 — if it breaks, the rule was violated.
+- `tela/mosaico`: with 3 projects and a fixed width of 120 columns, the focused column gets
+  reading width and the others become a strip; the rendered output matches a golden file.
+  Changing focus changes which column fattens.
+- `motor`: killing a project's last cell removes the project from the state; killing a
+  non-last cell doesn't.
+- `motor`: creating a cell in a nonexistent path or without write permission fails with a
+  clear error and doesn't change the state.
 
-**Validação manual**
+**Manual validation**
 
-1. Crie uma célula `claude` num projeto real. Ela sobe e a tela do Claude aparece.
-2. `p` — manda um prompt sem entrar na célula. O Claude começa a trabalhar; o marcador
-   vira trabalhando.
-3. Ele termina: o marcador vira `⬤ RESPONDEU`, toca o aviso, sobe a notificação do
-   sistema com o nome da célula e do projeto.
-4. Peça algo que exija aprovação: o marcador vira `⏵ APROVAR`, com cor diferente de
-   respondeu.
-5. `espaço` de outro projeto — pula direto pra célula que chamou.
-6. `R` — renomeie a célula. O nome muda na tela **e** a conversa dentro do Claude é
-   renomeada. `ctrl-r` — a célula adota o nome que o Claude deu à conversa.
-7. Repita 1, 2 e 6 com `cursor`.
-8. Crie uma célula `md` apontando um arquivo. Peça pro Claude editar esse arquivo: o
-   markdown renderizado se atualiza ao lado sozinho.
-9. Mate o processo do Claude por fora (`kill`): a célula vira `✖ caiu`, avisa, e **não**
-   reinicia sozinha. `r` sobe de novo retomando a conversa.
+1. `n` — the form opens with PROJECT filled with the focused project.
+2. Type a new path, `tab` completes it and shows how many folders match. Choose `bash`,
+   give it a name, `↵`.
+3. The second project shows up as a column. The focused column is wide; the other one
+   became a strip with vertical initials, cell count and Docker indicator.
+4. `←` `→` — the neighboring column fattens and the current one shrinks. `↑` `↓` move
+   between cells.
+5. Type `j`, `k`, `h`, `l` in NAVIGATE — nothing happens; those letters don't navigate.
+6. `o` — the focused cell takes over the screen. `shift` + drag selects text from it only,
+   without grabbing the neighbor. `esc` goes back to the mosaic.
+7. `D` — asks for confirmation. On a project's last cell, the confirmation warns that the
+   project will leave the screen. Confirm: the project disappears, and the directory stays
+   intact on disk.
 
 ---
 
-### Fase 4 — Docker
+### Phase 3 — the other cell types
 
-Painel do projeto, ações no serviço e na stack, log vira célula.
+`claude`, `cursor`, `logs`, `md`. Turn states with the anti-false-alarm heuristic.
+`p`, `r`, `R`, `ctrl-r`, `space`, `1`…`9`.
 
-**Testes automatizados obrigatórios**
+**Required automated tests**
 
-- `docker`: parsear a saída de `docker compose ps --format json` a partir de fixtures
-  cobrindo serviço up, exited, sem porta e sem healthcheck.
-- `docker`: detecção do arquivo de compose só na raiz do projeto, na ordem
-  `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`; sem busca
-  recursiva; projeto sem compose não ganha painel.
-- `teclado`: o painel Docker não reusa nenhuma tecla com significado diferente do mapa
-  global sem que isso esteja declarado como teclado próprio do painel.
+- Turn state: feeding the heuristic a synthetic byte stream, a blinking spinner and a
+  moving cursor **don't** trigger `answered`; work followed by silence triggers it; a
+  blocking question turns into `approve`, not `answered`.
+- `celula/md`: changing the file on disk updates the cell within 1s; a deleted file turns
+  into a readable error state, not a panic.
+- `celula/logs`: a stopped service leaves the cell `stopped` and it hooks in when the
+  service comes up.
+- `celula`: every type implements the whole contract — a table test that walks the type
+  registry and fails if any type doesn't respond to being born, drawing, receiving a key
+  and reporting states.
 
-**Validação manual**
+**Manual validation**
 
-Num projeto seu com Compose de verdade:
-
-1. `d` — o painel abre listando os serviços com estado, porta, saúde e tempo de pé.
-2. `↑` `↓` escolhem serviço — não executam ação nenhuma.
-3. `s` para o serviço escolhido; `u` sobe de novo; `r` reinicia. A lista reflete cada
-   mudança.
-4. `U` sobe a stack inteira; `S` para tudo; `R` reinicia tudo.
-5. `l` num serviço — o painel fecha e nasce uma célula `logs` daquele serviço no mosaico,
-   com o log correndo.
-6. Essa célula se comporta como qualquer outra: `D` mata, `R` renomeia, roda do mouse
-   rola, `o` põe em tela cheia.
-7. Não existe nenhuma ação que apague volume ou derrube com `-v` em lugar nenhum do painel.
-
----
-
-### Fase 5 — serviço e recuperação
-
-Unidade systemd de usuário, reconstituição depois de queda, notificação pelo motor,
-badge de consumo.
-
-**Testes automatizados obrigatórios**
-
-- `motor`: matar o motor e subir de novo a partir do estado desejado reconstrói projetos
-  e células com o mesmo tipo, nome e posição.
-- `motor`: célula `claude` reconstituída **não** dispara prompt nenhum — teste que falha
-  se qualquer byte for escrito no PTY do agente durante a reconstituição.
-- `motor`: Docker não sobe sozinho na reconstituição.
-- `motor/quota`: badge some quando o arquivo está velho; muda de faixa acima de 80%;
-  ausência do arquivo não quebra nada.
-
-**Validação manual**
-
-1. `systemctl --user enable --now tesseract` — o serviço sobe.
-2. Deixe 2 projetos com 4 células, sendo 2 `claude` com conversa em andamento.
-3. Feche a tela com `q`. `systemctl --user status tesseract` mostra o serviço vivo.
-4. Peça algo a um Claude por `p`, feche a tela, espere ele terminar: **a notificação do
-   sistema chega com a tela fechada.**
-5. No PowerShell do Windows: `wsl --shutdown`. Espere. Reabra a WSL.
-6. `tess` — a mesma grade, nas mesmas posições, com os mesmos nomes. As células `bash`
-   têm o histórico anterior rolável. As `claude` estão **paradas**, com a conversa
-   retomada e nenhum trabalho novo iniciado.
-7. A stack Docker continua onde estava — não subiu sozinha.
+1. Create a `claude` cell in a real project. It comes up and Claude's screen appears.
+2. `p` — sends a prompt without entering the cell. Claude starts working; the marker turns
+   to working.
+3. It finishes: the marker turns to `⬤ ANSWERED`, the alert sounds, the system notification
+   comes up with the cell's and the project's name.
+4. Ask for something that needs approval: the marker turns to `⏵ APPROVE`, with a color
+   different from answered.
+5. `space` from another project — jumps straight to the cell that called.
+6. `R` — rename the cell. The name changes on screen **and** the conversation inside Claude
+   is renamed. `ctrl-r` — the cell adopts the name Claude gave the conversation.
+7. Repeat 1, 2 and 6 with `cursor`.
+8. Create an `md` cell pointing at a file. Ask Claude to edit that file: the rendered
+   markdown updates itself alongside it.
+9. Kill Claude's process from outside (`kill`): the cell turns `✖ crashed`, alerts, and
+   **doesn't** restart on its own. `r` brings it back up, resuming the conversation.
 
 ---
 
-### Fase 6 — acabamento
+### Phase 4 — Docker
 
-Lista com prévia, busca `/`, ajuda `?`, os cinco comandos de linha, instalação.
+Project panel, actions on the service and the stack, log becomes a cell.
 
-**Testes automatizados obrigatórios**
+**Required automated tests**
 
-- `tela`: lista e mosaico, alimentados com o mesmo estado, mostram os mesmos projetos,
-  células e marcadores. Esse teste é a garantia mecânica da regra 3.
-- `motor/historico`: busca devolve resultado correto em arquivo grande, incluindo termo
-  que atravessa o limite de rotação.
-- `cmd/tess`: cada comando de linha responde e sai com código correto; `tess` sem motor
-  rodando sobe o motor.
+- `docker`: parsing the output of `docker compose ps --format json` from fixtures covering
+  a service up, exited, without a port and without a healthcheck.
+- `docker`: compose file detection only at the project root, in the order
+  `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`; no recursive
+  search; a project without compose gets no panel.
+- `teclado`: the Docker panel doesn't reuse any key with a different meaning than the
+  global map unless it's declared as the panel's own keymap.
 
-**Validação manual**
+**Manual validation**
 
-1. `v` — alterna pra lista. Os mesmos projetos, células e marcadores do mosaico, agora em
-   texto, com prévia ao vivo da célula selecionada à direita.
-2. Toda tecla da fase 2 e 3 faz **a mesma coisa** na lista: `n`, `D`, `o`, `p`, `R`, `r`,
-   `espaço`, setas.
-3. `/` — busca no histórico da célula focada e leva até a ocorrência.
-4. `?` — a ajuda lista todas as teclas, separadas por modo, sem nenhuma que não exista.
-5. Feche e reabra: a tela escolhida (lista ou mosaico) foi lembrada.
-6. `tess status`, `tess novo <dir>`, `tess stop`, `tess reset` — cada um faz o que a spec
-   §9 diz.
-7. Redimensione a janela do terminal em cada tela: nada quebra, nada renderiza torto.
+On one of your projects with a real Compose file:
+
+1. `d` — the panel opens listing the services with state, port, health and uptime.
+2. `↑` `↓` pick a service — they don't run any action.
+3. `s` stops the chosen service; `u` brings it back up; `r` restarts it. The list reflects
+   each change.
+4. `U` brings up the whole stack; `S` stops everything; `R` restarts everything.
+5. `l` on a service — the panel closes and a `logs` cell for that service is born in the
+   mosaic, with the log running.
+6. That cell behaves like any other: `D` kills, `R` renames, mouse wheel scrolls, `o` puts
+   it full screen.
+7. There's no action anywhere in the panel that deletes a volume or brings things down with
+   `-v`.
 
 ---
 
-## Fora do escopo
+### Phase 5 — service and recovery
 
-Não construa, mesmo que pareça natural:
+User systemd unit, reconstitution after a crash, notification from the engine, usage
+badge.
 
-- Célula de git (árvore local, diff) e de PR do GitHub.
-- Auto-yes: aprovação automática de pedidos do agente, e daemon que responde por você.
-- Paleta de comandos escritos.
-- Reordenar célula ou projeto. A ordem é a de criação.
-- Editar markdown. A célula `md` só lê.
-- Temas, configuração visual, qualquer coisa de aparência além do que a spec descreve.
-- Rodar fora da WSL.
-- Reaproveitar código do fork.
+**Required automated tests**
 
-Também não: abstração para um caso de uso só, interface com uma implementação só,
-configuração para valor que nunca muda, reescrita de algo que já passou no portão.
+- `motor`: killing the engine and bringing it back up from the desired state rebuilds
+  projects and cells with the same type, name and position.
+- `motor`: a reconstituted `claude` cell **doesn't** fire off any prompt — a test that
+  fails if a single byte gets written to the agent's PTY during reconstitution.
+- `motor`: Docker doesn't come up by itself on reconstitution.
+- `motor/quota`: the badge disappears when the file is stale; changes band above 80%; the
+  file's absence doesn't break anything.
 
-## Restrições
+**Manual validation**
 
-- Interface, mensagem de erro e ajuda em português. Código, identificador e comentário
-  em português também, seguindo os nomes da spec (`celula`, `motor`, `tela`, `projeto`).
-- Commits em pt-br, subject único sem corpo, só os prefixos `feat:`, `fix:`, `refactor:`,
-  sem escopo, sem rodapé de co-autoria.
-- `go build ./... && go vet ./... && go test ./...` verde antes de qualquer entrega.
-- Teto do histórico por célula: 5 MB, com descarte do começo, configurável.
-- Se `charmbracelet/x/vt` não der conta de algum agente, troque por `hinshun/vt10x` ou
-  por emulação própria do subconjunto necessário. A troca não pode tocar nada fora de
+1. `systemctl --user enable --now tesseract` — the service comes up.
+2. Leave 2 projects with 4 cells, 2 of them `claude` with a conversation in progress.
+3. Close the screen with `q`. `systemctl --user status tesseract` shows the service alive.
+4. Ask something of a Claude via `p`, close the screen, wait for it to finish: **the system
+   notification arrives with the screen closed.**
+5. On Windows PowerShell: `wsl --shutdown`. Wait. Reopen WSL.
+6. `tess` — the same grid, in the same positions, with the same names. The `bash` cells
+   have their previous history scrollable. The `claude` ones are **stopped**, with the
+   conversation resumed and no new work started.
+7. The Docker stack is still where it was — it didn't come up by itself.
+
+---
+
+### Phase 6 — polish
+
+List with a preview, `/` search, `?` help, the five command-line commands, installation.
+
+**Required automated tests**
+
+- `tela`: the list and the mosaic, fed the same state, show the same projects, cells and
+  markers. That test is the mechanical guarantee of rule 3.
+- `motor/historico`: search returns the correct result in a large file, including a term
+  that crosses the rotation boundary.
+- `cmd/tess`: every command-line command responds and exits with the right code; `tess`
+  with no engine running starts the engine.
+
+**Manual validation**
+
+1. `v` — switches to the list. Same projects, cells and markers as the mosaic, now in
+   text, with a live preview of the selected cell on the right.
+2. Every key from phases 2 and 3 does **the same thing** in the list: `n`, `D`, `o`, `p`,
+   `R`, `r`, `space`, arrows.
+3. `/` — searches the focused cell's history and jumps to the match.
+4. `?` — the help lists every key, split by mode, with none that doesn't exist.
+5. Close and reopen: the chosen screen (list or mosaic) was remembered.
+6. `tess status`, `tess novo <dir>`, `tess stop`, `tess reset` — each does what spec §9
+   says.
+7. Resize the terminal window on each screen: nothing breaks, nothing renders crooked.
+
+---
+
+## Out of scope
+
+Don't build, even if it feels natural:
+
+- A git cell (local tree, diff) and a GitHub PR cell.
+- Auto-yes: automatic approval of agent requests, and a daemon that answers for you.
+- A written command palette.
+- Reordering a cell or project. Order is creation order.
+- Editing markdown. The `md` cell only reads.
+- Themes, visual configuration, anything about appearance beyond what the spec describes.
+- Running outside WSL.
+- Reusing code from the fork.
+
+Also not: abstraction for a single use case, an interface with a single implementation,
+configuration for a value that never changes, rewriting something that already passed the
+gate.
+
+## Constraints
+
+- Interface, error messages and help in Portuguese. Code, identifiers and comments also in
+  Portuguese, following the spec's names (`celula`, `motor`, `tela`, `projeto`).
+- Commits in pt-br, single subject with no body, only the prefixes `feat:`, `fix:`,
+  `refactor:`, no scope, no co-authorship footer.
+- `go build ./... && go vet ./... && go test ./...` green before any delivery.
+- History ceiling per cell: 5 MB, discarding from the start, configurable.
+- If `charmbracelet/x/vt` can't handle some agent, swap it for `hinshun/vt10x` or a custom
+  emulation of the needed subset. The swap can't touch anything outside
   `internal/celula/`.
-- Nenhuma ação destrutiva no Docker em lugar nenhum: sem `down -v`, sem apagar volume.
-- O humano não lê código. O relatório de fim de fase descreve comportamento observável,
-  não implementação.
+- No destructive Docker action anywhere: no `down -v`, no deleting a volume.
+- The human doesn't read code. The end-of-phase report describes observable behavior, not
+  implementation.
 
-## Critério de pronto
+## Definition of done
 
-As seis fases com portão manual aprovado, `go test ./...` verde, e o serviço sobrevivendo
-a um `wsl --shutdown` com a grade intacta e nenhum agente tendo trabalhado sozinho.
+The six gated phases with manual approval, `go test ./...` green, and the service
+surviving a `wsl --shutdown` with the grid intact and no agent having worked alone.
 
 ---
 
-## Decisões tomadas sem confirmação do humano
+## Decisions made without human confirmation
 
-Estão valendo. Se alguma estiver errada, ele corrige antes da fase 1 começar.
+They stand. If any is wrong, he'll correct it before phase 1 starts.
 
-1. "Recursivo até estar pronto" é loop autônomo dentro da fase e portão humano entre
-   fases — a parte visual de uma tela de terminal não tem como ser validada sem olho.
-2. Auto-yes fica fora do V1 e a célula `md` só lê, conforme a spec.
-3. Notificação sai por `powershell.exe`, já que `wsl-notify-send.exe` não está instalado.
-4. Código e identificadores em português, seguindo o vocabulário da spec.
-5. A fase 1 entrega tela cheia com uma célula antes do mosaico, para haver algo rodando
-   cedo em vez de duas fases sem tela.
-6. Teto de histórico de 5 MB por célula — número escolhido aqui, não vem da spec.
+1. "Recursive until ready" is an autonomous loop inside a phase and a human gate between
+   phases — the visual part of a terminal screen has no way to be validated without an eye
+   on it.
+2. Auto-yes is out of V1 and the `md` cell only reads, per the spec.
+3. Notification goes through `powershell.exe`, since `wsl-notify-send.exe` isn't installed.
+4. Code and identifiers in Portuguese, following the spec's vocabulary.
+5. Phase 1 delivers full screen with one cell before the mosaic, so there's something
+   running early instead of two phases with no screen.
+6. History ceiling of 5 MB per cell — a number chosen here, not from the spec.

@@ -1,16 +1,16 @@
 # themes/delta.gitconfig
-# Seção [delta] do Tesseract Neon.
+# Tesseract Neon [delta] section.
 #
-# Inclua no ~/.gitconfig:
+# Include in ~/.gitconfig:
 #   [include]
-#       path = ~/caminho/para/tesseract/themes/delta.gitconfig
+#       path = ~/path/to/tesseract/themes/delta.gitconfig
 #
-# Depende do tema de sintaxe instalado a partir de themes/bat.tmTheme.
+# Depends on the syntax theme installed from themes/bat.tmTheme.
 #
-# Regra do diff: linha adicionada usa o verde escuro brand.core, nunca o
-# phosphor — um diff longo repetiria o #55FFA6 centenas de vezes, e ele existe
-# uma vez por tela. Cabeçalho de arquivo e moldura são ciano, porque são
-# estrutura. Conflito é laranja de bloqueio: pede a sua mão.
+# Diff rule: an added line uses dark green brand.core, never the phosphor —
+# a long diff would repeat #55FFA6 hundreds of times, and it exists once per
+# screen. File header and frame are cyan, because they're structure.
+# Conflict is blocking orange: it asks for your hand.
 
 [core]
 	pager = delta
@@ -32,7 +32,7 @@
 	true-color = always
 	tabs = 4
 
-	# Sem canto arredondado: só traço reto.
+	# No rounded corner: only straight lines.
 	file-style = "#E8F4EC" bold
 	file-decoration-style = "#128C86" ul
 	hunk-header-style = syntax
@@ -58,8 +58,8 @@
 
 	whitespace-error-style = "#030507" "#FF3B47"
 
-	# Blocos movidos: azul e roxo, as duas famílias que não são estado, não são
-	# posse e não são estrutura.
+	# Moved blocks: blue and purple, the two families that are neither state,
+	# nor ownership, nor structure.
 	map-styles = \
 		bold purple => syntax "#121C1F", \
 		bold blue => syntax "#0C1315"
@@ -73,14 +73,14 @@
 
 	blame-palette = "#070B0C" "#0C1315" "#121C1F" "#16282A"
 
-	# grep e busca
+	# grep and search
 	grep-file-style = "#22E0D0"
 	grep-line-number-style = "#128C86"
 
 [delta "no-color"]
-	# Perfil para NO_COLOR=1 / terminal burro: use com
+	# Profile for NO_COLOR=1 / dumb terminal: use with
 	#   git -c delta.features=no-color diff
-	# Tudo em texto puro; o sinal continua sendo o +/- da coluna e o negrito.
+	# Everything in plain text; the signal is still the +/- of the column and bold.
 	syntax-theme = none
 	line-numbers = true
 	minus-style = normal

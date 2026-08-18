@@ -1,6 +1,6 @@
-// Package docker fala com o Docker Compose do projeto por linha de comando.
-// Nenhuma ação daqui é destrutiva: não existe derrubar com volume, não existe
-// apagar nada.
+// Package docker talks to the project's Docker Compose over the command line.
+// Nothing here is destructive: no tearing down with volumes, no deleting
+// anything.
 package docker
 
 import (
@@ -17,208 +17,208 @@ import (
 	"time"
 )
 
-// pastasIgnoradas nunca entram na procura por compose: são pesadas e nunca têm
-// a stack do projeto.
-var pastasIgnoradas = map[string]bool{
+// ignoredDirs never enter the search for a compose file: they're heavy and
+// never hold the project's stack.
+var ignoredDirs = map[string]bool{
 	"node_modules": true, ".git": true, "vendor": true, "dist": true,
 	"build": true, "target": true, ".next": true, ".venv": true,
 	"venv": true, "coverage": true, "tmp": true, ".cache": true,
 }
 
-// proibidos marca o arquivo que nunca deve ser escolhido sozinho. Produção não
-// é coisa de painel de desenvolvimento.
-var proibidos = []string{"prod", "production", "staging", "homolog"}
+// forbidden marks the file that must never be chosen on its own. Production
+// isn't a development-panel thing.
+var forbidden = []string{"prod", "production", "staging", "homolog"}
 
-// prazoDeLeitura limita quanto tempo esperamos o Docker responder uma consulta.
-const prazoDeLeitura = 20 * time.Second
+// readTimeout limits how long we wait for Docker to answer a query.
+const readTimeout = 20 * time.Second
 
-// prazoDeAcao é maior porque subir serviço baixa imagem.
-const prazoDeAcao = 5 * time.Minute
+// actionTimeout is bigger because bringing up a service pulls an image.
+const actionTimeout = 5 * time.Minute
 
-// Servico é uma linha do painel.
-type Servico struct {
-	Nome   string `json:"nome"`
-	Estado string `json:"estado"` // up, exited (1), created…
-	Porta  string `json:"porta"`  // vazio quando o serviço não publica nada
-	Saude  string `json:"saude"`  // vazio quando não há healthcheck
+// Service is a row of the panel.
+type Service struct {
+	Name   string `json:"name"`
+	State  string `json:"state"`  // up, exited (1), created…
+	Port   string `json:"port"`   // empty when the service publishes nothing
+	Health string `json:"health"` // empty when there's no healthcheck
 	Uptime string `json:"uptime"`
 }
 
-// Detectar acha o arquivo de compose do projeto. Procura primeiro na raiz e
-// depois nas pastas de primeiro nível — porque projeto de verdade guarda a
-// stack em `docker/`, `infra/` e afins — e nunca escolhe um arquivo de
-// produção.
-func Detectar(diretorio string) string {
-	melhor, melhorNota := "", 0
-	considerar := func(caminho string, nota int) {
-		if nota > melhorNota {
-			melhor, melhorNota = caminho, nota
+// Detect finds the project's compose file. It looks first at the root and
+// then in first-level folders — because a real project keeps its stack in
+// `docker/`, `infra/` and the like — and never picks a production file.
+func Detect(dir string) string {
+	best, bestScore := "", 0
+	consider := func(path string, score int) {
+		if score > bestScore {
+			best, bestScore = path, score
 		}
 	}
 
-	for _, entrada := range entradasDe(diretorio) {
-		caminho := filepath.Join(diretorio, entrada.Name())
-		if !entrada.IsDir() {
-			considerar(caminho, notaDoArquivo(entrada.Name(), true))
+	for _, entry := range entriesOf(dir) {
+		path := filepath.Join(dir, entry.Name())
+		if !entry.IsDir() {
+			consider(path, scoreFile(entry.Name(), true))
 			continue
 		}
-		if pastasIgnoradas[entrada.Name()] || strings.HasPrefix(entrada.Name(), ".") && entrada.Name() != ".docker" {
+		if ignoredDirs[entry.Name()] || strings.HasPrefix(entry.Name(), ".") && entry.Name() != ".docker" {
 			continue
 		}
-		for _, dentro := range entradasDe(caminho) {
-			if dentro.IsDir() {
+		for _, inner := range entriesOf(path) {
+			if inner.IsDir() {
 				continue
 			}
-			considerar(filepath.Join(caminho, dentro.Name()), notaDoArquivo(dentro.Name(), false))
+			consider(filepath.Join(path, inner.Name()), scoreFile(inner.Name(), false))
 		}
 	}
-	return melhor
+	return best
 }
 
-func entradasDe(diretorio string) []os.DirEntry {
-	entradas, err := os.ReadDir(diretorio)
+func entriesOf(dir string) []os.DirEntry {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
 	}
-	return entradas
+	return entries
 }
 
-// notaDoArquivo pontua um candidato a arquivo de compose. Zero quer dizer que
-// não serve. Nome canônico vale mais que variante, raiz vale mais que subpasta,
-// e o que cheira a produção não vale nada.
-func notaDoArquivo(nome string, naRaiz bool) int {
-	minusculo := strings.ToLower(nome)
-	if !strings.Contains(minusculo, "compose") {
+// scoreFile scores a candidate compose file. Zero means it doesn't qualify.
+// A canonical name beats a variant, root beats subfolder, and anything that
+// smells like production is worth nothing.
+func scoreFile(name string, atRoot bool) int {
+	lower := strings.ToLower(name)
+	if !strings.Contains(lower, "compose") {
 		return 0
 	}
-	if extensao := filepath.Ext(minusculo); extensao != ".yml" && extensao != ".yaml" {
+	if ext := filepath.Ext(lower); ext != ".yml" && ext != ".yaml" {
 		return 0
 	}
-	for _, proibido := range proibidos {
-		if strings.Contains(minusculo, proibido) {
+	for _, banned := range forbidden {
+		if strings.Contains(lower, banned) {
 			return 0
 		}
 	}
-	// Arquivo de sobreposição só faz sentido junto de outro, nunca sozinho.
-	if strings.Contains(minusculo, "override") {
+	// An override file only makes sense alongside another, never alone.
+	if strings.Contains(lower, "override") {
 		return 0
 	}
 
-	nota := 10
-	if filepath.Ext(minusculo) == ".yml" {
-		nota++ // desempate entre os dois nomes canônicos
+	score := 10
+	if filepath.Ext(lower) == ".yml" {
+		score++ // tie-breaker between the two canonical names
 	}
-	semExtensao := strings.TrimSuffix(strings.TrimSuffix(minusculo, ".yml"), ".yaml")
-	switch semExtensao {
+	noExt := strings.TrimSuffix(strings.TrimSuffix(lower, ".yml"), ".yaml")
+	switch noExt {
 	case "docker-compose":
-		nota += 44
+		score += 44
 	case "compose":
-		nota += 40
+		score += 40
 	default:
-		if strings.Contains(minusculo, "dev") || strings.Contains(minusculo, "local") {
-			nota += 20
+		if strings.Contains(lower, "dev") || strings.Contains(lower, "local") {
+			score += 20
 		}
 	}
-	if naRaiz {
-		nota += 100
+	if atRoot {
+		score += 100
 	}
-	return nota
+	return score
 }
 
-// Servicos lista o que a stack do projeto tem, de pé ou não.
-func Servicos(diretorio, arquivo string) ([]Servico, error) {
-	ctx, cancelar := context.WithTimeout(context.Background(), prazoDeLeitura)
-	defer cancelar()
+// Services lists what the project's stack has, up or not.
+func Services(dir, file string) ([]Service, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
+	defer cancel()
 
-	saida, err := rodar(ctx, diretorio, arquivo, "ps", "--all", "--format", "json")
+	out, err := run(ctx, dir, file, "ps", "--all", "--format", "json")
 	if err != nil {
 		return nil, err
 	}
-	return LerServicos(saida)
+	return ReadServices(out)
 }
 
-// Resumo é o que a tira do projeto mostra: quantos serviços estão de pé.
-func Resumo(servicos []Servico) string {
-	if len(servicos) == 0 {
-		return "parado"
+// Summary is what the project's strip shows: how many services are up.
+func Summary(services []Service) string {
+	if len(services) == 0 {
+		return "stopped"
 	}
-	dePe := 0
-	for _, servico := range servicos {
-		if strings.HasPrefix(servico.Estado, "up") {
-			dePe++
+	up := 0
+	for _, service := range services {
+		if strings.HasPrefix(service.State, "up") {
+			up++
 		}
 	}
-	if dePe == 0 {
-		return "parado"
+	if up == 0 {
+		return "stopped"
 	}
-	return strconv.Itoa(dePe) + "/" + strconv.Itoa(len(servicos))
+	return strconv.Itoa(up) + "/" + strconv.Itoa(len(services))
 }
 
-// Agir executa uma ação no serviço, ou na stack inteira quando o serviço vem
-// vazio. Ação desconhecida é recusada — é assim que nada destrutivo entra.
-func Agir(diretorio, arquivo, acao, servico string) error {
-	var argumentos []string
-	switch acao {
-	case "sobe":
-		argumentos = []string{"up", "-d"}
-	case "para":
-		argumentos = []string{"stop"}
-	case "reinicia":
-		argumentos = []string{"restart"}
-	case "rebuilda":
-		argumentos = []string{"up", "-d", "--build"}
+// Act runs an action on a service, or on the whole stack when the service
+// comes in empty. An unknown action is refused — that's how nothing
+// destructive gets in.
+func Act(dir, file, action, service string) error {
+	var args []string
+	switch action {
+	case "up":
+		args = []string{"up", "-d"}
+	case "down":
+		args = []string{"stop"}
+	case "restart":
+		args = []string{"restart"}
+	case "rebuild":
+		args = []string{"up", "-d", "--build"}
 	default:
-		return fmt.Errorf("ação desconhecida no Docker: %q", acao)
+		return fmt.Errorf("unknown Docker action: %q", action)
 	}
-	if servico != "" {
-		argumentos = append(argumentos, servico)
+	if service != "" {
+		args = append(args, service)
 	}
 
-	ctx, cancelar := context.WithTimeout(context.Background(), prazoDeAcao)
-	defer cancelar()
-	_, err := rodar(ctx, diretorio, arquivo, argumentos...)
+	ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
+	defer cancel()
+	_, err := run(ctx, dir, file, args...)
 	return err
 }
 
-// ComandoDeLog é o comando que uma célula de log roda para acompanhar um
-// serviço. Sai daqui para o painel e a célula não discordarem.
-func ComandoDeLog(arquivo, servico string) (string, []string) {
-	return "docker", []string{"compose", "--file", arquivo, "logs", "--follow", "--tail", "200", servico}
+// LogCommand is the command that a log cell runs to follow a service. It
+// lives here so the panel and the cell never disagree.
+func LogCommand(file, service string) (string, []string) {
+	return "docker", []string{"compose", "--file", file, "logs", "--follow", "--tail", "200", service}
 }
 
-// LerServicos entende a saída de `docker compose ps --format json`, que vem um
-// objeto por linha.
-func LerServicos(saida []byte) ([]Servico, error) {
-	var servicos []Servico
-	leitor := bufio.NewScanner(strings.NewReader(string(saida)))
-	leitor.Buffer(make([]byte, 0, 64<<10), 4<<20)
-	for leitor.Scan() {
-		linha := strings.TrimSpace(leitor.Text())
-		if linha == "" {
+// ReadServices parses the output of `docker compose ps --format json`, which
+// comes as one object per line.
+func ReadServices(out []byte) ([]Service, error) {
+	var services []Service
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	scanner.Buffer(make([]byte, 0, 64<<10), 4<<20)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
 			continue
 		}
-		// Algumas versões entregam o array inteiro numa linha só.
-		if strings.HasPrefix(linha, "[") {
-			var lote []bruto
-			if err := json.Unmarshal([]byte(linha), &lote); err != nil {
+		// Some versions deliver the whole array on a single line.
+		if strings.HasPrefix(line, "[") {
+			var batch []raw
+			if err := json.Unmarshal([]byte(line), &batch); err != nil {
 				return nil, err
 			}
-			for _, item := range lote {
-				servicos = append(servicos, item.traduzir())
+			for _, item := range batch {
+				services = append(services, item.translate())
 			}
 			continue
 		}
-		var item bruto
-		if err := json.Unmarshal([]byte(linha), &item); err != nil {
+		var item raw
+		if err := json.Unmarshal([]byte(line), &item); err != nil {
 			return nil, err
 		}
-		servicos = append(servicos, item.traduzir())
+		services = append(services, item.translate())
 	}
-	return servicos, leitor.Err()
+	return services, scanner.Err()
 }
 
-// bruto é o pedaço da saída do compose que interessa.
-type bruto struct {
+// raw is the part of compose's output that matters.
+type raw struct {
 	Service    string `json:"Service"`
 	State      string `json:"State"`
 	Status     string `json:"Status"`
@@ -231,18 +231,17 @@ type bruto struct {
 	} `json:"Publishers"`
 }
 
-func (b bruto) traduzir() Servico {
-	servico := Servico{
-		Nome:   b.Service,
-		Estado: estadoLegivel(b),
-		Porta:  portaPublicada(b),
-		Saude:  saude(b),
+func (b raw) translate() Service {
+	return Service{
+		Name:   b.Service,
+		State:  readableState(b),
+		Port:   publishedPort(b),
+		Health: health(b),
 		Uptime: uptime(b),
 	}
-	return servico
 }
 
-func estadoLegivel(b bruto) string {
+func readableState(b raw) string {
 	switch b.State {
 	case "running":
 		return "up"
@@ -254,111 +253,112 @@ func estadoLegivel(b bruto) string {
 	return b.State
 }
 
-// portaPublicada devolve a primeira porta que o serviço abre para fora.
-func portaPublicada(b bruto) string {
-	for _, publicada := range b.Publishers {
-		if publicada.PublishedPort > 0 {
-			return ":" + strconv.Itoa(publicada.PublishedPort)
+// publishedPort returns the first port the service exposes outward.
+func publishedPort(b raw) string {
+	for _, published := range b.Publishers {
+		if published.PublishedPort > 0 {
+			return ":" + strconv.Itoa(published.PublishedPort)
 		}
 	}
 	return ""
 }
 
-// saude lê o healthcheck, do campo próprio ou do texto do status.
-func saude(b bruto) string {
+// health reads the healthcheck, from its own field or from the status text.
+func health(b raw) string {
 	if b.Health != "" {
-		return traduzirSaude(b.Health)
+		return translateHealth(b.Health)
 	}
-	abre := strings.Index(b.Status, "(")
-	fecha := strings.Index(b.Status, ")")
-	if abre >= 0 && fecha > abre {
-		return traduzirSaude(b.Status[abre+1 : fecha])
+	open := strings.Index(b.Status, "(")
+	close_ := strings.Index(b.Status, ")")
+	if open >= 0 && close_ > open {
+		return translateHealth(b.Status[open+1 : close_])
 	}
 	return ""
 }
 
-func traduzirSaude(bruta string) string {
-	switch strings.TrimSpace(strings.ToLower(bruta)) {
+func translateHealth(raw string) string {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
 	case "healthy":
-		return "saudável"
+		return "healthy"
 	case "unhealthy":
-		return "doente"
+		return "unhealthy"
 	case "starting", "health: starting":
-		return "subindo"
+		return "starting"
 	}
 	return ""
 }
 
-// uptime tira do status o tempo de pé, sem o "Up" e sem a saúde.
-func uptime(b bruto) string {
+// uptime pulls the up-time out of the status, without the "Up" and without
+// the health.
+func uptime(b raw) string {
 	if !strings.HasPrefix(b.Status, "Up") {
 		return ""
 	}
-	texto := strings.TrimSpace(strings.TrimPrefix(b.Status, "Up"))
-	if abre := strings.Index(texto, "("); abre >= 0 {
-		texto = strings.TrimSpace(texto[:abre])
+	text := strings.TrimSpace(strings.TrimPrefix(b.Status, "Up"))
+	if open := strings.Index(text, "("); open >= 0 {
+		text = strings.TrimSpace(text[:open])
 	}
-	return encurtarTempo(texto)
+	return shortenTime(text)
 }
 
-// encurtarTempo troca "2 hours 14 minutes" por "2h14m", que é o que cabe na
-// coluna.
-func encurtarTempo(texto string) string {
-	// O Docker escreve "Less than a second" para o container que acabou de
-	// subir, e isso não tem número nenhum para encurtar.
-	if strings.HasPrefix(strings.ToLower(texto), "less than") {
+// shortenTime swaps "2 hours 14 minutes" for "2h14m", which is what fits in
+// the column.
+func shortenTime(text string) string {
+	// Docker writes "Less than a second" for a container that just came up,
+	// and there's no number in that to shorten.
+	if strings.HasPrefix(strings.ToLower(text), "less than") {
 		return "0s"
 	}
-	partes := strings.Fields(texto)
-	var curto strings.Builder
-	for i := 0; i+1 < len(partes); i += 2 {
-		numero := partes[i]
-		unidade := partes[i+1]
+	parts := strings.Fields(text)
+	var short strings.Builder
+	for i := 0; i+1 < len(parts); i += 2 {
+		number := parts[i]
+		unit := parts[i+1]
 		switch {
-		case strings.HasPrefix(unidade, "second"):
-			curto.WriteString(numero + "s")
-		case strings.HasPrefix(unidade, "minute"):
-			curto.WriteString(numero + "m")
-		case strings.HasPrefix(unidade, "hour"):
-			curto.WriteString(numero + "h")
-		case strings.HasPrefix(unidade, "day"):
-			curto.WriteString(numero + "d")
-		case strings.HasPrefix(unidade, "week"):
-			curto.WriteString(numero + "sem")
-		case strings.HasPrefix(unidade, "month"):
-			curto.WriteString(numero + "mes")
+		case strings.HasPrefix(unit, "second"):
+			short.WriteString(number + "s")
+		case strings.HasPrefix(unit, "minute"):
+			short.WriteString(number + "m")
+		case strings.HasPrefix(unit, "hour"):
+			short.WriteString(number + "h")
+		case strings.HasPrefix(unit, "day"):
+			short.WriteString(number + "d")
+		case strings.HasPrefix(unit, "week"):
+			short.WriteString(number + "w")
+		case strings.HasPrefix(unit, "month"):
+			short.WriteString(number + "mo")
 		default:
-			// Formato que não conhecemos: melhor devolver o texto como veio do
-			// que embaralhar as palavras.
-			return texto
+			// Format we don't know: better to return the text as it came
+			// than to scramble the words.
+			return text
 		}
 	}
-	if curto.Len() == 0 {
-		return texto
+	if short.Len() == 0 {
+		return text
 	}
-	return curto.String()
+	return short.String()
 }
 
-// rodar executa o docker compose do projeto e devolve a saída.
-func rodar(ctx context.Context, diretorio, arquivo string, argumentos ...string) ([]byte, error) {
-	todos := append([]string{"compose", "--file", arquivo}, argumentos...)
-	comando := exec.CommandContext(ctx, "docker", todos...)
-	comando.Dir = diretorio
-	saida, err := comando.Output()
+// run runs the project's docker compose and returns the output.
+func run(ctx context.Context, dir, file string, args ...string) ([]byte, error) {
+	all := append([]string{"compose", "--file", file}, args...)
+	cmd := exec.CommandContext(ctx, "docker", all...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
 	if err != nil {
-		var comErro *exec.ExitError
-		if errors.As(err, &comErro) && len(comErro.Stderr) > 0 {
-			return nil, fmt.Errorf("docker compose %s: %s", strings.Join(argumentos, " "), primeiraLinha(comErro.Stderr))
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+			return nil, fmt.Errorf("docker compose %s: %s", strings.Join(args, " "), firstLine(exitErr.Stderr))
 		}
-		return nil, fmt.Errorf("docker compose %s: %w", strings.Join(argumentos, " "), err)
+		return nil, fmt.Errorf("docker compose %s: %w", strings.Join(args, " "), err)
 	}
-	return saida, nil
+	return out, nil
 }
 
-func primeiraLinha(saida []byte) string {
-	texto := strings.TrimSpace(string(saida))
-	if corte := strings.Index(texto, "\n"); corte > 0 {
-		return texto[:corte]
+func firstLine(out []byte) string {
+	text := strings.TrimSpace(string(out))
+	if cut := strings.Index(text, "\n"); cut > 0 {
+		return text[:cut]
 	}
-	return texto
+	return text
 }

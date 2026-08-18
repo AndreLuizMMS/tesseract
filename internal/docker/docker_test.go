@@ -6,257 +6,261 @@ import (
 	"testing"
 )
 
-func lerExemplo(t *testing.T, nome string) []byte {
+func readExample(t *testing.T, name string) []byte {
 	t.Helper()
-	conteudo, err := os.ReadFile(filepath.Join("exemplos", nome))
+	content, err := os.ReadFile(filepath.Join("examples", name))
 	if err != nil {
-		t.Fatalf("ler exemplo: %v", err)
+		t.Fatalf("read example: %v", err)
 	}
-	return conteudo
+	return content
 }
 
-// TestLerServicos cobre os quatro casos que aparecem na vida real: serviço de
-// pé e saudável, de pé sem healthcheck, morto com código de saída, e subindo
-// sem porta publicada.
-func TestLerServicos(t *testing.T) {
-	servicos, err := LerServicos(lerExemplo(t, "ps.ndjson"))
+// TestReadServices covers the four cases that show up in real life: a
+// service up and healthy, up with no healthcheck, dead with an exit code,
+// and coming up with no published port.
+func TestReadServices(t *testing.T) {
+	services, err := ReadServices(readExample(t, "ps.ndjson"))
 	if err != nil {
-		t.Fatalf("ler: %v", err)
+		t.Fatalf("read: %v", err)
 	}
-	if len(servicos) != 4 {
-		t.Fatalf("esperava 4 serviços, veio %d", len(servicos))
+	if len(services) != 4 {
+		t.Fatalf("expected 4 services, got %d", len(services))
 	}
 
-	esperado := []Servico{
-		{Nome: "api", Estado: "up", Porta: ":3000", Saude: "saudável", Uptime: "2h"},
-		{Nome: "redis", Estado: "up", Porta: ":6379", Saude: "", Uptime: "2h14m"},
-		{Nome: "worker", Estado: "exited (1)", Porta: "", Saude: "", Uptime: ""},
-		{Nome: "minio", Estado: "up", Porta: "", Saude: "subindo", Uptime: "10s"},
+	want := []Service{
+		{Name: "api", State: "up", Port: ":3000", Health: "healthy", Uptime: "2h"},
+		{Name: "redis", State: "up", Port: ":6379", Health: "", Uptime: "2h14m"},
+		{Name: "worker", State: "exited (1)", Port: "", Health: "", Uptime: ""},
+		{Name: "minio", State: "up", Port: "", Health: "starting", Uptime: "10s"},
 	}
-	for i, quero := range esperado {
-		if servicos[i] != quero {
-			t.Errorf("serviço %d veio %#v, esperado %#v", i, servicos[i], quero)
+	for i, w := range want {
+		if services[i] != w {
+			t.Errorf("service %d came as %#v, expected %#v", i, services[i], w)
 		}
 	}
 }
 
-// TestLerServicosEmArray cobre as versões do compose que entregam um array só.
-func TestLerServicosEmArray(t *testing.T) {
-	servicos, err := LerServicos(lerExemplo(t, "ps-array.json"))
+// TestReadServicesInArray covers compose versions that deliver a single
+// array.
+func TestReadServicesInArray(t *testing.T) {
+	services, err := ReadServices(readExample(t, "ps-array.json"))
 	if err != nil {
-		t.Fatalf("ler: %v", err)
+		t.Fatalf("read: %v", err)
 	}
-	if len(servicos) != 1 || servicos[0].Nome != "solo" || servicos[0].Porta != ":8080" {
-		t.Fatalf("array não foi entendido: %#v", servicos)
+	if len(services) != 1 || services[0].Name != "solo" || services[0].Port != ":8080" {
+		t.Fatalf("array wasn't parsed correctly: %#v", services)
 	}
 }
 
-// TestLerServicosVazio — stack nunca subida devolve nada, sem erro.
-func TestLerServicosVazio(t *testing.T) {
-	servicos, err := LerServicos([]byte("\n\n"))
+// TestReadServicesEmpty — a stack never brought up returns nothing, no
+// error.
+func TestReadServicesEmpty(t *testing.T) {
+	services, err := ReadServices([]byte("\n\n"))
 	if err != nil {
-		t.Fatalf("saída vazia não é erro: %v", err)
+		t.Fatalf("empty output isn't an error: %v", err)
 	}
-	if len(servicos) != 0 {
-		t.Fatalf("esperava nada, veio %#v", servicos)
+	if len(services) != 0 {
+		t.Fatalf("expected nothing, got %#v", services)
 	}
 }
 
-// TestUptimeDeContainerRecemSubido — "Less than a second" não pode virar
-// palavra embaralhada na coluna.
-func TestUptimeDeContainerRecemSubido(t *testing.T) {
-	saida := `{"Service":"web","State":"running","Status":"Up Less than a second","ExitCode":0}
+// TestUptimeOfFreshlyStartedContainer — "Less than a second" can't turn
+// into a scrambled word in the column.
+func TestUptimeOfFreshlyStartedContainer(t *testing.T) {
+	out := `{"Service":"web","State":"running","Status":"Up Less than a second","ExitCode":0}
 {"Service":"api","State":"running","Status":"Up About a minute","ExitCode":0}`
-	servicos, err := LerServicos([]byte(saida))
+	services, err := ReadServices([]byte(out))
 	if err != nil {
-		t.Fatalf("ler: %v", err)
+		t.Fatalf("read: %v", err)
 	}
-	if servicos[0].Uptime != "0s" {
-		t.Fatalf("recém-subido devia virar \"0s\", veio %q", servicos[0].Uptime)
+	if services[0].Uptime != "0s" {
+		t.Fatalf("just-started should become \"0s\", got %q", services[0].Uptime)
 	}
-	if servicos[1].Uptime != "About a minute" {
-		t.Fatalf("formato desconhecido volta como veio, veio %q", servicos[1].Uptime)
-	}
-}
-
-func TestResumo(t *testing.T) {
-	servicos, _ := LerServicos(lerExemplo(t, "ps.ndjson"))
-	if veio := Resumo(servicos); veio != "3/4" {
-		t.Fatalf("resumo veio %q, esperado \"3/4\"", veio)
-	}
-	if veio := Resumo(nil); veio != "parado" {
-		t.Fatalf("stack vazia é \"parado\", veio %q", veio)
-	}
-	parados := []Servico{{Nome: "a", Estado: "exited (0)"}}
-	if veio := Resumo(parados); veio != "parado" {
-		t.Fatalf("tudo parado é \"parado\", veio %q", veio)
+	if services[1].Uptime != "About a minute" {
+		t.Fatalf("unknown format should come back as-is, got %q", services[1].Uptime)
 	}
 }
 
-// TestDetectarSegueAOrdem — na raiz, o nome canônico ganha da variante.
-func TestDetectarSegueAOrdem(t *testing.T) {
+func TestSummary(t *testing.T) {
+	services, _ := ReadServices(readExample(t, "ps.ndjson"))
+	if got := Summary(services); got != "3/4" {
+		t.Fatalf("summary came %q, expected \"3/4\"", got)
+	}
+	if got := Summary(nil); got != "stopped" {
+		t.Fatalf("empty stack is \"stopped\", got %q", got)
+	}
+	stopped := []Service{{Name: "a", State: "exited (0)"}}
+	if got := Summary(stopped); got != "stopped" {
+		t.Fatalf("everything stopped is \"stopped\", got %q", got)
+	}
+}
+
+// TestDetectFollowsOrder — at the root, the canonical name beats a variant.
+func TestDetectFollowsOrder(t *testing.T) {
 	dir := t.TempDir()
-	if Detectar(dir) != "" {
-		t.Fatal("projeto sem compose não pode ganhar painel")
+	if Detect(dir) != "" {
+		t.Fatal("a project with no compose can't win the panel")
 	}
 
-	criar := func(caminho string) {
+	create := func(path string) {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Dir(caminho), 0o755); err != nil {
-			t.Fatalf("preparar: %v", err)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("setup: %v", err)
 		}
-		if err := os.WriteFile(caminho, []byte("services: {}\n"), 0o644); err != nil {
-			t.Fatalf("preparar: %v", err)
-		}
-	}
-
-	criar(filepath.Join(dir, "compose.yaml"))
-	if achado := Detectar(dir); achado != filepath.Join(dir, "compose.yaml") {
-		t.Fatalf("achou %q", achado)
-	}
-	criar(filepath.Join(dir, "docker-compose.yml"))
-	if achado := Detectar(dir); achado != filepath.Join(dir, "docker-compose.yml") {
-		t.Fatalf("o nome canônico devia ganhar, achou %q", achado)
-	}
-}
-
-// TestDetectarAchaEmSubpasta é o caso do mundo real: a stack mora em `docker/`.
-func TestDetectarAchaEmSubpasta(t *testing.T) {
-	dir := t.TempDir()
-	dentro := filepath.Join(dir, "docker", "compose.yml")
-	if err := os.MkdirAll(filepath.Dir(dentro), 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-	if err := os.WriteFile(dentro, []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-	if achado := Detectar(dir); achado != dentro {
-		t.Fatalf("compose em subpasta devia ser achado, veio %q", achado)
-	}
-}
-
-// TestDetectarNuncaEscolheProducao — o painel é de desenvolvimento.
-func TestDetectarNuncaEscolheProducao(t *testing.T) {
-	dir := t.TempDir()
-	pasta := filepath.Join(dir, "docker")
-	if err := os.MkdirAll(pasta, 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-	for _, nome := range []string{"compose.prod.yml", "docker-compose-prod.yml", "compose.production.yaml", "compose.staging.yml"} {
-		if err := os.WriteFile(filepath.Join(pasta, nome), []byte("services: {}\n"), 0o644); err != nil {
-			t.Fatalf("preparar: %v", err)
+		if err := os.WriteFile(path, []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatalf("setup: %v", err)
 		}
 	}
-	if achado := Detectar(dir); achado != "" {
-		t.Fatalf("só havia arquivo de produção, mas escolheu %q", achado)
-	}
 
-	bom := filepath.Join(pasta, "compose.yml")
-	if err := os.WriteFile(bom, []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
+	create(filepath.Join(dir, "compose.yaml"))
+	if found := Detect(dir); found != filepath.Join(dir, "compose.yaml") {
+		t.Fatalf("found %q", found)
 	}
-	if achado := Detectar(dir); achado != bom {
-		t.Fatalf("com o de desenvolvimento ao lado, devia escolher ele: %q", achado)
+	create(filepath.Join(dir, "docker-compose.yml"))
+	if found := Detect(dir); found != filepath.Join(dir, "docker-compose.yml") {
+		t.Fatalf("the canonical name should win, found %q", found)
 	}
 }
 
-// TestDetectarPrefereDevEntreVariantes — `docker-compose-dev.yml` ao lado do de
-// produção é o arranjo comum.
-func TestDetectarPrefereDevEntreVariantes(t *testing.T) {
+// TestDetectFindsInSubfolder is the real-world case: the stack lives in
+// `docker/`.
+func TestDetectFindsInSubfolder(t *testing.T) {
 	dir := t.TempDir()
-	for _, nome := range []string{"docker-compose-prod.yml", "docker-compose-dev.yml"} {
-		if err := os.WriteFile(filepath.Join(dir, nome), []byte("services: {}\n"), 0o644); err != nil {
-			t.Fatalf("preparar: %v", err)
+	inner := filepath.Join(dir, "docker", "compose.yml")
+	if err := os.MkdirAll(filepath.Dir(inner), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.WriteFile(inner, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if found := Detect(dir); found != inner {
+		t.Fatalf("a compose file in a subfolder should be found, got %q", found)
+	}
+}
+
+// TestDetectNeverChoosesProduction — the panel is for development.
+func TestDetectNeverChoosesProduction(t *testing.T) {
+	dir := t.TempDir()
+	folder := filepath.Join(dir, "docker")
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	for _, name := range []string{"compose.prod.yml", "docker-compose-prod.yml", "compose.production.yaml", "compose.staging.yml"} {
+		if err := os.WriteFile(filepath.Join(folder, name), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatalf("setup: %v", err)
 		}
 	}
-	if achado := Detectar(dir); achado != filepath.Join(dir, "docker-compose-dev.yml") {
-		t.Fatalf("devia escolher o de desenvolvimento, veio %q", achado)
+	if found := Detect(dir); found != "" {
+		t.Fatalf("only a production file existed, but it chose %q", found)
+	}
+
+	good := filepath.Join(folder, "compose.yml")
+	if err := os.WriteFile(good, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if found := Detect(dir); found != good {
+		t.Fatalf("with a development one alongside, it should pick it: %q", found)
 	}
 }
 
-// TestDetectarPrefereARaiz — compose na raiz ganha do que está em subpasta.
-func TestDetectarPrefereARaiz(t *testing.T) {
+// TestDetectPrefersDevAmongVariants — `docker-compose-dev.yml` next to the
+// production one is the common arrangement.
+func TestDetectPrefersDevAmongVariants(t *testing.T) {
 	dir := t.TempDir()
-	raiz := filepath.Join(dir, "compose.yml")
-	if err := os.WriteFile(raiz, []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
+	for _, name := range []string{"docker-compose-prod.yml", "docker-compose-dev.yml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("services: {}\n"), 0o644); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
 	}
-	dentro := filepath.Join(dir, "infra", "docker-compose.yml")
-	if err := os.MkdirAll(filepath.Dir(dentro), 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-	if err := os.WriteFile(dentro, []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
-	}
-	if achado := Detectar(dir); achado != raiz {
-		t.Fatalf("a raiz devia ganhar, veio %q", achado)
+	if found := Detect(dir); found != filepath.Join(dir, "docker-compose-dev.yml") {
+		t.Fatalf("should pick the development one, got %q", found)
 	}
 }
 
-// TestDetectarIgnoraPastaPesada — nada de vasculhar node_modules.
-func TestDetectarIgnoraPastaPesada(t *testing.T) {
+// TestDetectPrefersRoot — compose at the root beats one in a subfolder.
+func TestDetectPrefersRoot(t *testing.T) {
 	dir := t.TempDir()
-	dentro := filepath.Join(dir, "node_modules", "algum-pacote-docker-compose.yml")
-	if err := os.MkdirAll(filepath.Dir(dentro), 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+	root := filepath.Join(dir, "compose.yml")
+	if err := os.WriteFile(root, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
 	}
-	if err := os.WriteFile(dentro, []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
+	inner := filepath.Join(dir, "infra", "docker-compose.yml")
+	if err := os.MkdirAll(filepath.Dir(inner), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
 	}
-	if achado := Detectar(dir); achado != "" {
-		t.Fatalf("não podia olhar dentro de node_modules, achou %q", achado)
+	if err := os.WriteFile(inner, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if found := Detect(dir); found != root {
+		t.Fatalf("the root should win, got %q", found)
 	}
 }
 
-// TestDetectarNaoVaiFundoDemais — dois níveis abaixo já é longe demais.
-func TestDetectarNaoVaiFundoDemais(t *testing.T) {
+// TestDetectIgnoresHeavyFolder — no rummaging through node_modules.
+func TestDetectIgnoresHeavyFolder(t *testing.T) {
 	dir := t.TempDir()
-	fundo := filepath.Join(dir, "infra", "local", "docker-compose.yml")
-	if err := os.MkdirAll(filepath.Dir(fundo), 0o755); err != nil {
-		t.Fatalf("preparar: %v", err)
+	inner := filepath.Join(dir, "node_modules", "some-package-docker-compose.yml")
+	if err := os.MkdirAll(filepath.Dir(inner), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
 	}
-	if err := os.WriteFile(fundo, []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
+	if err := os.WriteFile(inner, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
 	}
-	if achado := Detectar(dir); achado != "" {
-		t.Fatalf("compose a dois níveis não conta, achou %q", achado)
+	if found := Detect(dir); found != "" {
+		t.Fatalf("shouldn't have looked inside node_modules, found %q", found)
 	}
 }
 
-// TestDetectarIgnoraOverrideSozinho — sobreposição só vale acompanhada.
-func TestDetectarIgnoraOverrideSozinho(t *testing.T) {
+// TestDetectDoesNotGoTooDeep — two levels down is already too deep.
+func TestDetectDoesNotGoTooDeep(t *testing.T) {
+	dir := t.TempDir()
+	deep := filepath.Join(dir, "infra", "local", "docker-compose.yml")
+	if err := os.MkdirAll(filepath.Dir(deep), 0o755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.WriteFile(deep, []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if found := Detect(dir); found != "" {
+		t.Fatalf("compose two levels down doesn't count, found %q", found)
+	}
+}
+
+// TestDetectIgnoresOverrideAlone — an override only counts alongside
+// another file.
+func TestDetectIgnoresOverrideAlone(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "docker-compose.override.yml"), []byte("services: {}\n"), 0o644); err != nil {
-		t.Fatalf("preparar: %v", err)
+		t.Fatalf("setup: %v", err)
 	}
-	if achado := Detectar(dir); achado != "" {
-		t.Fatalf("override sozinho não é stack, achou %q", achado)
+	if found := Detect(dir); found != "" {
+		t.Fatalf("an override alone isn't a stack, found %q", found)
 	}
 }
 
-// TestNadaDestrutivo — a lista de ações é fechada, e o que derruba volume não
-// está nela.
-func TestNadaDestrutivo(t *testing.T) {
-	for _, proibida := range []string{"down", "rm", "apaga", "kill", "down -v", "prune"} {
-		if err := Agir(t.TempDir(), "docker-compose.yml", proibida, ""); err == nil {
-			t.Errorf("a ação %q não pode ser aceita", proibida)
+// TestNothingDestructive — the list of actions is closed, and anything that
+// tears down a volume isn't in it.
+func TestNothingDestructive(t *testing.T) {
+	for _, forbidden := range []string{"down", "rm", "delete", "kill", "down -v", "prune"} {
+		if err := Act(t.TempDir(), "docker-compose.yml", forbidden, ""); err == nil {
+			t.Errorf("the action %q must not be accepted", forbidden)
 		}
 	}
 }
 
-// TestComandoDeLogNaoSegueOutroServico garante que a célula de log acompanha
-// exatamente o serviço pedido.
-func TestComandoDeLogNaoSegueOutroServico(t *testing.T) {
-	programa, argumentos := ComandoDeLog("/dev/cortz/docker-compose.yml", "worker")
-	if programa != "docker" {
-		t.Fatalf("programa veio %q", programa)
+// TestLogCommandDoesNotFollowAnotherService guarantees the log cell follows
+// exactly the requested service.
+func TestLogCommandDoesNotFollowAnotherService(t *testing.T) {
+	program, args := LogCommand("/dev/cortz/docker-compose.yml", "worker")
+	if program != "docker" {
+		t.Fatalf("program came as %q", program)
 	}
-	juntos := ""
-	for _, arg := range argumentos {
-		juntos += arg + " "
+	joined := ""
+	for _, arg := range args {
+		joined += arg + " "
 	}
-	esperado := "compose --file /dev/cortz/docker-compose.yml logs --follow --tail 200 worker "
-	if juntos != esperado {
-		t.Fatalf("comando veio %q, esperado %q", juntos, esperado)
+	want := "compose --file /dev/cortz/docker-compose.yml logs --follow --tail 200 worker "
+	if joined != want {
+		t.Fatalf("command came %q, expected %q", joined, want)
 	}
 }

@@ -1,13 +1,13 @@
 // themes/windows-terminal.json
-// Fragmento do array "schemes" do settings.json do Windows Terminal.
-// Cole os objetos dentro do "schemes" que já existe no seu settings.json.
+// Fragment of the "schemes" array from Windows Terminal's settings.json.
+// Paste the objects inside the "schemes" that already exists in your settings.json.
 //
-// Decisões não cobertas pela paleta:
-// - O Windows Terminal não tem chave para a cor do TEXTO sob o cursor
-//   (cursor_text #030507). O cursor é sólido #55FFA6 e o terminal inverte o
-//   glifo sozinho. Nada foi inventado.
-// - "selectionForeground" não existe no schema do Windows Terminal; só
-//   "selectionBackground". O fg da seleção (#E8F4EC) fica sem destino aqui.
+// Decisions not covered by the palette:
+// - Windows Terminal has no key for the color of the TEXT under the cursor
+//   (cursor_text #030507). The cursor is solid #55FFA6 and the terminal
+//   inverts the glyph on its own. Nothing was invented.
+// - "selectionForeground" doesn't exist in Windows Terminal's schema; only
+//   "selectionBackground". The selection fg (#E8F4EC) has no home here.
 {
   "schemes": [
     {

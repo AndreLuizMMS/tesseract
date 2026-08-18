@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 140 140" width="136" height="136" role="img" aria-label="Tesseract">
   <!--
     themes/logo-mono.svg
-    Versão de traço único para favicon e 16px: mesma geometria da logo.svg,
-    traço 11, cor única currentColor, SEM a tessera — a 16px o quadradinho
-    do meio vira sujeira.
+    Single-stroke version for favicon and 16px: same geometry as logo.svg,
+    stroke 11, single currentColor color, WITHOUT the tessera — at 16px the
+    little square in the middle turns into noise.
 
-    Decisão registrada: o traço 11 é mais grosso que o 8 da logo colorida e
-    transborda 1,5 unidade fora do quadro 0 0 136 136. A geometria dos
-    retângulos foi mantida idêntica e o viewBox ganhou 2 unidades de folga em
-    cada lado ("-2 -2 140 140") — mexer nos retângulos mudaria a marca, mexer
-    no viewBox não.
+    Decision on record: the 11 stroke is thicker than the colored logo's 8
+    and overflows 1.5 units outside the 0 0 136 136 frame. The rectangles'
+    geometry was kept identical and the viewBox gained 2 units of slack on
+    each side ("-2 -2 140 140") — changing the rectangles would change the
+    mark, changing the viewBox wouldn't.
   -->
   <title>Tesseract</title>
 

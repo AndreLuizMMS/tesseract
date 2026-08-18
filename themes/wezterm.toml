@@ -1,5 +1,5 @@
 # themes/wezterm.toml
-# Salve em ~/.config/wezterm/colors/tesseract-neon.toml e use:
+# Save to ~/.config/wezterm/colors/tesseract-neon.toml and use:
 #   config.color_scheme = "Tesseract Neon"
 
 [metadata]
@@ -18,33 +18,33 @@ cursor_border = "#55FFA6"
 selection_bg = "#121C1F"
 selection_fg = "#E8F4EC"
 
-# Divisória entre panes: estrutura, portanto ciano.
+# Split divider: structure, therefore cyan.
 split = "#128C86"
 
-# Escurecimento do pane inativo. Sem cor: a grade não focada apaga, não muda
-# de matiz. (Decisão conservadora — a paleta não define cor de pane inativo.)
+# Dimming of the inactive pane. No color: the unfocused grid dims, doesn't
+# change hue. (Conservative decision — the palette defines no inactive pane color.)
 scrollbar_thumb = "#16282A"
 
 ansi = [
-  "#070B0C", # 0  preto
-  "#C22F38", # 1  vermelho
-  "#1F7A4C", # 2  verde   — brand.core
-  "#C9A227", # 3  amarelo
-  "#3E7FA8", # 4  azul
+  "#070B0C", # 0  black
+  "#C22F38", # 1  red
+  "#1F7A4C", # 2  green   — brand.core
+  "#C9A227", # 3  yellow
+  "#3E7FA8", # 4  blue
   "#8B4FC4", # 5  magenta
-  "#128C86", # 6  ciano   — flux.core
-  "#BFD1C6", # 7  branco
+  "#128C86", # 6  cyan    — flux.core
+  "#BFD1C6", # 7  white
 ]
 
 brights = [
-  "#3E534E", # 8  preto brilhante
-  "#FF3B47", # 9  vermelho brilhante
-  "#55FFA6", # 10 verde brilhante  — brand.phosphor
-  "#FFB454", # 11 amarelo brilhante
-  "#7DB7E8", # 12 azul brilhante
-  "#C77DFF", # 13 magenta brilhante
-  "#22E0D0", # 14 ciano brilhante  — flux
-  "#E8F4EC", # 15 branco brilhante
+  "#3E534E", # 8  bright black
+  "#FF3B47", # 9  bright red
+  "#55FFA6", # 10 bright green  — brand.phosphor
+  "#FFB454", # 11 bright yellow
+  "#7DB7E8", # 12 bright blue
+  "#C77DFF", # 13 bright magenta
+  "#22E0D0", # 14 bright cyan   — flux
+  "#E8F4EC", # 15 bright white
 ]
 
 [colors.tab_bar]

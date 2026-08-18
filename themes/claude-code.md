@@ -1,77 +1,80 @@
-# Tema do Claude Code dentro do Tesseract
+# Claude Code theme inside Tesseract
 
-## O problema
+## The problem
 
-O Claude Code pinta com uma paleta própria em 24 bits — laranja no selo, rosa
-no logo, azul e magenta na barra de contexto. Nada disso conhece o Tesseract
-Neon, então dentro da célula ele briga com a grade: cores que o painel reservou
-para significado (laranja é "aprovar", verde é "seu teclado está aqui")
-aparecem no meio da conversa sem querer dizer nada.
+Claude Code paints with its own 24-bit palette — orange in the badge, pink
+in the logo, blue and magenta in the context bar. None of that knows about
+Tesseract Neon, so inside the cell it clashes with the grid: colors the
+panel reserved for meaning (orange means "approve", green means "your
+keyboard is here") show up in the middle of the conversation without
+meaning anything.
 
-O Tesseract não tem como censurar a cor do agente — a célula é um terminal de
-verdade, e o que o agente escreve nela é dele. Quem resolve é o próprio Claude
-Code, e ele já sabe fazer isso.
+Tesseract has no way to censor the agent's color — the cell is a real
+terminal, and what the agent writes into it is its own. The one that fixes
+this is Claude Code itself, and it already knows how.
 
-## A correção
+## The fix
 
-O Claude Code tem um tema que **não usa cor própria nenhuma**: ele desenha só
-com as 16 cores ANSI do terminal. Como o Tesseract Neon define exatamente essas
-16 cores, o Claude Code passa a falar a mesma língua da grade.
+Claude Code has a theme that **uses no color of its own**: it draws only
+with the terminal's 16 ANSI colors. Since Tesseract Neon defines exactly
+those 16 colors, Claude Code starts speaking the same language as the grid.
 
 ```
-tema do Claude Code:  dark-ansi
+Claude Code theme:  dark-ansi
 ```
 
-Para trocar, dentro de qualquer sessão do Claude Code:
+To switch, inside any Claude Code session:
 
 ```
 /config
 ```
 
-e escolha **dark-ansi** no campo de tema. Vale para todas as sessões, inclusive
-as que já estão de pé nas células — o Claude Code relê o tema na hora.
+and choose **dark-ansi** in the theme field. It applies to every session,
+including ones already running in cells — Claude Code re-reads the theme
+immediately.
 
-> Não edite `~/.claude.json` na mão para isso. Toda sessão viva reescreve esse
-> arquivo ao sair, e a sua edição some junto. O `/config` grava pelo caminho
-> certo.
+> Don't edit `~/.claude.json` by hand for this. Every live session rewrites
+> that file on exit, and your edit goes away with it. `/config` writes
+> through the right path.
 
-## O que cada cor vira
+## What each color becomes
 
-Com `dark-ansi`, o Claude Code passa a pedir cor pelo índice, e o índice é
-resolvido pela paleta do seu emulador de terminal. Instale um dos arquivos de
-`themes/` (o `windows-terminal.json`, o `kitty.conf`, o que for o seu) e o
-resultado é este:
+With `dark-ansi`, Claude Code starts asking for color by index, and the
+index is resolved by your terminal emulator's palette. Install one of the
+files from `themes/` (`windows-terminal.json`, `kitty.conf`, whichever is
+yours) and the result is this:
 
-| O que o Claude Code pinta | Índice ANSI | Cor no Tesseract Neon |
+| What Claude Code paints | ANSI index | Color in Tesseract Neon |
 |---|---|---|
-| texto normal | 7 | `#BFD1C6` fg.default |
-| texto apagado, dicas | 8 | `#3E534E` fg.faint |
-| erro, diff removido | 1 / 9 | `#C22F38` / `#FF3B47` state.dead |
-| aviso, permissão pendente | 3 / 11 | `#C9A227` / `#FFB454` state.block |
-| sucesso, diff adicionado | 2 / 10 | `#1F7A4C` / `#55FFA6` brand |
-| link, referência de arquivo | 4 / 12 | `#3E7FA8` / `#7DB7E8` state.read |
-| destaque, comando | 6 / 14 | `#128C86` / `#22E0D0` flux |
-| título, ênfase | 15 | `#E8F4EC` fg.bright |
+| normal text | 7 | `#BFD1C6` fg.default |
+| dimmed text, hints | 8 | `#3E534E` fg.faint |
+| error, removed diff | 1 / 9 | `#C22F38` / `#FF3B47` state.dead |
+| warning, pending permission | 3 / 11 | `#C9A227` / `#FFB454` state.block |
+| success, added diff | 2 / 10 | `#1F7A4C` / `#55FFA6` brand |
+| link, file reference | 4 / 12 | `#3E7FA8` / `#7DB7E8` state.read |
+| highlight, command | 6 / 14 | `#128C86` / `#22E0D0` flux |
+| title, emphasis | 15 | `#E8F4EC` fg.bright |
 
-## Por que não um tema com hex próprio
+## Why not a theme with its own hex
 
-O Claude Code não aceita paleta arbitrária: o tema é uma escolha entre um
-punhado de opções prontas. `dark-ansi` é a única que devolve o controle da cor
-para o terminal — e devolver o controle ao terminal é exatamente o que a gente
-quer, porque o terminal aqui é o Tesseract.
+Claude Code doesn't accept an arbitrary palette: the theme is a choice among
+a handful of ready-made options. `dark-ansi` is the only one that hands
+color control back to the terminal — and handing control back to the
+terminal is exactly what we want, because the terminal here is Tesseract.
 
-Fica melhor do que um tema com hex fixo, aliás: quando você trocar a paleta do
-Tesseract, o Claude Code troca junto, sem ninguém reconfigurar nada.
+It's better than a theme with fixed hex, too: when you swap Tesseract's
+palette, Claude Code switches along with it, with nobody reconfiguring
+anything.
 
-## Os dois passos, juntos
+## The two steps, together
 
 ```sh
-# 1. o emulador de terminal fala Tesseract Neon
-#    (escolha o arquivo do seu terminal em themes/)
+# 1. the terminal emulator speaks Tesseract Neon
+#    (pick the file for your terminal in themes/)
 
-# 2. o Claude Code para de ter cor própria
-/config   →   tema   →   dark-ansi
+# 2. Claude Code stops having its own color
+/config   →   theme   →   dark-ansi
 ```
 
-O `⏵ APROVAR` da grade continua sendo o único laranja com significado, e o
-verde phosphor continua aparecendo uma vez por tela.
+The grid's `⏵ APPROVE` remains the only meaningful orange, and phosphor
+green keeps appearing once per screen.

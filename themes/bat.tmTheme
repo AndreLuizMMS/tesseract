@@ -2,23 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   themes/bat.tmTheme
-  Tema de sintaxe do Tesseract Neon, para bat e delta.
+  Tesseract Neon syntax theme, for bat and delta.
 
-  Instalação: veja "Configuração de tema" em themes/README.md. (Os comandos
-  não cabem aqui: comentário XML não aceita hífen duplo, e as flags do bat
-  são todas de hífen duplo.)
+  Install: see "Theme configuration" in themes/README.md. (The commands
+  don't fit here: XML comments don't accept a double hyphen, and bat's
+  flags are all double hyphen.)
 
-  Mapeamento (mesmo do base16 em themes/tesseract-neon.yaml):
-    string / adicionado -> #1F7A4C  (brand.core, nunca o phosphor: um buffer
-                                     tem centenas de strings e o #55FFA6 é
-                                     um por tela)
-    função              -> #7DB7E8
-    palavra-chave       -> #C77DFF
-    tipo / classe       -> #C9A227
-    constante / número  -> #FFB454
-    suporte / regex     -> #22E0D0  (flux, estrutura)
-    inválido / removido -> #FF3B47
-    comentário          -> #3E534E  (fg.faint)
+  Mapping (same as the base16 in themes/tesseract-neon.yaml):
+    string / added      -> #1F7A4C  (brand.core, never the phosphor: a buffer
+                                     has hundreds of strings and #55FFA6 is
+                                     one per screen)
+    function            -> #7DB7E8
+    keyword             -> #C77DFF
+    type / class         -> #C9A227
+    constant / number    -> #FFB454
+    support / regex      -> #22E0D0  (flux, structure)
+    invalid / removed    -> #FF3B47
+    comment              -> #3E534E  (fg.faint)
 -->
 <plist version="1.0">
 <dict>
@@ -63,7 +63,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Comentário</string>
+			<string>Comment</string>
 			<key>scope</key>
 			<string>comment, punctuation.definition.comment</string>
 			<key>settings</key>
@@ -87,7 +87,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Escape e interpolação dentro de string</string>
+			<string>Escape and interpolation inside string</string>
 			<key>scope</key>
 			<string>constant.character.escape, string.regexp, punctuation.section.embedded</string>
 			<key>settings</key>
@@ -99,7 +99,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Número, constante, booleano</string>
+			<string>Number, constant, boolean</string>
 			<key>scope</key>
 			<string>constant.numeric, constant.language, constant.other</string>
 			<key>settings</key>
@@ -111,7 +111,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Variável</string>
+			<string>Variable</string>
 			<key>scope</key>
 			<string>variable, variable.parameter, meta.definition.variable</string>
 			<key>settings</key>
@@ -123,7 +123,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Palavra-chave e operador</string>
+			<string>Keyword and operator</string>
 			<key>scope</key>
 			<string>keyword, keyword.control, keyword.operator, storage.modifier</string>
 			<key>settings</key>
@@ -135,7 +135,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Storage e tipo</string>
+			<string>Storage and type</string>
 			<key>scope</key>
 			<string>storage, storage.type, support.type, entity.name.type</string>
 			<key>settings</key>
@@ -147,7 +147,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Função e método</string>
+			<string>Function and method</string>
 			<key>scope</key>
 			<string>entity.name.function, support.function, meta.function-call, variable.function</string>
 			<key>settings</key>
@@ -159,7 +159,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Classe, tag, entidade</string>
+			<string>Class, tag, entity</string>
 			<key>scope</key>
 			<string>entity.name.class, entity.name.tag, entity.other.inherited-class</string>
 			<key>settings</key>
@@ -171,7 +171,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Atributo</string>
+			<string>Attribute</string>
 			<key>scope</key>
 			<string>entity.other.attribute-name, support.variable</string>
 			<key>settings</key>
@@ -183,7 +183,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Pontuação e separador</string>
+			<string>Punctuation and separator</string>
 			<key>scope</key>
 			<string>punctuation, meta.brace, meta.delimiter</string>
 			<key>settings</key>
@@ -195,7 +195,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Inválido</string>
+			<string>Invalid</string>
 			<key>scope</key>
 			<string>invalid, invalid.illegal</string>
 			<key>settings</key>
@@ -207,7 +207,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Depreciado</string>
+			<string>Deprecated</string>
 			<key>scope</key>
 			<string>invalid.deprecated</string>
 			<key>settings</key>
@@ -219,7 +219,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Diff — cabeçalho</string>
+			<string>Diff — header</string>
 			<key>scope</key>
 			<string>meta.diff, meta.diff.header, source.diff meta.diff.range</string>
 			<key>settings</key>
@@ -231,7 +231,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Diff — inserido</string>
+			<string>Diff — inserted</string>
 			<key>scope</key>
 			<string>markup.inserted, source.diff markup.inserted</string>
 			<key>settings</key>
@@ -243,7 +243,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Diff — removido</string>
+			<string>Diff — removed</string>
 			<key>scope</key>
 			<string>markup.deleted, source.diff markup.deleted</string>
 			<key>settings</key>
@@ -255,7 +255,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Diff — alterado</string>
+			<string>Diff — changed</string>
 			<key>scope</key>
 			<string>markup.changed</string>
 			<key>settings</key>
@@ -267,7 +267,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Markdown — título</string>
+			<string>Markdown — heading</string>
 			<key>scope</key>
 			<string>markup.heading, entity.name.section</string>
 			<key>settings</key>
@@ -281,7 +281,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Markdown — ênfase</string>
+			<string>Markdown — emphasis</string>
 			<key>scope</key>
 			<string>markup.bold</string>
 			<key>settings</key>
@@ -295,7 +295,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Markdown — itálico</string>
+			<string>Markdown — italic</string>
 			<key>scope</key>
 			<string>markup.italic</string>
 			<key>settings</key>
@@ -323,7 +323,7 @@
 
 		<dict>
 			<key>name</key>
-			<string>Markdown — código literal</string>
+			<string>Markdown — literal code</string>
 			<key>scope</key>
 			<string>markup.raw, markup.inline.raw</string>
 			<key>settings</key>

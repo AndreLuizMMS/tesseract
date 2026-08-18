@@ -1,132 +1,137 @@
 # Manual
 
-## Como funciona
+## How it works
 
-Existem exatamente **três coisas**.
+There are exactly **three things**.
 
-### Projeto
+### Project
 
-Um diretório. Nasce junto com sua primeira célula — criar projeto e criar célula são o
-mesmo gesto — e **sai da tela quando a última célula dele morre**. O disco nunca é tocado:
-o projeto sair da tela não apaga, não move e não altera nada.
+A directory. Born together with its first cell — creating a project and creating a cell are
+the same gesture — and **leaves the screen when its last cell dies**. The disk is never
+touched: the project leaving the screen doesn't delete, move or change anything.
 
-### Célula
+### Cell
 
-A unidade de trabalho. **Uma regra só para todas**: a mesma tecla cria, mata, nomeia, foca
-e navega em qualquer uma.
+The unit of work. **One rule for all of them**: the same key creates, kills, renames,
+focuses and navigates any of them.
 
-Criar não pergunta o que a célula vai ser. Uma **sessão** nasce com quatro abas por dentro,
-todas no diretório do projeto, e `tab` troca entre elas. Só a aba que você está usando tem
-processo: as outras sobem quando você chega nelas.
+Creating doesn't ask what the cell is going to be. A **session** is born with four tabs
+inside, all in the project's directory, and `tab` switches between them. Only the tab
+you're using has a process: the others come up when you get to them.
 
-| Aba | O que é |
+| Tab | What it is |
 |---|---|
 | `claude` | Claude Code |
 | `cursor` | Cursor CLI |
-| `bash` | um shell |
-| `md` | os markdowns do projeto: lista com busca por nome, e o escolhido renderizado |
+| `bash` | a shell |
+| `md` | the project's markdown files: a list with search by name, and the chosen one rendered |
 
-A aba `md` abre numa lista de todo markdown do projeto, com uma **barra de busca no topo**.
-Entre em DIGITAR (`↵`), digite parte do nome para filtrar, `↑↓` escolhe e `↵` abre o
-arquivo. `esc` volta para a lista. O arquivo aberto recarrega sozinho quando o disco muda —
-dá para ver o agente escrevendo a spec ao lado.
+The `md` tab opens on a list of every markdown file in the project, with a **search bar at
+the top**. Enter TYPE mode (`↵`), type part of the name to filter, `↑↓` picks and `↵` opens
+the file. `esc` goes back to the list. The open file reloads itself when the disk changes —
+you can watch the agent writing the spec right beside it.
 
-O documento é desenhado **como página, não como saída de terminal**: medida de leitura
-fixa e centralizada, margem dos dois lados, título em faixa, seções com filete, citação
-com barra, tabela com régua fina e código em caixa própria. Linha de código mais larga que
-a página é **cortada com `›`**, nunca quebrada — diagrama partido no meio não se lê.
+The document is drawn **as a page, not as terminal output**: fixed, centered reading width,
+margins on both sides, title in a banner, sections with a rule, blockquote with a bar,
+table with a thin ruler and code in its own box. A code line wider than the page is
+**cut with `›`**, never wrapped — a diagram split down the middle isn't readable.
 
-Existem ainda duas células que não são sessão:
+There are also two cell types that aren't sessions:
 
-| Tipo | O que é |
+| Type | What it is |
 |---|---|
-| `logs` | log ao vivo de um serviço do compose, criado pelo painel Docker |
-| `md` | um markdown específico, quando você preenche o campo MD na criação |
+| `logs` | live log of a compose service, created by the Docker panel |
+| `md` | a specific markdown file, when you fill the MD field at creation |
 
-Cada célula tem um estado, e é ele que aparece no marcador. Todo estado tem **três** sinais
-ao mesmo tempo — um glifo, uma cor e uma forma — para que nenhum deles seja indispensável:
+Every cell has a state, and that's what shows up on the marker. Every state has **three**
+signals at once — a glyph, a color and a shape — so that none of them is indispensable:
 
-| Sinal | Estado | O que fazer |
+| Signal | State | What to do |
 |---|---|---|
-| `▸ TRABALHANDO` | processo vivo produzindo | nada — deixe trabalhar |
-| `⬤ RESPONDEU` | devolveu a vez, tem resposta esperando leitura | leia quando puder; não trava nada |
-| `⏵ APROVAR` | travou numa pergunta e **não anda** sem resposta | responda: o trabalho parou nisso |
-| `✖ CAIU` | o processo morreu sozinho | `r` sobe de novo |
-| `○ PARADA` | sem processo, célula preservada | `r` retoma de onde parou |
-| `⚠ ÓRFÃ` | o diretório do projeto sumiu do disco | recrie o caminho ou mate a célula |
+| `▸ WORKING` | live process producing | nothing — let it work |
+| `⬤ ANSWERED` | gave back its turn, has a response waiting to be read | read when you can; nothing is blocked |
+| `⏵ APPROVE` | stuck on a question and **won't move** without an answer | answer: the work stopped here |
+| `✖ CRASHED` | the process died on its own | `r` brings it back up |
+| `○ STOPPED` | no process, cell preserved | `r` resumes from where it stopped |
+| `⚠ ORPHAN` | the project's directory disappeared from disk | recreate the path or kill the cell |
 
-`⏵ APROVAR` é o único que vira **barra sólida invertida ocupando a linha inteira** do
-cabeçalho da célula, e o único que **pisca** — 1,8s aceso, 200ms apagado, para sempre,
-enquanto alguém estiver esperando você. Os outros cinco são um glifo e um rótulo, parados.
-É de propósito: urgência aqui é área preenchida, não matiz — funciona de longe, funciona no
-canto do olho e funciona sem cor nenhuma.
+`⏵ APPROVE` is the only one that turns into a **solid, inverted bar filling the whole line**
+of the cell's header, and the only one that **blinks** — 1.8s on, 200ms off, forever, while
+someone is waiting on you. The other five are a glyph and a label, still. It's on purpose:
+urgency here is filled area, not hue — it works from a distance, works out of the corner of
+your eye and works with no color at all.
 
-No quadro apagado a barra **continua barra**: só o fundo muda. A área preenchida é o que
-diz "isto trava o trabalho", e ela nunca some. E o relógio só existe enquanto há célula
-travada — sem nenhuma, a tela fica completamente parada. `TESSERACT_SEM_PISCA=1` desliga a
-piscada para quem prefere a tela imóvel.
+In the off frame the bar **stays a bar**: only the background changes. The filled area is
+what says "this is blocking the work", and it never disappears. And the clock only exists
+while there's a blocked cell — with none, the screen stays completely still.
+`TESSERACT_SEM_PISCA=1` turns off the blink for those who prefer a still screen.
 
-**Respondeu ≠ aprovar.** É a distinção que faz o alarme valer alguma coisa: agente parado
-numa pergunta bloqueia o trabalho; agente que terminou o turno apenas tem algo para ler.
+**Answered ≠ approve.** That's the distinction that makes the alarm worth something: an
+agent stuck on a question blocks the work; an agent that finished its turn just has
+something to read.
 
-E **nenhum alarme falso**: spinner piscando e cursor se mexendo não contam como atividade.
-O motor exige leituras seguidas de trabalho antes de armar o aviso, e leituras seguidas de
-silêncio antes de declarar o turno encerrado.
+And **no false alarms**: a blinking spinner and a moving cursor don't count as activity.
+The engine requires consecutive reads of work before arming the alert, and consecutive
+reads of silence before declaring the turn over.
 
-### Painel Docker
+### Docker panel
 
-Pertence ao **projeto**, não à célula. O arquivo de compose é procurado na raiz e nas
-pastas de primeiro nível — porque projeto de verdade guarda a stack em `docker/`, `infra/`
-e afins — e **arquivo de produção nunca é escolhido**. O painel lista os serviços com
-estado, porta, saúde e tempo de pé; sobe, para, reinicia e rebuilda serviço ou stack
-inteira; e transforma o log de um serviço numa célula do mosaico.
+Belongs to the **project**, not the cell. The compose file is looked for at the root and in
+first-level folders — because a real project keeps its stack in `docker/`, `infra/` and
+the like — and **a production file is never chosen**. The panel lists the services with
+state, port, health and uptime; brings up, stops, restarts and rebuilds a service or the
+whole stack; and turns a service's log into a mosaic cell.
 
-Enquanto o Docker trabalha, o painel diz o que está fazendo e vai atualizando a lista —
-os serviços ficam verdes um a um em vez de tudo mudar de uma vez no fim.
+While Docker is working, the panel says what it's doing and keeps updating the list — the
+services turn green one at a time instead of everything changing at once at the end.
 
-**Nenhuma ação destrutiva existe aqui.** Não há `down -v`, não há apagar volume.
+**No destructive action exists here.** There's no `down -v`, no deleting a volume.
 
-## Os dois modos
+## The two modes
 
 <p align="center">
-  <img src="img/digitar.svg" alt="O modo DIGITAR: a tela apaga, o selo aparece e só a célula com o teclado fica acesa" width="1000">
+  <img src="img/digitar.svg" alt="TYPE mode: the screen dims, the badge appears and only the cell with the keyboard stays lit" width="1000">
 </p>
 
-Por padrão você está em **NAVEGAR**: toda tecla é do aplicativo.
+By default you're in **NAVIGATE**: every key belongs to the app.
 
-`↵` entra em **DIGITAR**: toda tecla é da célula, **sem nenhuma exceção**. Nem `q`, nem `D`,
-nem `tab`, nem as setas. `ctrl-l` devolve o teclado.
+`↵` enters **TYPE**: every key belongs to the cell, **with no exception whatsoever**. Not
+`q`, not `D`, not `tab`, not the arrows. `ctrl-l` gives back the keyboard.
 
-Colar (`ctrl-v`, ou o que o seu terminal usar) funciona em DIGITAR e nos campos de texto.
-O texto vai **marcado como colagem**: um prompt de várias linhas entra inteiro na caixa do
-agente, em vez de cada quebra de linha virar um envio. Em campo de uma linha só — caminho
-do projeto, prompt do `p` — a colagem é achatada numa linha.
+Pasting (`ctrl-v`, or whatever your terminal uses) works in TYPE mode and in text fields.
+The text goes in **marked as a paste**: a multi-line prompt enters whole into the agent's
+box, instead of each line break becoming a send. In a single-line field — the project's
+path, the `p` prompt — the paste gets flattened into one line.
 
-Nunca há dois donos do teclado ao mesmo tempo — então colisão de atalho é estruturalmente
-impossível. E o modo é impossível de errar, porque ele muda **quatro** coisas de uma vez:
+There's never two owners of the keyboard at the same time — so shortcut collision is
+structurally impossible. And the mode is impossible to get wrong, because it changes
+**four** things at once:
 
-1. o fundo da tela escurece e o resto apaga;
-2. a borda da célula focada engrossa e vira dupla;
-3. o selo `▓ DIGITAR ▓` aparece invertido;
-4. a célula que tem o teclado fica **verde phosphor** — e é o único verde phosphor da tela.
+1. the screen background darkens and the rest dims;
+2. the focused cell's border thickens and doubles;
+3. the `▓ TYPE ▓` badge appears reversed;
+4. the cell holding the keyboard turns **phosphor green** — and it's the only phosphor
+   green on the screen.
 
-Com `NO_COLOR=1` os sinais 1 e 4 somem, e os sinais 2 e 3 continuam: borda dupla e selo
-invertido não dependem de cor nenhuma.
+With `NO_COLOR=1` signals 1 and 4 disappear, and signals 2 and 3 stay: double border and
+reversed badge don't depend on color at all.
 
-## Copiar o que o agente escreveu
+## Copying what the agent wrote
 
-Com o mosaico, a seleção do terminal não serve: ela pega os vizinhos e as bordas junto.
-Então a marca é do próprio Tesseract. **Arraste o mouse por cima da célula** — o trecho
-acende — e **solte**: o texto vai para a área de transferência, sem cor e sem os espaços do
-fim das linhas. Vale nos dois modos e nos dois sentidos do arrasto. `esc` apaga a marca.
+With the mosaic, the terminal's own selection doesn't work: it grabs the neighbors and the
+borders too. So the mark is Tesseract's own. **Drag the mouse over the cell** — the section
+lights up — and **release**: the text goes to the clipboard, with no color and no trailing
+spaces at the end of lines. Works in both modes and both drag directions. `esc` clears the
+mark.
 
-Clicar sem arrastar só escolhe a célula; não encosta no que você tinha copiado antes. Para
-pegar o que já saiu da tela, **role primeiro** (roda do mouse) e depois arraste — a marca
-vale sobre o que está à vista.
+Clicking without dragging only picks the cell; it doesn't touch whatever you'd copied
+before. To grab something that already scrolled off screen, **scroll first** (mouse wheel)
+and then drag — the mark works on what's in view.
 
-## Configuração
+## Configuration
 
-Opcional, em `~/.config/tesseract/config.json`. Sem o arquivo, tudo funciona com o padrão.
+Optional, at `~/.config/tesseract/config.json`. Without the file, everything works with the
+defaults.
 
 ```json
 {
@@ -145,23 +150,22 @@ Opcional, em `~/.config/tesseract/config.json`. Sem o arquivo, tudo funciona com
 }
 ```
 
-O **badge de consumo** da janela de 5 horas aparece na barra de título quando o seu
-statusline do Claude Code escreve `~/.claude/tesseract-quota.json` (ou o antigo
-`squad-quota.json`) no formato `{"used_percentage": 59, "resets_at": 1786955400}`. Sem o
-arquivo, tudo funciona igual — só não aparece o badge.
+The **usage badge** for the 5-hour window shows up in the title bar when your Claude Code
+statusline writes `~/.claude/tesseract-quota.json` (or the old `squad-quota.json`) in the
+format `{"used_percentage": 59, "resets_at": 1786955400}`. Without the file, everything
+still works — the badge just doesn't show up.
 
-## Quem roda dentro de uma célula
+## Who runs inside a cell
 
-Todo processo que o Tesseract sobe recebe `TESSERACT=1` no ambiente. Ele não consegue
-pintar a interface de um agente — o que a célula mostra é o que o processo escreveu, e
-nada além disso. O que dá para fazer é dizer "você está aqui dentro", e deixar quem se
-importa se vestir de acordo.
+Every process Tesseract starts gets `TESSERACT=1` in the environment. It can't paint an
+agent's interface — what the cell shows is what the process wrote, and nothing more. What
+it can do is say "you're in here", and let whoever cares dress accordingly.
 
-O statusline do Claude Code é o caso típico: ele é um comando seu, roda dentro do pty da
-célula, herda o ambiente e pode abrir a linha com `⧉` e usar a paleta do Tesseract quando
-a variável estiver de pé. Fora do Tesseract, nada muda — a marca se apresenta, não se
-impõe.
+Claude Code's statusline is the typical case: it's a command of yours, runs inside the
+cell's pty, inherits the environment and can open the line with `⧉` and use Tesseract's
+palette when the variable is set. Outside Tesseract, nothing changes — the brand
+introduces itself, it doesn't impose itself.
 
 ```bash
-[ -n "${TESSERACT:-}" ] && echo "esta sessão está numa célula"
+[ -n "${TESSERACT:-}" ] && echo "this session is inside a cell"
 ```

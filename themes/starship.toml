@@ -1,9 +1,9 @@
 # themes/starship.toml
-# Prompt do Tesseract Neon.  export STARSHIP_CONFIG=~/.config/starship.toml
+# Tesseract Neon prompt.  export STARSHIP_CONFIG=~/.config/starship.toml
 #
-# Regra do prompt: o ⧉ é o único elemento em verde phosphor — ele marca que o
-# teclado é seu. Tudo que é estrutura (caminho, host, branch) é ciano. Nenhum
-# estado do prompt (erro, jobs, duração) usa verde nem ciano.
+# Prompt rule: the ⧉ is the only element in phosphor green — it marks that
+# the keyboard is yours. Everything that is structure (path, host, branch)
+# is cyan. No prompt state (error, jobs, duration) uses green or cyan.
 
 add_newline = true
 
@@ -14,7 +14,7 @@ $character"""
 right_format = """$time"""
 
 [character]
-# Sem verde no sucesso: verde é posse do teclado, não resultado do comando.
+# No green on success: green is keyboard ownership, not command result.
 success_symbol = "[▸](bold #BFD1C6)"
 error_symbol = "[▸](bold #FF3B47)"
 vimcmd_symbol = "[◂](bold #FFB454)"
@@ -78,8 +78,8 @@ style = "#3E534E"
 time_format = "%H:%M"
 format = "[$time]($style)"
 
-# Módulos de linguagem desligados por padrão: o prompt do Tesseract diz onde
-# você está e de quem é o teclado, não o que está instalado na máquina.
+# Language modules disabled by default: the Tesseract prompt says where you
+# are and who owns the keyboard, not what's installed on the machine.
 [nodejs]
 disabled = true
 [golang]

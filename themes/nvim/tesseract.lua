@@ -1,21 +1,21 @@
 -- themes/nvim/tesseract.lua
--- Colorscheme Tesseract Neon para Neovim.
+-- Tesseract Neon colorscheme for Neovim.
 --
--- Instalação:
+-- Install:
 --   cp themes/nvim/tesseract.lua ~/.config/nvim/colors/tesseract.lua
 --   :colorscheme tesseract
 --
--- Regras herdadas da paleta:
---   * verde phosphor (#55FFA6) aparece UMA vez por tela — aqui é o cursor;
---   * string e diff-add usam o verde escuro brand.core, que se repete sem
---     competir com o cursor;
---   * ciano é estrutura: separador de janela, título, moldura do popup;
---   * diagnóstico nunca usa verde nem ciano — erro/aviso/info/dica saem das
---     cores de estado (dead, block, read, muted).
+-- Rules inherited from the palette:
+--   * phosphor green (#55FFA6) appears ONCE per screen — here it's the cursor;
+--   * string and diff-add use the dark green brand.core, which repeats
+--     without competing with the cursor;
+--   * cyan is structure: window separator, title, popup frame;
+--   * diagnostics never use green or cyan — error/warning/info/hint come
+--     from the state colors (dead, block, read, muted).
 --
--- Fallback: cada grupo declara ctermfg/ctermbg junto do hex, então o tema
--- continua legível em terminal de 16 cores. Com NO_COLOR=1 o arquivo carrega
--- em modo monocromático (só negrito, itálico, reverso e sublinhado).
+-- Fallback: each group declares ctermfg/ctermbg alongside the hex, so the
+-- theme stays legible in a 16-color terminal. With NO_COLOR=1 the file
+-- loads in monochrome mode (only bold, italic, reverse and underline).
 
 vim.cmd("highlight clear")
 if vim.fn.exists("syntax_on") == 1 then
@@ -27,7 +27,7 @@ vim.g.colors_name = "tesseract"
 
 local sem_cor = (vim.env.NO_COLOR ~= nil and vim.env.NO_COLOR ~= "")
 
--- Tokens da paleta. Nenhum hex solto abaixo desta tabela.
+-- Palette tokens. No loose hex below this table.
 local c = {
   bg_void     = "#030507",
   bg_base     = "#070B0C",
@@ -63,7 +63,7 @@ local c = {
   ansi_blue   = "#3E7FA8",
 }
 
--- Equivalente em 16 cores de cada token, para o terminal que não tem 24 bits.
+-- 16-color equivalent of each token, for terminals without 24-bit support.
 local ct = {
   [c.bg_void] = 0, [c.bg_base] = 0, [c.bg_surface] = 0, [c.bg_raised] = 8,
   [c.line_dim] = 8, [c.line_active] = 2,
@@ -91,7 +91,7 @@ local function hl(grupo, spec)
   vim.api.nvim_set_hl(0, grupo, def)
 end
 
--- Superfície -----------------------------------------------------------------
+-- Surface ----------------------------------------------------------------
 hl("Normal",        { fg = c.fg_default, bg = c.bg_base })
 hl("NormalFloat",   { fg = c.fg_default, bg = c.bg_surface })
 hl("FloatBorder",   { fg = c.flux_core,  bg = c.bg_surface })
@@ -122,7 +122,7 @@ hl("ModeMsg",       { fg = c.fg_bright, bold = true })
 hl("ErrorMsg",      { fg = c.bg_void, bg = c.st_dead, bold = true })
 hl("WarningMsg",    { fg = c.st_block, bold = true })
 
--- Estrutura ------------------------------------------------------------------
+-- Structure ----------------------------------------------------------------
 hl("WinSeparator",  { fg = c.line_dim })
 hl("VertSplit",     { fg = c.line_dim })
 hl("StatusLine",    { fg = c.fg_bright, bg = c.bg_raised })
@@ -133,7 +133,7 @@ hl("TabLineSel",    { fg = c.fg_bright, bg = c.bg_raised, bold = true })
 hl("WinBar",        { fg = c.flux_core, bg = c.bg_base, bold = true })
 hl("WinBarNC",      { fg = c.fg_faint,  bg = c.bg_base })
 
--- Sintaxe --------------------------------------------------------------------
+-- Syntax ---------------------------------------------------------------------
 hl("Comment",       { fg = c.fg_faint, italic = true })
 hl("String",        { fg = c.brand_core })
 hl("Character",     { fg = c.brand_core })
@@ -160,7 +160,7 @@ hl("Todo",          { fg = c.bg_void, bg = c.st_block, bold = true })
 hl("Error",         { fg = c.bg_void, bg = c.st_dead, bold = true })
 hl("Underlined",    { fg = c.flux, underline = true })
 
--- Treesitter (só o que não herda dos grupos acima).
+-- Treesitter (only what doesn't inherit from the groups above).
 hl("@variable",         { fg = c.fg_default })
 hl("@variable.builtin", { fg = c.ansi_purple })
 hl("@property",         { fg = c.fg_default })
@@ -173,7 +173,7 @@ hl("@string.regexp",    { fg = c.flux })
 hl("@tag",              { fg = c.st_orphan })
 hl("@tag.attribute",    { fg = c.flux })
 
--- Diagnóstico — nenhum verde, nenhum ciano ----------------------------------
+-- Diagnostics — no green, no cyan --------------------------------------------
 hl("DiagnosticError", { fg = c.st_dead })
 hl("DiagnosticWarn",  { fg = c.st_block })
 hl("DiagnosticInfo",  { fg = c.st_read })
@@ -195,7 +195,7 @@ hl("DiagnosticSignWarn",  { fg = c.st_block })
 hl("DiagnosticSignInfo",  { fg = c.st_read })
 hl("DiagnosticSignHint",  { fg = c.fg_muted })
 
--- Diff -----------------------------------------------------------------------
+-- Diff -------------------------------------------------------------------
 hl("DiffAdd",     { fg = c.brand_core, bg = c.bg_surface })
 hl("DiffChange",  { fg = c.st_block,   bg = c.bg_surface })
 hl("DiffDelete",  { fg = c.st_dead,    bg = c.bg_surface })
@@ -204,13 +204,13 @@ hl("Added",       { fg = c.brand_core })
 hl("Changed",     { fg = c.st_block })
 hl("Removed",     { fg = c.st_dead })
 
--- Busca ----------------------------------------------------------------------
+-- Search -----------------------------------------------------------------
 hl("Search",     { fg = c.bg_void, bg = c.flux })
 hl("IncSearch",  { fg = c.bg_void, bg = c.st_block, bold = true })
 hl("CurSearch",  { fg = c.bg_void, bg = c.st_block, bold = true })
 hl("Substitute", { fg = c.bg_void, bg = c.st_block })
 
--- Menu -----------------------------------------------------------------------
+-- Menu -------------------------------------------------------------------
 hl("Pmenu",       { fg = c.fg_default, bg = c.bg_surface })
 hl("PmenuSel",    { fg = c.fg_bright,  bg = c.bg_raised, bold = true })
 hl("PmenuSbar",   { bg = c.bg_raised })
@@ -219,7 +219,7 @@ hl("PmenuKind",   { fg = c.flux_core,  bg = c.bg_surface })
 hl("PmenuExtra",  { fg = c.fg_muted,   bg = c.bg_surface })
 hl("WildMenu",    { fg = c.bg_void,    bg = c.flux })
 
--- Terminal embutido: a mesma ANSI 16 do resto do tema.
+-- Embedded terminal: the same ANSI 16 as the rest of the theme.
 vim.g.terminal_color_0  = c.bg_base
 vim.g.terminal_color_1  = c.ansi_red
 vim.g.terminal_color_2  = c.brand_core

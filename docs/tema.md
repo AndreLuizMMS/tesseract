@@ -1,95 +1,98 @@
-# Tema e marca
+# Theme and brand
 
-A cor aqui não é enfeite, é gramática. Ela tem três leis, e nenhuma delas é estética:
+Color here isn't decoration, it's grammar. It has three laws, and none of them is
+aesthetic:
 
-- **Verde é posse do teclado.** Nunca é estado. O verde phosphor aparece no máximo uma vez
-  por tela: na célula que está com o seu teclado, e em mais nada.
-- **Ciano é estrutura.** Grade, cantos, numeração, rótulos. Nunca é estado.
-- **Estado não usa verde nem ciano**, e urgência é área preenchida, não matiz.
+- **Green means keyboard ownership.** Never a state. Phosphor green appears at most once per
+  screen: on the cell holding your keyboard, and nowhere else.
+- **Cyan is structure.** Grid, corners, numbering, labels. Never a state.
+- **State doesn't use green or cyan**, and urgency is filled area, not hue.
 
-Fora isso: sem brilho, sem scanline, sem ligadura, sem emoji, sem canto arredondado dentro
-do terminal. Esses efeitos existem só na superfície de marca — este README, o site, o
+Beyond that: no glow, no scanline, no ligature, no emoji, no rounded corner inside the
+terminal. Those effects only exist on the brand surface — this README, the site, the
 banner.
 
-A paleta inteira mora em **um arquivo só**, `internal/tema/tema.go`. Nenhum outro arquivo do
-projeto escreve hex: quem desenha pede o token pelo nome (`tema.BrandPhosphor`,
-`tema.FluxCore`, `tema.StateBlock`). O guarda dessa regra é executável:
+The whole palette lives in **a single file**, `internal/tema/tema.go`. No other file in the
+project writes hex: whoever draws asks for the token by name (`tema.BrandPhosphor`,
+`tema.FluxCore`, `tema.StateBlock`). The guard of that rule is executable:
 
 ```bash
 ./scripts/check-theme.sh
 ```
 
-Ele imprime a paleta inteira em blocos ANSI para conferência a olho, e **falha** se alguém
-usar verde ou ciano como cor de estado, ou escrever hex fora do arquivo de tema.
+It prints the whole palette in ANSI blocks for a visual check, and **fails** if anyone uses
+green or cyan as a state color, or writes hex outside the theme file.
 
-O tema tem três perfis e escolhe sozinho: cor cheia, 16 cores, ou nenhuma (`NO_COLOR=1` ou
-`TERM=dumb`). Nos três o alfabeto de estados continua legível, porque o glifo e a forma
-carregam o significado e a cor só reforça.
+The theme has three profiles and picks on its own: full color, 16 colors, or none
+(`NO_COLOR=1` or `TERM=dumb`). In all three the state alphabet stays legible, because the
+glyph and the shape carry the meaning and color only reinforces it.
 
-| Variável | O que faz |
+| Variable | What it does |
 |---|---|
-| `NO_COLOR` | tira a cor inteira; sobra negrito, vídeo invertido e borda |
-| `TESSERACT_SEM_PISCA` | para a piscada da barra de `aprovar`, mantendo a barra |
-| `TESSERACT_SEM_ABERTURA` | pula a animação de partida e vai direto para a grade |
+| `NO_COLOR` | strips all color; leaves bold, reverse video and border |
+| `TESSERACT_SEM_PISCA` | stops the `approve` bar's blink, keeping the bar |
+| `TESSERACT_SEM_ABERTURA` | skips the startup animation and goes straight to the grid |
 
-### Onde a marca aparece
+### Where the brand shows up
 
-O símbolo não vive só no README. Dentro do produto ele tem quatro casas:
+The symbol doesn't only live in the README. Inside the product it has four homes:
 
-| Lugar | Forma |
+| Place | Form |
 |---|---|
-| Abertura | o símbolo se desenhando, traço a traço, na partida |
-| Barra de título | glifo `⧉`, sempre à esquerda do nome |
-| Grade vazia | símbolo 7×5 no centro, com a tecla que cria a primeira célula |
-| Título da janela | `⧉ ts — projeto/célula`, acompanhando o foco |
+| Startup | the symbol drawing itself, stroke by stroke, on launch |
+| Title bar | the `⧉` glyph, always to the left of the name |
+| Empty grid | a 7×5 symbol at the center, with the key that creates the first cell |
+| Window title | `⧉ ts — project/cell`, following the focus |
 
-### A abertura
+### The startup
 
-A marca não aparece pronta na partida: **ela se monta**. O quadrado de trás nasce primeiro,
-traço a traço, com a ponta da caneta acesa em fósforo correndo pelo caminho. Depois o
-quadrado da frente por cima. A tessera acende, o símbolo inteiro estoura num quadro só e
-assenta. Só então o nome abre, letra a letra, e as linhas do motor entram uma a uma.
+The brand doesn't appear ready-made at launch: **it assembles itself**. The back square is
+born first, stroke by stroke, with the pen tip lit up in phosphor running along the path.
+Then the front square on top. The tessera lights up, the whole symbol bursts in a single
+frame and settles. Only then does the name open, letter by letter, and the engine's lines
+come in one at a time.
 
 ```
    ┌────┐
    │┌───┼┐    T E S S E R A C T
-   ││ ▓ ││    o mosaico não desmonta
+   ││ ▓ ││    the mosaic doesn't fall apart
    └┼───┘│
     └────┘    ts 0.1.0 // MIT
 
-   > motor de sessão: vivo
-   > 8 células recuperadas · 3 projetos · mesma posição
-   > grade montada em 41ms
+   > session engine: alive
+   > 8 cells recovered · 3 projects · same position
+   > grid built in 41ms
 ```
 
-Dura cerca de um segundo e meio, e **roda em paralelo com a conexão** — enquanto a marca se
-desenha, o motor é procurado e a grade é remontada na outra linha de execução. O cronômetro
-de `grade montada em` conta só o motor, nunca a animação: é um número que existe para ser
-verdade.
+Lasts about a second and a half, and **runs in parallel with the connection** — while the
+brand draws itself, the engine is searched for and the grid is rebuilt on the other
+execution thread. The `grid built in` stopwatch only counts the engine, never the
+animation: it's a number that exists to be true.
 
-Nada disso é brilho, scanline ou glitch — o terminal não emite luz e a regra continua
-valendo. O que se move é a **ordem em que as coisas passam a existir**, não a textura delas.
-Sem terminal de verdade (saída num arquivo, num pipe), a abertura vira o bloco estático de
-uma vez só.
+None of this is glow, scanline or glitch — the terminal doesn't emit light and the rule
+still holds. What moves is the **order in which things come into existence**, not their
+texture. Without a real terminal (output to a file, a pipe), the startup becomes the static
+block, all at once.
 
-### O mesmo tema no resto da mesa
+### The same theme across the rest of the desk
 
-A pasta `themes/` traz o **Tesseract Neon** pronto para o terminal e as ferramentas do dia:
+The `themes/` folder brings **Tesseract Neon** ready for the terminal and the everyday
+tools:
 
-| Arquivo | Para |
+| File | For |
 |---|---|
-| `windows-terminal.json`, `wezterm.toml`, `alacritty.toml`, `kitty.conf`, `ghostty` | emuladores de terminal |
-| `tesseract-neon.yaml` | esquema base16/base24 (tinted-theming) |
-| `tmux.conf`, `starship.toml`, `fzf.env` | barra de status, prompt, busca |
-| `bat.tmTheme`, `delta.gitconfig` | leitura de arquivo e diff |
-| `nvim/tesseract.lua`, `eza-ls-colors.sh` | editor e listagem |
-| `claude-code.md` | o Claude Code dentro da célula, sem cor própria |
+| `windows-terminal.json`, `wezterm.toml`, `alacritty.toml`, `kitty.conf`, `ghostty` | terminal emulators |
+| `tesseract-neon.yaml` | base16/base24 scheme (tinted-theming) |
+| `tmux.conf`, `starship.toml`, `fzf.env` | status bar, prompt, search |
+| `bat.tmTheme`, `delta.gitconfig` | file reading and diff |
+| `nvim/tesseract.lua`, `eza-ls-colors.sh` | editor and listing |
+| `claude-code.md` | Claude Code inside the cell, without its own color |
 
-**O agente dentro da célula.** O Claude Code pinta com paleta própria e briga com a grade —
-laranja no selo, rosa no logo. A correção é uma linha: `/config` → tema → **`dark-ansi`**.
-Nesse tema ele desenha só com as 16 cores ANSI, que são as do Tesseract Neon. Detalhes em
-[`themes/claude-code.md`](../themes/claude-code.md).
+**The agent inside the cell.** Claude Code paints with its own palette and clashes with the
+grid — orange on the badge, pink on the logo. The fix is one line: `/config` → theme →
+**`dark-ansi`**. In that theme it draws only with the 16 ANSI colors, which are Tesseract
+Neon's. Details in [`themes/claude-code.md`](../themes/claude-code.md).
 
-A marca em vetor está em `themes/logo.svg` (colorida) e `themes/logo-mono.svg` (traço único
-em `currentColor`, para favicon e 16px). Os detalhes de cada arquivo estão em
+The brand in vector form is at `themes/logo.svg` (colored) and `themes/logo-mono.svg`
+(single stroke in `currentColor`, for favicon and 16px). The details of each file are in
 [`themes/README.md`](../themes/README.md).

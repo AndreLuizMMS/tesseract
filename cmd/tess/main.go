@@ -1,5 +1,5 @@
-// Comando ts: abre a tela do Tesseract, conectando ao motor — e sobe o motor
-// se ele não estiver rodando.
+// Command ts: opens the Tesseract screen, connecting to the engine — and
+// starts the engine if it isn't running.
 package main
 
 import (
@@ -16,403 +16,411 @@ import (
 	tea "charm.land/bubbletea/v2"
 	term "github.com/charmbracelet/x/term"
 
-	_ "github.com/andreluiz/tesseract/internal/celula"
-	"github.com/andreluiz/tesseract/internal/motor"
-	"github.com/andreluiz/tesseract/internal/protocolo"
-	"github.com/andreluiz/tesseract/internal/tela"
-	"github.com/andreluiz/tesseract/internal/tema"
+	_ "github.com/andreluiz/tesseract/internal/cell"
+	"github.com/andreluiz/tesseract/internal/engine"
+	"github.com/andreluiz/tesseract/internal/protocol"
+	"github.com/andreluiz/tesseract/internal/screen"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
-// esperaDoMotor é quanto tempo a tela dá para o motor abrir o socket antes de
-// desistir.
-const esperaDoMotor = 5 * time.Second
+// engineWait is how long the screen gives the engine to open the socket
+// before giving up.
+const engineWait = 5 * time.Second
 
-const uso = `⧉ ts — mosaico de agentes em terminal
+const usage = `⧉ ts — terminal agent mosaic
 
-  ts                 abre a tela, subindo o motor se preciso
-  ts novo <dir>      adiciona um projeto sem abrir a tela
-  ts status          estado do motor e resumo de projetos e células
-  ts stop            desliga o motor e todas as células
-  ts reset           apaga o estado salvo e derruba tudo, preservando a configuração
-  ts motor           roda o motor em primeiro plano (é o que o systemd chama)
+  ts                 opens the screen, starting the engine if needed
+  ts new <dir>       adds a project without opening the screen
+  ts status          engine state and a summary of projects and cells
+  ts stop            shuts down the engine and every cell
+  ts reset           clears the saved state and tears everything down, keeping the configuration
+  ts engine          runs the engine in the foreground (what systemd calls)
 `
 
 func main() {
-	comando := ""
+	command := ""
 	if len(os.Args) > 1 {
-		comando = os.Args[1]
+		command = os.Args[1]
 	}
 
 	var err error
-	switch comando {
+	switch command {
 	case "":
-		err = abrirTela()
-	case "motor":
-		err = rodarMotor()
-	case "novo":
-		err = adicionarProjeto(os.Args[2:])
+		err = openScreen()
+	case "engine":
+		err = runEngine()
+	case "new":
+		err = addProject(os.Args[2:])
 	case "status":
-		err = mostrarStatus()
+		err = showStatus()
 	case "stop":
-		err = pararMotor()
+		err = stopEngine()
 	case "reset":
-		err = apagarEstado()
-	case "-h", "--help", "ajuda", "help":
-		fmt.Print(uso)
+		err = clearState()
+	case "-h", "--help", "help":
+		fmt.Print(usage)
 	default:
-		fmt.Fprintf(os.Stderr, "comando desconhecido: %s\n\n%s", comando, uso)
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n%s", command, usage)
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "erro:", err)
+		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
 
-// abrirTela conecta ao motor, subindo-o se preciso, e desenha.
-func abrirTela() error {
-	// A abertura roda enquanto o motor é procurado, numa linha de execução, e
-	// a conexão corre na outra. O tempo da animação é tempo que já ia passar
-	// de qualquer jeito — nenhuma espera é inventada para exibi-la.
-	abertura := tela.NovaAbertura(os.Stderr, animarAbertura())
+// openScreen connects to the engine, starting it if needed, and draws.
+func openScreen() error {
+	// The opening runs while the engine is being looked for, on one thread,
+	// and the connection runs on the other. The animation's time is time
+	// that was going to pass anyway — no wait is invented just to show it.
+	opening := screen.NewOpening(os.Stderr, animateOpening())
 
-	type chegada struct {
-		cliente *tela.Cliente
-		inicial protocolo.Estado
-		levou   time.Duration
+	type arrival struct {
+		client  *screen.Client
+		initial protocol.State
+		took    time.Duration
 		err     error
 	}
-	conectou := make(chan chegada, 1)
+	connected := make(chan arrival, 1)
 	go func() {
-		// O cronômetro mora aqui dentro: o que ele conta é o motor montando a
-		// grade, não a animação rodando ao lado. Medir a animação junto seria
-		// mentir num número que existe justamente para ser verdade.
-		comeco := time.Now()
-		cliente, err := conectarOuSubir()
+		// The stopwatch lives in here: what it counts is the engine
+		// assembling the grid, not the animation running alongside. Timing
+		// the animation together would lie in a number that exists
+		// precisely to be true.
+		start := time.Now()
+		client, err := connectOrStart()
 		if err != nil {
-			conectou <- chegada{err: err}
+			connected <- arrival{err: err}
 			return
 		}
-		// O primeiro retrato chega assim que a tela conecta; ele é o ponto de
-		// partida do desenho.
-		inicial, err := primeiroEstado(cliente)
-		conectou <- chegada{cliente: cliente, inicial: inicial, levou: time.Since(comeco), err: err}
+		// The first snapshot arrives as soon as the screen connects; it's
+		// the starting point of the drawing.
+		initial, err := firstState(client)
+		connected <- arrival{client: client, initial: initial, took: time.Since(start), err: err}
 	}()
 
-	abertura.Montar()
+	opening.Build()
 
-	chegou := <-conectou
-	if chegou.err != nil {
-		if chegou.cliente != nil {
-			chegou.cliente.Fechar()
+	arrived := <-connected
+	if arrived.err != nil {
+		if arrived.client != nil {
+			arrived.client.Close()
 		}
-		return chegou.err
+		return arrived.err
 	}
-	cliente, inicial := chegou.cliente, chegou.inicial
-	defer cliente.Fechar()
+	client, initial := arrived.client, arrived.initial
+	defer client.Close()
 
-	abertura.Contar(contagemDoMotor(inicial, chegou.levou))
-	// Grade vazia começa com um shell aqui mesmo: sempre há o que olhar.
-	if len(inicial.Projetos) == 0 {
-		diretorio, err := os.Getwd()
+	opening.Tally(engineCount(initial, arrived.took))
+	// An empty grid starts with a shell right here: there's always
+	// something to look at.
+	if len(initial.Projects) == 0 {
+		dir, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		// Sem tipo: quem decide é o motor, e a sessão já vem com as abas dos
-		// agentes por dentro.
-		if err := cliente.Enviar(protocolo.TipoCriar, protocolo.Criar{Caminho: diretorio}); err != nil {
+		// No type: the engine decides, and the session already comes with
+		// the agent tabs inside.
+		if err := client.Send(protocol.TypeCreate, protocol.Create{Path: dir}); err != nil {
 			return err
 		}
 	}
 
-	modelo := tela.NovoModelo(cliente, inicial)
-	programa := tea.NewProgram(modelo)
-	modelo.Ouvir(programa)
-	_, err := programa.Run()
+	model := screen.NewModel(client, initial)
+	program := tea.NewProgram(model)
+	model.Listen(program)
+	_, err := program.Run()
 	return err
 }
 
-// animarAbertura diz se a abertura roda como animação. Sem terminal de
-// verdade ela viraria lixo de escape num arquivo de log, e quem não quer
-// esperar por ela desliga no ambiente. Num painel estreito demais para a
-// linha mais larga do bloco, a animação também some: o terminal quebraria a
-// linha (wrap), o cursor-up fixo erraria a conta e sobraria lixo acumulado
-// quadro a quadro — melhor o banner estático de sempre.
-func animarAbertura() bool {
-	if _, desligado := os.LookupEnv("TESSERACT_SEM_ABERTURA"); desligado {
+// animateOpening says whether the opening runs as an animation. With no real
+// terminal it would turn into escape-code garbage in a log file, and
+// whoever doesn't want to wait for it turns it off in the environment. In a
+// panel too narrow for the block's widest line, the animation also
+// disappears: the terminal would wrap the line, the fixed cursor-up would
+// miscount and leftover garbage would pile up frame after frame — better
+// the usual static banner.
+func animateOpening() bool {
+	if _, off := os.LookupEnv("TESSERACT_NO_OPENING"); off {
 		return false
 	}
 	info, err := os.Stderr.Stat()
 	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
 		return false
 	}
-	largura, _, err := term.GetSize(os.Stderr.Fd())
-	return err != nil || largura >= tela.LarguraNecessaria()
+	width, _, err := term.GetSize(os.Stderr.Fd())
+	return err != nil || width >= screen.RequiredWidth()
 }
 
-// contagemDoMotor é o que o motor devolveu: a prova de que a grade voltou
-// inteira, dita em número. Some junto com a abertura quando a tela cheia abre.
-func contagemDoMotor(estado protocolo.Estado, levou time.Duration) []string {
-	celulas := 0
-	for _, projeto := range estado.Projetos {
-		celulas += len(projeto.Celulas)
+// engineCount is what the engine returned: proof that the grid came back
+// whole, put in numbers. It disappears together with the opening once full
+// screen opens.
+func engineCount(state protocol.State, took time.Duration) []string {
+	cells := 0
+	for _, project := range state.Projects {
+		cells += len(project.Cells)
 	}
 	return []string{
-		tela.LinhaDoMotor("motor de sessão: vivo"),
-		tela.LinhaDoMotor(fmt.Sprintf("%s · %s · mesma posição",
-			contar(celulas, "célula recuperada", "células recuperadas"),
-			contar(len(estado.Projetos), "projeto", "projetos"))),
-		tela.LinhaDoMotor(fmt.Sprintf("grade montada em %dms", levou.Milliseconds())),
+		screen.EngineLine("session engine: alive"),
+		screen.EngineLine(fmt.Sprintf("%s · %s · same position",
+			count(cells, "cell recovered", "cells recovered"),
+			count(len(state.Projects), "project", "projects"))),
+		screen.EngineLine(fmt.Sprintf("grid assembled in %dms", took.Milliseconds())),
 	}
 }
 
-// contar escreve o número junto do substantivo na forma certa. Uma célula não
-// é "1 células".
-func contar(quantos int, singular, plural string) string {
-	if quantos == 1 {
+// count writes the number next to the noun in the right form. One cell isn't
+// "1 cells".
+func count(howMany int, singular, plural string) string {
+	if howMany == 1 {
 		return "1 " + singular
 	}
-	return strconv.Itoa(quantos) + " " + plural
+	return strconv.Itoa(howMany) + " " + plural
 }
 
-// primeiroEstado espera o retrato que o motor manda assim que a tela conecta.
-func primeiroEstado(cliente *tela.Cliente) (protocolo.Estado, error) {
+// firstState waits for the snapshot the engine sends as soon as the screen
+// connects.
+func firstState(client *screen.Client) (protocol.State, error) {
 	for {
-		envelope, err := cliente.Receber()
+		envelope, err := client.Receive()
 		if err != nil {
-			return protocolo.Estado{}, err
+			return protocol.State{}, err
 		}
-		if envelope.Tipo != protocolo.TipoEstado {
+		if envelope.Type != protocol.TypeState {
 			continue
 		}
-		return protocolo.Desempacotar[protocolo.Estado](envelope)
+		return protocol.Unpack[protocol.State](envelope)
 	}
 }
 
-// rodarMotor é o serviço: dono dos processos, do histórico e do estado.
-func rodarMotor() error {
-	dirEstado := motor.DiretorioEstado()
-	config, err := motor.CarregarConfiguracao(motor.CaminhoConfiguracao())
+// runEngine is the service: owner of the processes, the history and the
+// state.
+func runEngine() error {
+	stateDir := engine.StateDir()
+	config, err := engine.LoadConfig(engine.ConfigPath())
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "aviso: configuração ilegível, seguindo com o padrão:", err)
+		fmt.Fprintln(os.Stderr, "warning: unreadable configuration, falling back to default:", err)
 	}
 
-	// O serviço não herda o terminal do usuário: sem isto, os agentes e as
-	// ferramentas que eles chamam não existiriam para o motor.
-	motor.HerdarCaminhoDoLogin()
+	// The service doesn't inherit the user's terminal: without this, the
+	// agents and the tools they call wouldn't exist for the engine.
+	engine.InheritLoginPath()
 
-	m := motor.Novo(dirEstado, config)
-	if err := m.Iniciar(); err != nil {
-		fmt.Fprintln(os.Stderr, "aviso:", err)
+	m := engine.New(stateDir, config)
+	if err := m.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "warning:", err)
 	}
-	go m.Vigiar()
+	go m.Watch()
 
-	servidor, erroSocket := motor.Servir(m, motor.CaminhoSocket())
-	if errors.Is(erroSocket, motor.ErrMotorJaRodando) {
-		// Quem pediu já tem o que queria: sair bem evita o serviço entrar em
-		// laço de reinício por causa de um motor que já está de pé.
-		fmt.Fprintln(os.Stderr, "já existe um motor rodando")
-		m.Encerrar()
+	server, socketErr := engine.Serve(m, engine.SocketPath())
+	if errors.Is(socketErr, engine.ErrEngineAlreadyRunning) {
+		// Whoever asked already has what they wanted: exiting cleanly
+		// avoids the service entering a restart loop over an engine that's
+		// already up.
+		fmt.Fprintln(os.Stderr, "an engine is already running")
+		m.Shutdown()
 		return nil
 	}
-	if erroSocket != nil {
-		return erroSocket
+	if socketErr != nil {
+		return socketErr
 	}
-	defer servidor.Fechar()
+	defer server.Close()
 
-	sinais := make(chan os.Signal, 1)
-	signal.Notify(sinais, syscall.SIGINT, syscall.SIGTERM)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	select {
-	case <-sinais:
-	case <-servidor.Parado():
+	case <-signals:
+	case <-server.Stopped():
 	}
-	m.Encerrar()
+	m.Shutdown()
 	return nil
 }
 
-// adicionarProjeto cria um projeto sem abrir a tela. Projeto nasce junto com a
-// primeira célula, então a célula vem junto.
-func adicionarProjeto(argumentos []string) error {
-	if len(argumentos) == 0 {
-		return errors.New("uso: ts novo <dir> [tipo]")
+// addProject creates a project without opening the screen. A project is
+// born together with its first cell, so the cell comes along.
+func addProject(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: ts new <dir> [type]")
 	}
-	caminho, err := filepath.Abs(argumentos[0])
+	path, err := filepath.Abs(args[0])
 	if err != nil {
 		return err
 	}
-	tipo := ""
-	if len(argumentos) > 1 {
-		tipo = argumentos[1]
+	typ := ""
+	if len(args) > 1 {
+		typ = args[1]
 	}
 
-	cliente, err := conectarOuSubir()
+	client, err := connectOrStart()
 	if err != nil {
 		return err
 	}
-	defer cliente.Fechar()
+	defer client.Close()
 
-	if err := cliente.Enviar(protocolo.TipoCriar, protocolo.Criar{Caminho: caminho, Tipo: tipo}); err != nil {
+	if err := client.Send(protocol.TypeCreate, protocol.Create{Path: path, Type: typ}); err != nil {
 		return err
 	}
-	// A resposta é o retrato com a célula nova, ou o erro do motor.
-	prazo := time.Now().Add(10 * time.Second)
-	for time.Now().Before(prazo) {
-		envelope, err := cliente.Receber()
+	// The reply is the snapshot with the new cell, or the engine's error.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		envelope, err := client.Receive()
 		if err != nil {
 			return err
 		}
-		switch envelope.Tipo {
-		case protocolo.TipoErro:
-			recado, _ := protocolo.Desempacotar[protocolo.Erro](envelope)
-			return errors.New(recado.Mensagem)
-		case protocolo.TipoEstado:
-			estado, _ := protocolo.Desempacotar[protocolo.Estado](envelope)
-			for _, projeto := range estado.Projetos {
-				if projeto.Caminho == caminho {
-					fmt.Printf("%s entrou na grade\n", projeto.Nome)
+		switch envelope.Type {
+		case protocol.TypeError:
+			msg, _ := protocol.Unpack[protocol.Error](envelope)
+			return errors.New(msg.Message)
+		case protocol.TypeState:
+			state, _ := protocol.Unpack[protocol.State](envelope)
+			for _, project := range state.Projects {
+				if project.Path == path {
+					fmt.Printf("%s joined the grid\n", project.Name)
 					return nil
 				}
 			}
 		}
 	}
-	return errors.New("o motor não confirmou a criação")
+	return errors.New("the engine did not confirm the creation")
 }
 
-// mostrarStatus imprime o estado do motor e o resumo da grade.
-func mostrarStatus() error {
-	cliente, err := tela.Conectar(motor.CaminhoSocket())
+// showStatus prints the engine's state and the grid summary.
+func showStatus() error {
+	client, err := screen.Connect(engine.SocketPath())
 	if err != nil {
-		fmt.Println("motor não está rodando")
+		fmt.Println("engine not running")
 		return nil
 	}
-	defer cliente.Fechar()
+	defer client.Close()
 
-	if err := cliente.Enviar(protocolo.TipoStatus, struct{}{}); err != nil {
+	if err := client.Send(protocol.TypeStatus, struct{}{}); err != nil {
 		return err
 	}
-	resumo, err := esperarResumo(cliente)
+	summary, err := waitSummary(client)
 	if err != nil {
 		return err
 	}
-	fmt.Println(tema.Glifo, resumo)
+	fmt.Println(theme.Glyph, summary)
 	return nil
 }
 
-// pararMotor desliga o motor e todas as células.
-func pararMotor() error {
-	cliente, err := tela.Conectar(motor.CaminhoSocket())
+// stopEngine shuts down the engine and every cell.
+func stopEngine() error {
+	client, err := screen.Connect(engine.SocketPath())
 	if err != nil {
-		fmt.Println("motor não está rodando")
+		fmt.Println("engine not running")
 		return nil
 	}
-	defer cliente.Fechar()
+	defer client.Close()
 
-	if err := cliente.Enviar(protocolo.TipoParar, struct{}{}); err != nil {
+	if err := client.Send(protocol.TypeStop, struct{}{}); err != nil {
 		return err
 	}
-	resumo, err := esperarResumo(cliente)
+	summary, err := waitSummary(client)
 	if err != nil {
 		return err
 	}
-	fmt.Println(resumo)
+	fmt.Println(summary)
 	return nil
 }
 
-// apagarEstado derruba tudo e esquece a grade, preservando a configuração.
-func apagarEstado() error {
-	if err := pararMotor(); err != nil {
+// clearState tears everything down and forgets the grid, keeping the
+// configuration.
+func clearState() error {
+	if err := stopEngine(); err != nil {
 		return err
 	}
-	// O motor precisa soltar os arquivos antes de eles sumirem.
-	esperarMotorSair()
+	// The engine needs to release the files before they disappear.
+	waitEngineExit()
 
-	dirEstado := motor.DiretorioEstado()
-	if err := os.Remove(motor.CaminhoEstado(dirEstado)); err != nil && !os.IsNotExist(err) {
+	stateDir := engine.StateDir()
+	if err := os.Remove(engine.StatePath(stateDir)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if err := os.RemoveAll(filepath.Join(dirEstado, "historico")); err != nil {
+	if err := os.RemoveAll(filepath.Join(stateDir, "history")); err != nil {
 		return err
 	}
-	fmt.Println("estado apagado; a configuração continua onde estava")
+	fmt.Println("state cleared; configuration stays where it was")
 	return nil
 }
 
-func esperarMotorSair() {
-	prazo := time.Now().Add(3 * time.Second)
-	for time.Now().Before(prazo) {
-		cliente, err := tela.Conectar(motor.CaminhoSocket())
+func waitEngineExit() {
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		client, err := screen.Connect(engine.SocketPath())
 		if err != nil {
 			return
 		}
-		cliente.Fechar()
+		client.Close()
 		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-func esperarResumo(cliente *tela.Cliente) (string, error) {
+func waitSummary(client *screen.Client) (string, error) {
 	for {
-		envelope, err := cliente.Receber()
+		envelope, err := client.Receive()
 		if err != nil {
 			return "", err
 		}
-		if envelope.Tipo != protocolo.TipoResumo {
+		if envelope.Type != protocol.TypeSummary {
 			continue
 		}
-		resumo, err := protocolo.Desempacotar[protocolo.Resumo](envelope)
+		summary, err := protocol.Unpack[protocol.Summary](envelope)
 		if err != nil {
 			return "", err
 		}
-		return resumo.Texto, nil
+		return summary.Text, nil
 	}
 }
 
-// conectarOuSubir devolve uma conversa com o motor, subindo o serviço quando
-// ele ainda não está de pé.
-func conectarOuSubir() (*tela.Cliente, error) {
-	if cliente, err := tela.Conectar(motor.CaminhoSocket()); err == nil {
-		return cliente, nil
+// connectOrStart returns a conversation with the engine, starting the
+// service when it isn't up yet.
+func connectOrStart() (*screen.Client, error) {
+	if client, err := screen.Connect(engine.SocketPath()); err == nil {
+		return client, nil
 	}
-	if err := subirMotor(); err != nil {
+	if err := startEngine(); err != nil {
 		return nil, err
 	}
-	limite := time.Now().Add(esperaDoMotor)
-	for time.Now().Before(limite) {
-		if cliente, err := tela.Conectar(motor.CaminhoSocket()); err == nil {
-			return cliente, nil
+	deadline := time.Now().Add(engineWait)
+	for time.Now().Before(deadline) {
+		if client, err := screen.Connect(engine.SocketPath()); err == nil {
+			return client, nil
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	return nil, errors.New("o motor não respondeu")
+	return nil, errors.New("the engine did not respond")
 }
 
-// subirMotor lança o serviço em segundo plano, solto do terminal, para ele
-// sobreviver a fechar a tela.
-func subirMotor() error {
-	// Com o serviço do systemd instalado, quem sobe o motor é ele — e aí o
-	// motor volta sozinho depois de um `wsl --shutdown`.
+// startEngine launches the service in the background, detached from the
+// terminal, so it survives the screen closing.
+func startEngine() error {
+	// With the systemd service installed, whoever starts the engine is it —
+	// and then the engine comes back on its own after a `wsl --shutdown`.
 	if _, err := exec.LookPath("systemctl"); err == nil {
 		if err := exec.Command("systemctl", "--user", "start", "tesseract.service").Run(); err == nil {
 			return nil
 		}
 	}
 
-	eu, err := os.Executable()
+	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	dirEstado := motor.DiretorioEstado()
-	if err := os.MkdirAll(dirEstado, 0o755); err != nil {
+	stateDir := engine.StateDir()
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return err
 	}
-	registro, err := os.OpenFile(filepath.Join(dirEstado, "motor.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logFile, err := os.OpenFile(filepath.Join(stateDir, "engine.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}
-	defer registro.Close()
+	defer logFile.Close()
 
-	servico := exec.Command(eu, "motor")
-	servico.Stdout = registro
-	servico.Stderr = registro
-	servico.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	return servico.Start()
+	service := exec.Command(self, "engine")
+	service.Stdout = logFile
+	service.Stderr = logFile
+	service.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return service.Start()
 }
