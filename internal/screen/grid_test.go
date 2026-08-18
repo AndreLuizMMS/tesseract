@@ -239,11 +239,40 @@ func TestGridReportsWhatDidNotFit(t *testing.T) {
 	}
 }
 
+// TestOneCellProjectsBecomeColumns — on a wide screen, three one-session
+// projects split vertically: each with the screen's full height, instead of
+// three strips stacked on top of each other.
+func TestOneCellProjectsBecomeColumns(t *testing.T) {
+	state := protocol.State{}
+	for i := range 3 {
+		state.Projects = append(state.Projects, protocol.Project{
+			ID: "p" + strconv.Itoa(i), Name: "project" + strconv.Itoa(i), Path: "/dev/p",
+			Cells: []protocol.Cell{{
+				ID: "c" + strconv.Itoa(i), Type: "session", Name: "cel" + strconv.Itoa(i),
+				State: "working", Live: true,
+			}},
+		})
+	}
+
+	d := Arrange(state, Focus{}, 190, 57)
+	if len(d.columns) != 3 {
+		t.Fatalf("three projects on a 190-column screen should become three columns: %d", len(d.columns))
+	}
+	for id, inner := range d.Inners() {
+		if inner.Rows < 40 {
+			t.Fatalf("cell %s should take up the column's full height: %#v", id, inner)
+		}
+		if inner.Cols < minCellWidth {
+			t.Fatalf("cell %s got too narrow: %#v", id, inner)
+		}
+	}
+}
+
 // TestTabsShowUpInsteadOfType — a cell with tabs shows the tabs, with the
 // active one highlighted.
 func TestTabsShowUpInsteadOfType(t *testing.T) {
 	state := testGrid()
-	drawing := noStyle(Draw(state, Focus{Project: 0, Cell: 0}, keyboard.Browse, 140, 30, ""))
+	drawing := noStyle(Draw(state, Focus{Project: 0, Cell: 0}, keyboard.Browse, 120, 30, ""))
 	for _, tab := range []string{"claude", "cursor", "bash"} {
 		if !strings.Contains(drawing, tab) {
 			t.Errorf("tab %q should show up on the cell's border:\n%s", tab, drawing)

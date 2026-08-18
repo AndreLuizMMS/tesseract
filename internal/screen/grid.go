@@ -143,7 +143,7 @@ func Arrange(state protocol.State, focus Focus, width, height int) Layout {
 // splitColumns splits the projects into columns and plans each one's rows.
 // It's what makes the grid grow sideways before it grows downward.
 func splitColumns(state protocol.State, focus Focus, width, body int) []column {
-	how := columnCount(len(state.Projects), width, body)
+	how := columnCount(state.Projects, width, body)
 	perColumn := (len(state.Projects) + how - 1) / how
 	how = (len(state.Projects) + perColumn - 1) / perColumn
 	// one column of breathing room between one column of projects and the
@@ -164,16 +164,37 @@ func splitColumns(state protocol.State, focus Focus, width, body int) []column {
 	return columns
 }
 
-// columnCount decides how many columns the screen splits into: just one
-// while the projects fit the height with room to spare, more when the
-// alternative would be a squeezed row or a cell falling off screen.
-func columnCount(projects, width, body int) int {
-	if projects <= 1 {
+// columnCount decides how many columns the screen splits into. The terminal
+// is wide and short: stacking projects on top of each other leaves each cell
+// three lines tall, so the screen splits vertically as long as the width
+// backs up what the projects want — three one-cell projects on a wide screen
+// become three columns. Height still forces a column when the projects don't
+// fit stacked.
+func columnCount(projects []protocol.Project, width, body int) int {
+	if len(projects) <= 1 {
 		return 1
 	}
+	wanted := min(max(width/widthProjectsWant(projects), 1), len(projects))
 	fitInHeight := max(body/minProjectHeight, 1)
-	needed := (projects + fitInHeight - 1) / fitInHeight
-	return min(needed, max(width/minColumnWidth, 1), projects)
+	needed := min((len(projects)+fitInHeight-1)/fitInHeight, max(width/minColumnWidth, 1))
+	return min(max(wanted, needed), len(projects))
+}
+
+// widthProjectsWant is the column width that serves the fullest project:
+// its whole row, with every cell still readable. It's what keeps the screen
+// from opening columns narrower than the cells that already exist.
+func widthProjectsWant(projects []protocol.Project) int {
+	wanted := minColumnWidth
+	for _, project := range projects {
+		total := len(project.Cells)
+		if total == 0 {
+			continue
+		}
+		rows := squareRows(total)
+		perRow := (total + rows - 1) / rows
+		wanted = max(wanted, perRow*minCellWidth)
+	}
+	return wanted
 }
 
 // planRows breaks each project into rows of cells that fit the width,
