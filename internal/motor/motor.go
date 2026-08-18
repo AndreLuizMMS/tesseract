@@ -456,8 +456,9 @@ func (m *Motor) proximaCor() int {
 }
 
 // fichasDosTipos entrega à tela o que ela precisa para montar o formulário sem
-// conhecer nenhum tipo por dentro.
-func fichasDosTipos() []protocolo.TipoCelula {
+// conhecer nenhum tipo por dentro. A lista de tipos é fixa desde a partida, e
+// vai em todo retrato: montar uma vez basta.
+var fichasDosTipos = sync.OnceValue(func() []protocolo.TipoCelula {
 	var fichas []protocolo.TipoCelula
 	for _, descritor := range celula.Descritores() {
 		fichas = append(fichas, protocolo.TipoCelula{
@@ -469,7 +470,7 @@ func fichasDosTipos() []protocolo.TipoCelula {
 		})
 	}
 	return fichas
-}
+})
 
 // Resumo é o que `tess status` mostra.
 func (m *Motor) Resumo() string {

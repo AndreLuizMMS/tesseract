@@ -8,10 +8,21 @@ import (
 	"time"
 )
 
+// esquecerQuota joga fora o número guardado entre quadros. Sem isto um teste
+// leria o que o anterior deixou na memória, e não o arquivo que acabou de
+// escrever.
+func esquecerQuota(t *testing.T) {
+	t.Helper()
+	quotaGuardada.Lock()
+	quotaGuardada.valor, quotaGuardada.lida = nil, time.Time{}
+	quotaGuardada.Unlock()
+}
+
 // prepararQuota escreve o arquivo que o statusline do usuário deixa, numa casa
 // de mentira.
 func prepararQuota(t *testing.T, nome string, percentual int, viraEm time.Time, idade time.Duration) {
 	t.Helper()
+	esquecerQuota(t)
 	casa := t.TempDir()
 	t.Setenv("HOME", casa)
 	if err := os.MkdirAll(filepath.Join(casa, ".claude"), 0o755); err != nil {
@@ -97,6 +108,7 @@ func TestQuotaNaoPassaDeCem(t *testing.T) {
 
 // TestQuotaComArquivoIlegivelNaoQuebra.
 func TestQuotaComArquivoIlegivelNaoQuebra(t *testing.T) {
+	esquecerQuota(t)
 	casa := t.TempDir()
 	t.Setenv("HOME", casa)
 	if err := os.MkdirAll(filepath.Join(casa, ".claude"), 0o755); err != nil {

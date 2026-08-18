@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/andreluiz/tesseract/internal/protocolo"
@@ -20,10 +21,32 @@ const quotaVelhaDepoisDe = 15 * time.Minute
 // da janela de 5 horas, na ordem de preferência.
 var arquivosDeQuota = []string{"tesseract-quota.json", "squad-quota.json"}
 
+// validadeDaQuota é por quanto tempo o número lido serve. O retrato do motor
+// sai até 25 vezes por segundo, e o consumo muda de minuto em minuto: ir ao
+// disco a cada quadro é trabalho jogado fora.
+const validadeDaQuota = 2 * time.Second
+
+var quotaGuardada struct {
+	sync.Mutex
+	valor *protocolo.Quota
+	lida  time.Time
+}
+
 // LerQuota devolve o consumo da janela de 5 horas, ou nil quando o dado não
 // existe ou está velho. Sem o arquivo, tudo funciona igual — só não aparece o
 // badge.
 func LerQuota() *protocolo.Quota {
+	agora := time.Now()
+	quotaGuardada.Lock()
+	defer quotaGuardada.Unlock()
+	if agora.Sub(quotaGuardada.lida) < validadeDaQuota {
+		return quotaGuardada.valor
+	}
+	quotaGuardada.valor, quotaGuardada.lida = lerQuotaDoDisco(), agora
+	return quotaGuardada.valor
+}
+
+func lerQuotaDoDisco() *protocolo.Quota {
 	casa, err := os.UserHomeDir()
 	if err != nil {
 		return nil
