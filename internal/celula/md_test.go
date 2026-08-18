@@ -281,11 +281,13 @@ func TestMdRolaPeloTexto(t *testing.T) {
 	}
 }
 
-// TestPaginaTemMargemEMedidaDeLeitura — o markdown é desenhado como página, não
-// como saída de terminal: texto centralizado, medida de leitura e margem.
-func TestPaginaTemMargemEMedidaDeLeitura(t *testing.T) {
+// TestPaginaPreencheACelula — o markdown é desenhado como página e ocupa a
+// largura inteira que a célula tem, com margem dos dois lados. Numa tela larga
+// isso é menos rolagem para o mesmo documento.
+func TestPaginaPreencheACelula(t *testing.T) {
 	texto := "# Título\n\n" + strings.Repeat("palavra ", 200) + "\n"
-	linhas := renderizarPagina(texto, 160)
+	const colunas = 160
+	linhas := renderizarPagina(texto, colunas)
 
 	maior := 0
 	comRecuo := 0
@@ -298,11 +300,12 @@ func TestPaginaTemMargemEMedidaDeLeitura(t *testing.T) {
 			comRecuo++
 		}
 	}
-	if maior > 160 {
+	if maior > colunas {
 		t.Fatalf("a página passou da largura da célula: %d colunas", maior)
 	}
-	if maior > medidaDeLeitura+40 {
-		t.Fatalf("o texto devia respeitar a medida de leitura, veio com %d colunas", maior)
+	// A quebra por palavra sempre sobra um naco da última palavra que não coube.
+	if minima := colunas - 2*margemDaPagina - 10; maior < minima {
+		t.Fatalf("a página devia preencher a célula, veio com %d de %d colunas", maior, colunas)
 	}
 	if comRecuo == 0 {
 		t.Fatal("a página devia ter margem à esquerda")

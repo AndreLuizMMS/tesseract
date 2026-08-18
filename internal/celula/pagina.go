@@ -11,21 +11,20 @@ import (
 )
 
 // A aba de markdown desenha o arquivo como uma página, não como saída de
-// terminal: medida de leitura fixa, margem dos dois lados, título com peso e
-// espaço em volta dos blocos. Ler documentação longa numa tela larga é o motivo
-// de o Tesseract existir.
+// terminal: a largura inteira da célula, margem dos dois lados, título com peso
+// e espaço em volta dos blocos. Ler documentação longa numa tela larga é o
+// motivo de o Tesseract existir.
 const (
-	// medidaDeLeitura é a largura de texto que se lê sem cansar. Acima disso a
-	// linha fica comprida demais e o olho perde a volta.
-	medidaDeLeitura = 88
+	// larguraMinimaDaPagina é o menos que o texto precisa para ainda quebrar em
+	// linha legível.
+	larguraMinimaDaPagina = 20
 	// margemDaPagina é o respiro entre a borda da célula e o texto.
 	margemDaPagina = 2
 )
 
-// estiloDaPagina é o tema do markdown renderizado.
-var estiloDaPagina = montarEstiloDaPagina()
-
-func montarEstiloDaPagina() ansi.StyleConfig {
+// montarEstiloDaPagina é o tema do markdown renderizado. Depende da largura
+// porque a régua horizontal atravessa a página inteira.
+func montarEstiloDaPagina(largura int) ansi.StyleConfig {
 	estilo := styles.DarkStyleConfig
 
 	texto := func(s string) *string { return &s }
@@ -79,7 +78,7 @@ func montarEstiloDaPagina() ansi.StyleConfig {
 
 	// Régua: uma linha inteira, não oito traços.
 	estilo.HorizontalRule.Color = texto(tema.LineDim)
-	estilo.HorizontalRule.Format = "\n" + strings.Repeat("─", medidaDeLeitura-4) + "\n"
+	estilo.HorizontalRule.Format = "\n" + strings.Repeat("─", max(largura-4, 1)) + "\n"
 
 	// Listas com marcador redondo e espaço para respirar.
 	estilo.Item.BlockPrefix = "• "
@@ -165,16 +164,15 @@ func realceDoCodigo() *ansi.Chroma {
 	}
 }
 
-// renderizarPagina desenha o markdown como página: medida de leitura para o
-// texto, centralizada na largura que a célula tem, e espaço extra quando o
-// documento tem código largo — código quebrado no meio vira ruído ilegível.
+// renderizarPagina desenha o markdown como página: o texto ocupa a largura
+// inteira da célula, com uma margem de cada lado.
 func renderizarPagina(bruto string, colunas int) []string {
-	largura := larguraDaPagina(colunas, bruto)
+	largura := larguraDaPagina(colunas)
 	// Código mais largo do que a página é cortado, nunca quebrado: diagrama e
 	// tela de terminal partidos no meio viram ruído ilegível.
 	bruto = cortarCodigoLargo(bruto, largura-4)
 	desenhista, err := glamour.NewTermRenderer(
-		glamour.WithStyles(estiloDaPagina),
+		glamour.WithStyles(montarEstiloDaPagina(largura)),
 		glamour.WithWordWrap(largura),
 		glamour.WithEmoji(),
 	)
@@ -194,11 +192,11 @@ func renderizarPagina(bruto string, colunas int) []string {
 	return linhas
 }
 
-// larguraDaPagina é a medida de leitura que cabe na célula, esticada até onde
-// for preciso para o código do documento não quebrar.
-func larguraDaPagina(colunas int, bruto string) int {
-	desejada := max(medidaDeLeitura, larguraDoCodigo(bruto)+2)
-	return max(min(colunas-2*margemDaPagina, desejada), 20)
+// larguraDaPagina é a largura da célula inteira menos a margem dos dois lados.
+// A página preenche o que a tela dá: numa tela larga, documentação longa cabe
+// em menos rolagem.
+func larguraDaPagina(colunas int) int {
+	return max(colunas-2*margemDaPagina, larguraMinimaDaPagina)
 }
 
 // cortarCodigoLargo encurta as linhas de dentro dos blocos de código que não
@@ -222,22 +220,4 @@ func cortarCodigoLargo(bruto string, largura int) string {
 		}
 	}
 	return strings.Join(linhas, "\n")
-}
-
-// larguraDoCodigo é a maior linha dentro de bloco de código do documento.
-func larguraDoCodigo(bruto string) int {
-	maior, dentro := 0, false
-	for _, linha := range strings.Split(bruto, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(linha), "```") {
-			dentro = !dentro
-			continue
-		}
-		if !dentro {
-			continue
-		}
-		if comprimento := len([]rune(linha)); comprimento > maior {
-			maior = comprimento
-		}
-	}
-	return maior
 }
