@@ -190,7 +190,9 @@ func planejarFaixas(estado protocolo.Estado, inicio, fim, largura, corpo int) []
 		if total == 0 {
 			continue
 		}
-		porFileira := equilibrar(total, max(largura/larguraMinimaDeCelula, 1))
+		fileiras := min(fileirasQuadradas(total), fileirasQueCabem)
+		cabemNaLargura := min(max(largura/larguraMinimaDeCelula, 1), (total+fileiras-1)/fileiras)
+		porFileira := equilibrar(total, cabemNaLargura)
 		if (total+porFileira-1)/porFileira > fileirasQueCabem {
 			apertadas := min((total+fileirasQueCabem-1)/fileirasQueCabem, max(largura/larguraApertadaDeCelula, 1))
 			porFileira = equilibrar(total, max(apertadas, porFileira))
@@ -205,6 +207,17 @@ func planejarFaixas(estado protocolo.Estado, inicio, fim, largura, corpo int) []
 		}
 	}
 	return faixas
+}
+
+// fileirasQuadradas diz em quantas fileiras as células de um projeto ficam com
+// a grade mais quadrada: quatro células viram 2x2 em vez de uma tira de quatro,
+// duas continuam lado a lado. É o arredondamento da raiz quadrada do total.
+func fileirasQuadradas(total int) int {
+	fileiras := 1
+	for fileiras*(fileiras+1) < total {
+		fileiras++
+	}
+	return fileiras
 }
 
 // equilibrar diz quantas células põr por fileira para nenhuma fileira ficar

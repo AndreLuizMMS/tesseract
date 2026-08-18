@@ -470,3 +470,46 @@ func TestCabecalhoTemAMarcaNoMeio(t *testing.T) {
 		t.Fatalf("a régua devia atravessar a faixa de ponta a ponta: %q", faixa)
 	}
 }
+
+// TestQuatroCelulasViramGrade2x2 — um projeto com quatro sessões não vira uma
+// tira de quatro; vira duas fileiras de duas.
+func TestQuatroCelulasViramGrade2x2(t *testing.T) {
+	estado := protocolo.Estado{Projetos: []protocolo.Projeto{{ID: "p1", Nome: "regula-mais", Caminho: "/dev/rm"}}}
+	for i := range 4 {
+		estado.Projetos[0].Celulas = append(estado.Projetos[0].Celulas, protocolo.Celula{
+			ID: "c" + strconv.Itoa(i), Tipo: "sessao", Nome: "sessao" + strconv.Itoa(i),
+			Estado: "trabalhando", AoVivo: true,
+		})
+	}
+
+	d := Dispor(estado, Foco{}, 200, 40)
+	faixas := d.todasAsFaixas()
+	if len(faixas) != 2 {
+		t.Fatalf("quatro células deviam ocupar duas fileiras: %#v", faixas)
+	}
+	for _, f := range faixas {
+		if len(f.celulas) != 2 {
+			t.Fatalf("cada fileira devia ter duas células: %#v", f)
+		}
+	}
+}
+
+// TestGradeQuadradaCedeParaAAltura — sem altura para duas fileiras, as quatro
+// células voltam para uma tira só em vez de sair da tela.
+func TestGradeQuadradaCedeParaAAltura(t *testing.T) {
+	estado := protocolo.Estado{Projetos: []protocolo.Projeto{{ID: "p1", Nome: "apertado", Caminho: "/dev/ap"}}}
+	for i := range 4 {
+		estado.Projetos[0].Celulas = append(estado.Projetos[0].Celulas, protocolo.Celula{
+			ID: "c" + strconv.Itoa(i), Tipo: "sessao", Nome: "sessao" + strconv.Itoa(i),
+			Estado: "trabalhando", AoVivo: true,
+		})
+	}
+
+	d := Dispor(estado, Foco{}, 200, 12)
+	if faixas := d.todasAsFaixas(); len(faixas) != 1 || len(faixas[0].celulas) != 4 {
+		t.Fatalf("sem altura, as quatro células ficam numa fileira só: %#v", faixas)
+	}
+	if d.escondidas != 0 {
+		t.Fatalf("nenhuma célula devia ficar fora da tela: %d", d.escondidas)
+	}
+}
