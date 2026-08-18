@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tesseract — Brand Identity v2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-void:#030507;
+  --bg-base:#070B0C;
+  --bg-surface:#0C1315;
+  --bg-raised:#121C1F;
+  --line-dim:#16282A;
+  --line-active:#205047;
+  --fg-faint:#3E534E;
+  --fg-muted:#6C8076;
+  --fg-default:#BFD1C6;
+  --fg-bright:#E8F4EC;
+
+  --brand-deep:#0B3322;
+  --brand-core:#1F7A4C;
+  --brand-live:#35C27A;
+  --brand-phosphor:#55FFA6;
+
+  --flux-deep:#082F31;
+  --flux-core:#128C86;
+  --flux:#22E0D0;
+
+  --state-working:#6C8076;
+  --state-read:#7DB7E8;
+  --state-block:#FFB454;
+  --state-dead:#FF3B47;
+  --state-off:#3E534E;
+  --state-orphan:#C77DFF;
+
+  --glow-p:0 0 10px rgba(85,255,166,.55), 0 0 26px rgba(85,255,166,.18);
+  --glow-f:0 0 10px rgba(34,224,208,.5), 0 0 26px rgba(34,224,208,.15);
+
+  --page-bg:var(--bg-base);
+  --font-display:'Martian Mono',ui-monospace,monospace;
+  --font-ui:'JetBrains Mono',ui-monospace,monospace;
+  --measure:96ch;
+}
+
+body.mono{
+  --brand-core:#6C8076;--brand-live:#BFD1C6;--brand-phosphor:#E8F4EC;--brand-deep:#121C1F;
+  --flux:#BFD1C6;--flux-core:#6C8076;--flux-deep:#121C1F;--line-active:#3E534E;
+  --state-read:#BFD1C6;--state-block:#E8F4EC;--state-dead:#BFD1C6;--state-orphan:#BFD1C6;--state-working:#6C8076;
+  --glow-p:none;--glow-f:none;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--page-bg);color:var(--fg-default);
+  font-family:var(--font-ui);font-size:15px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;padding-bottom:14vh;
+  transition:background 260ms linear;
+}
+body.digitar{--page-bg:var(--bg-void);}
+
+/* scanlines + vinheta CRT — só na superfície de marca, nunca no produto */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:200;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.34) 0 1px,transparent 1px 3px);
+  opacity:.5;transition:opacity 260ms linear;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:199;
+  background:radial-gradient(ellipse at 50% 40%,transparent 42%,rgba(3,5,7,.85) 100%);
+  transition:opacity 260ms linear;
+}
+body.digitar::before{opacity:.78;}
+body.mono::before{opacity:.32;}
+
+/* ---------- barra ---------- */
+.bar{
+  position:sticky;top:0;z-index:150;display:flex;align-items:center;gap:1.2ch;
+  padding:.7rem 4vw;background:var(--page-bg);
+  border-bottom:1px solid var(--line-dim);
+  font-size:12px;color:var(--fg-muted);transition:background 260ms linear;
+}
+.bar .glyph{color:var(--flux);font-size:15px;text-shadow:var(--glow-f);}
+.bar .sep{color:var(--fg-faint);}
+.bar-keys{margin-left:auto;display:flex;gap:1.2ch;}
+.key{
+  background:none;border:1px solid var(--line-dim);color:var(--fg-muted);
+  font-family:var(--font-ui);font-size:11px;letter-spacing:.06em;
+  padding:.25rem .7rem;cursor:pointer;transition:all 140ms linear;
+}
+.key:hover{border-color:var(--flux-core);color:var(--flux);}
+.key[aria-pressed="true"]{border-color:var(--brand-core);color:var(--brand-phosphor);text-shadow:var(--glow-p);}
+.key:focus-visible{outline:2px solid var(--flux);outline-offset:2px;}
+.key kbd{color:var(--flux);font-family:inherit;}
+
+/* ---------- estrutura ---------- */
+.wrap{max-width:var(--measure);margin:0 auto;padding:0 4vw;position:relative;z-index:2;}
+body.digitar main .dim{opacity:.09;}
+main .dim{transition:opacity 260ms linear;}
+section{padding:4.5rem 0 0;}
+
+h2{
+  display:flex;align-items:baseline;gap:1.2ch;
+  font-family:var(--font-display);font-weight:600;font-size:13px;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--fg-bright);margin:0 0 1.8rem;
+}
+h2 .num{color:var(--flux);font-weight:800;text-shadow:var(--glow-f);}
+h2 .rule{
+  flex:1;overflow:hidden;white-space:nowrap;color:var(--line-dim);
+  font-family:var(--font-ui);letter-spacing:0;font-size:15px;line-height:1;transform:translateY(-2px);
+}
+h3{
+  font-family:var(--font-ui);font-size:12px;font-weight:500;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--flux);margin:2.4rem 0 .9rem;
+}
+p{margin:0 0 1rem;max-width:74ch;}
+.muted{color:var(--fg-muted);}
+.faint{color:var(--fg-faint);}
+strong{color:var(--fg-bright);font-weight:500;}
+code{color:var(--brand-live);font-family:var(--font-ui);}
+
+.panel{border:1px solid var(--line-dim);background:var(--bg-surface);padding:1.4rem 1.6rem;position:relative;}
+.panel::before,.panel::after{
+  content:'';position:absolute;width:7px;height:7px;border:1px solid var(--flux-core);
+}
+.panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0;}
+.panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;}
+
+pre{font-family:var(--font-ui);font-size:14px;line-height:1.25;margin:0;color:var(--brand-core);overflow-x:auto;}
+pre b{color:var(--brand-phosphor);font-weight:400;text-shadow:var(--glow-p);}
+pre i{color:var(--fg-bright);font-style:normal;}
+pre u{color:var(--fg-muted);text-decoration:none;}
+pre em{color:var(--flux);font-style:normal;text-shadow:var(--glow-f);}
+
+table{width:100%;border-collapse:collapse;font-size:13px;margin:0 0 1rem;}
+th{text-align:left;font-weight:500;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+   color:var(--flux-core);padding:.4rem .8rem .4rem 0;border-bottom:1px solid var(--line-dim);}
+td{padding:.5rem .8rem .5rem 0;border-bottom:1px solid var(--line-dim);vertical-align:top;color:var(--fg-muted);}
+td:first-child{color:var(--fg-default);white-space:nowrap;}
+
+/* ---------- hero ---------- */
+.hero{padding:5rem 0 1rem;}
+.boot{font-size:12px;color:var(--fg-faint);letter-spacing:.06em;margin-bottom:2.4rem;min-height:5.2em;}
+.boot span{display:block;opacity:0;animation:bootin .32s steps(2,end) forwards;}
+.boot span:nth-child(1){animation-delay:.05s}
+.boot span:nth-child(2){animation-delay:.28s}
+.boot span:nth-child(3){animation-delay:.51s}
+.boot span:nth-child(4){animation-delay:.74s}
+.boot .ok{color:var(--brand-live);}
+@keyframes bootin{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+
+.hero-mark{display:flex;align-items:center;gap:3.5ch;flex-wrap:wrap;}
+.mark-stack{position:relative;}
+.mark-stack pre{font-size:20px;line-height:1.15;}
+.mark-stack .g,.mark-stack .c{position:absolute;inset:0;pointer-events:none;}
+.mark-stack .g{color:var(--brand-phosphor);transform:translate(-1.5px,-1px);opacity:.75;mix-blend-mode:screen;}
+.mark-stack .c{color:var(--flux);transform:translate(1.5px,1px);opacity:.75;mix-blend-mode:screen;}
+.mark-stack .g pre,.mark-stack .c pre{color:inherit;}
+.mark-stack .g pre b,.mark-stack .c pre b{color:inherit;text-shadow:none;}
+.mark-stack:hover .g{animation:jitter .18s steps(2,end) 3;}
+.mark-stack:hover .c{animation:jitter .18s steps(2,end) 3 reverse;}
+@keyframes jitter{0%{transform:translate(-1.5px,-1px)}50%{transform:translate(-5px,1px)}100%{transform:translate(-1.5px,-1px)}}
+
+.wordmark{
+  font-family:var(--font-display);font-weight:800;font-size:clamp(20px,3.6vw,32px);
+  letter-spacing:.24em;color:var(--fg-bright);margin:0;position:relative;
+  text-shadow:-2px 0 rgba(85,255,166,.55), 2px 0 rgba(34,224,208,.55);
+}
+body.mono .wordmark{text-shadow:none;}
+.hero-tag{font-size:13px;color:var(--flux);letter-spacing:.1em;margin:.7rem 0 0;}
+.hero-meta{margin-top:2.4rem;font-size:12px;color:var(--fg-faint);letter-spacing:.08em;}
+
+.founding{margin:2.6rem 0 0;border-left:3px solid var(--brand-phosphor);background:linear-gradient(90deg,var(--brand-deep),transparent 85%);padding:1.3rem 1.6rem;}
+.founding .label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--flux);display:block;margin-bottom:.6rem;}
+.founding p{font-size:16px;color:var(--fg-bright);margin:0;max-width:66ch;}
+.founding p em{color:var(--brand-phosphor);font-style:normal;text-shadow:var(--glow-p);}
+
+/* ---------- swatches ---------- */
+.swatches{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line-dim);}
+.sw{padding:1rem .9rem 1.1rem;border-right:1px solid var(--line-dim);border-bottom:1px solid var(--line-dim);}
+.sw:nth-child(4n){border-right:none;}
+.sw .chip{height:44px;border:1px solid rgba(255,255,255,.05);margin-bottom:.7rem;}
+.sw .tok{font-size:12px;color:var(--fg-default);display:block;}
+.sw .hex{font-size:11px;color:var(--fg-faint);letter-spacing:.06em;}
+.sw .use{font-size:11px;color:var(--fg-muted);margin-top:.4rem;display:block;line-height:1.4;}
+
+/* ---------- mosaico ---------- */
+.mosaic{background:var(--bg-surface);border:1px solid var(--line-active);font-size:13px;position:relative;}
+body.digitar .mosaic{border:3px double var(--brand-phosphor);box-shadow:var(--glow-p);}
+.mosaic-head{display:flex;align-items:center;gap:1ch;padding:.5rem 1rem;
+  border-bottom:1px solid var(--line-dim);background:var(--bg-raised);color:var(--fg-bright);
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;}
+.mosaic-head .corner{color:var(--flux);}
+.badge-mode{margin-left:auto;font-size:10px;letter-spacing:.16em;padding:.15rem .7rem;
+  background:var(--brand-phosphor);color:var(--bg-void);font-weight:700;opacity:0;transition:opacity 200ms linear;}
+body.digitar .badge-mode{opacity:1;}
+.cell{display:flex;align-items:center;gap:1.4ch;padding:.55rem 1rem;border-bottom:1px solid var(--line-dim);color:var(--fg-muted);}
+.cell:last-child{border-bottom:none;}
+.cell .sig{width:2ch;text-align:center;}
+.cell .nm{color:var(--fg-default);min-width:24ch;}
+.cell .st{margin-left:auto;font-size:11px;letter-spacing:.08em;text-transform:uppercase;}
+.cell.read .sig,.cell.read .st{color:var(--state-read);}
+.cell.working .sig,.cell.working .st{color:var(--state-working);}
+.cell.dead .sig,.cell.dead .st{color:var(--state-dead);}
+.cell.off .sig,.cell.off .st{color:var(--state-off);}
+.cell.off .nm{color:var(--fg-faint);}
+.cell.orphan .sig,.cell.orphan .st{color:var(--state-orphan);}
+.cell.block{background:var(--state-block);color:var(--bg-base);animation:pulse 2s steps(1,end) infinite;}
+.cell.block .nm,.cell.block .sig,.cell.block .st{color:var(--bg-base);font-weight:700;}
+@keyframes pulse{0%,80%{opacity:1}90%{opacity:.5}100%{opacity:1}}
+.cell.focus{outline:1px solid var(--brand-live);outline-offset:-1px;}
+body.digitar .cell.focus{background:var(--bg-raised);}
+body.digitar .cell.focus .nm{color:var(--brand-phosphor);text-shadow:var(--glow-p);}
+.caret{display:inline-block;width:1ch;height:1.1em;background:var(--brand-phosphor);
+  vertical-align:-.18em;opacity:0;animation:blink 1.1s steps(1,end) infinite;box-shadow:var(--glow-p);}
+body.digitar .caret{opacity:1;}
+@keyframes blink{0%,50%{background:var(--brand-phosphor)}51%,100%{background:transparent}}
+.stage-note{font-size:11px;color:var(--fg-faint);margin-top:.7rem;letter-spacing:.06em;}
+
+/* ---------- do & dont ---------- */
+.dodont{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line-dim);}
+.dodont>div{padding:1.3rem 1.5rem;}
+.dodont>div:first-child{border-right:1px solid var(--line-dim);}
+.dodont h4{margin:0 0 1rem;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;}
+.dodont .yes h4{color:var(--brand-phosphor);}
+.dodont .no h4{color:var(--state-dead);}
+.dodont ol{margin:0;padding-left:2.4ch;font-size:13px;color:var(--fg-muted);}
+.dodont li{margin-bottom:.55rem;}
+
+.copy-line{font-size:13px;padding:.45rem 0;border-bottom:1px solid var(--line-dim);color:var(--fg-default);}
+.copy-line:last-child{border-bottom:none;}
+.copy-line.bad{color:var(--fg-faint);text-decoration:line-through;text-decoration-color:var(--state-dead);}
+
+.ansi{display:grid;grid-template-columns:repeat(8,1fr);border:1px solid var(--line-dim);}
+.ansi div{padding:.9rem .5rem .7rem;text-align:center;font-size:10px;color:var(--fg-faint);border-right:1px solid var(--line-dim);}
+.ansi div:nth-child(8n){border-right:none;}
+.ansi div:nth-child(-n+8){border-bottom:1px solid var(--line-dim);}
+.ansi .b{height:26px;margin-bottom:.5rem;}
+
+footer{margin-top:6rem;padding-top:1.4rem;border-top:1px solid var(--line-dim);
+  font-size:11px;color:var(--fg-faint);letter-spacing:.1em;display:flex;gap:1.5ch;flex-wrap:wrap;}
+
+@media (max-width:720px){
+  body{font-size:14px;}
+  .grid2,.grid3,.dodont,.swatches{grid-template-columns:1fr;}
+  .dodont>div:first-child{border-right:none;border-bottom:1px solid var(--line-dim);}
+  .sw{border-right:none;}
+  .ansi{grid-template-columns:repeat(4,1fr);}
+  .cell .nm{min-width:0;}
+  .cell .st{display:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important;}
+  .boot span{opacity:1;}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="glyph">⧉</span><span>ts 0.1.0</span>
+  <span class="sep">//</span><span>brand identity v2.0 — neon</span>
+  <div class="bar-keys">
+    <button class="key" id="btn-mono" aria-pressed="false"><kbd>m</kbd> sem cor</button>
+    <button class="key" id="btn-mode" aria-pressed="false"><kbd>d</kbd> digitar</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section class="hero dim">
+  <div class="boot">
+    <span>&gt; ts --restore</span>
+    <span class="ok">&gt; motor de sessão: <b style="color:var(--brand-phosphor)">vivo</b></span>
+    <span>&gt; 8 células recuperadas · 3 projetos · mesma posição</span>
+    <span>&gt; grade montada em 41ms</span>
+  </div>
+
+  <div class="hero-mark">
+    <div class="mark-stack">
+<pre>┌────┐
+│┌───┼┐
+││ <b>▓</b> ││
+└┼───┘│
+ └────┘</pre>
+      <div class="g" aria-hidden="true"><pre>┌────┐
+│┌───┼┐
+││ ▓ ││
+└┼───┘│
+ └────┘</pre></div>
+      <div class="c" aria-hidden="true"><pre>┌────┐
+│┌───┼┐
+││ ▓ ││
+└┼───┘│
+ └────┘</pre></div>
+    </div>
+    <div>
+      <p class="wordmark">TESSERACT</p>
+      <p class="hero-tag">o mosaico não desmonta</p>
+    </div>
+  </div>
+  <p class="hero-meta">PAINEL DE TERMINAL PARA AGENTES DE IA // COMANDO <code>ts</code> // MIT</p>
+
+  <div class="founding">
+    <span class="label">Regra fundadora</span>
+    <p>Verde não é uma cor de estado. Verde é <em>posse do teclado</em>. O neon é escasso de propósito: um único fósforo na tela inteira, uma célula por vez. Escuridão é o material — o brilho só existe porque quase tudo está apagado.</p>
+  </div>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 01</span><span>a virada neon</span><span class="rule">──────────────────────────────────────────────────────────────────────────</span></h2>
+  <p>Duas cores agora, não uma. O símbolo é <strong>dois quadrados</strong> — a segunda dimensão ganhou cor própria.</p>
+  <div class="grid2">
+    <div class="panel">
+      <h3 style="margin-top:0">Verde fósforo <code>#55FFA6</code></h3>
+      <p class="muted" style="margin:0">Posse. O quadrado da frente, o cursor, a célula que tem seu teclado. Uma por tela.</p>
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0;color:var(--flux)">Ciano flux <code style="color:var(--flux)">#22E0D0</code></h3>
+      <p class="muted" style="margin:0">Estrutura. O quadrado de trás, a grade, os números de seção, o glifo <code>⧉</code>. Nunca é estado — igual ao verde.</p>
+    </div>
+  </div>
+  <h3>O que ficou de fora, e por quê</h3>
+  <table>
+    <tr><td>Glow e scanline</td><td>Só na superfície de marca — site, README, banner. Terminal não emite luz; dentro do app o efeito é falso e atrapalha leitura</td></tr>
+    <tr><td>Aberração cromática</td><td>Só no wordmark. Aplicada a texto de UI, quebra a legibilidade densa que o produto promete</td></tr>
+    <tr><td>Chuva de caracteres</td><td>Fora. É a única citação cyberpunk que virou piada — e roubaria o verde do teclado</td></tr>
+    <tr><td>Verde em estado</td><td>Continua proibido. Neon não muda a semântica</td></tr>
+  </table>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 02</span><span>símbolo</span><span class="rule">────────────────────────────────────────────────────────────────────────────────</span></h2>
+  <p>Dois quadrados iguais deslocados na diagonal — projeção do hipercubo — com a tessera acesa na sobreposição. Agora com o segundo quadrado em ciano: o volume compartilhado é onde as duas cores se cruzam.</p>
+  <div class="grid3" style="margin-top:1.6rem">
+    <div class="panel" style="text-align:center">
+      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Símbolo Tesseract duotone">
+        <rect x="30" y="30" width="100" height="100" fill="none" stroke="var(--flux)" stroke-width="8"/>
+        <rect x="6" y="6" width="100" height="100" fill="none" stroke="var(--brand-phosphor)" stroke-width="8"/>
+        <rect x="59" y="59" width="18" height="18" fill="var(--fg-bright)"/>
+      </svg>
+      <p class="faint" style="font-size:11px;margin:.6rem 0 0">duotone · superfície de marca</p>
+    </div>
+    <div class="panel" style="text-align:center">
+      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Símbolo monocromático">
+        <rect x="6" y="6" width="100" height="100" fill="none" stroke="var(--fg-default)" stroke-width="11"/>
+        <rect x="30" y="30" width="100" height="100" fill="none" stroke="var(--fg-default)" stroke-width="11"/>
+      </svg>
+      <p class="faint" style="font-size:11px;margin:.6rem 0 0">favicon 16px · sem tessera</p>
+    </div>
+    <div class="panel" style="text-align:center;background:var(--fg-bright)">
+      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Símbolo em fundo claro">
+        <rect x="6" y="6" width="100" height="100" fill="none" stroke="#070B0C" stroke-width="8"/>
+        <rect x="30" y="30" width="100" height="100" fill="none" stroke="#070B0C" stroke-width="8"/>
+        <rect x="59" y="59" width="18" height="18" fill="#070B0C"/>
+      </svg>
+      <p style="font-size:11px;margin:.6rem 0 0;color:#3E534E">README claro · sólido, sem neon</p>
+    </div>
+  </div>
+
+  <h3>Versão em caractere — canônica, 7×5</h3>
+  <div class="panel">
+<pre><em>┌────┐</em>
+<em>│</em>┌───<em>┼</em>┐
+<em>│</em>│ <b>▓</b> │<em>│</em>
+<em>└</em>┼───<em>┘</em>│
+ └────┘</pre>
+    <p class="faint" style="font-size:11px;margin:.9rem 0 0">Quadrado de trás em ciano, da frente em verde, tessera em fósforo. Em terminal de 16 cores: <code>color14</code> + <code>color2</code> + <code>color10</code>.</p>
+  </div>
+</section>
+
+<section>
+  <h2 class="dim"><span class="num">// 03</span><span>os dois modos</span><span class="rule">─────────────────────────────────────────────────────────────────────────</span></h2>
+  <p class="dim">Panorama × túnel. Aperte <code>d</code>: a página inteira entra em DIGITAR, a scanline fecha, tudo apaga e uma célula fica acesa com borda dupla. É o produto demonstrando o produto.</p>
+
+  <div class="mosaic">
+    <div class="mosaic-head">
+      <span class="corner">┌─</span><span>api/</span>
+      <span class="badge-mode">▓ DIGITAR ▓</span>
+    </div>
+    <div class="cell read"><span class="sig">⬤</span><span class="nm">claude-refactor</span><span class="st">respondeu · 2min</span></div>
+    <div class="cell working"><span class="sig">▸</span><span class="nm">vitest --watch</span><span class="st">trabalhando</span></div>
+    <div class="cell block"><span class="sig">⏵</span><span class="nm">claude-migration</span><span class="st">aprovar — Enter</span></div>
+    <div class="cell focus"><span class="sig">▸</span><span class="nm">shell<span class="caret"></span></span><span class="st">seu teclado</span></div>
+    <div class="cell dead"><span class="sig">✖</span><span class="nm">docker-logs</span><span class="st">caiu · exit 1</span></div>
+    <div class="cell orphan"><span class="sig">⚠</span><span class="nm">claude-spec</span><span class="st">órfã</span></div>
+    <div class="cell off"><span class="sig">○</span><span class="nm">psql</span><span class="st">parada</span></div>
+  </div>
+  <p class="stage-note">Traço simples = você comanda o app. Traço duplo = a célula comanda o teclado. Aperte <code>m</code>: sem cor nenhuma, a barra de <code>aprovar</code> continua sendo a única sólida.</p>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 04</span><span>paleta</span><span class="rule">─────────────────────────────────────────────────────────────────────────────────</span></h2>
+  <h3>Escuridão — o material principal</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#030507"></div><span class="tok">bg.void</span><span class="hex">#030507</span><span class="use">modo DIGITAR</span></div>
+    <div class="sw"><div class="chip" style="background:#070B0C"></div><span class="tok">bg.base</span><span class="hex">#070B0C</span><span class="use">fundo padrão</span></div>
+    <div class="sw"><div class="chip" style="background:#0C1315"></div><span class="tok">bg.surface</span><span class="hex">#0C1315</span><span class="use">corpo da célula</span></div>
+    <div class="sw"><div class="chip" style="background:#121C1F"></div><span class="tok">bg.raised</span><span class="hex">#121C1F</span><span class="use">cabeçalho, seleção</span></div>
+  </div>
+
+  <h3>Neon — verde é posse, ciano é estrutura</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#1F7A4C"></div><span class="tok">brand.core</span><span class="hex">#1F7A4C</span><span class="use">grade do projeto ativo</span></div>
+    <div class="sw"><div class="chip" style="background:#55FFA6"></div><span class="tok">brand.phosphor</span><span class="hex">#55FFA6</span><span class="use">dono do teclado · 1 por tela</span></div>
+    <div class="sw"><div class="chip" style="background:#128C86"></div><span class="tok">flux.core</span><span class="hex">#128C86</span><span class="use">grade, cantos, rótulos</span></div>
+    <div class="sw"><div class="chip" style="background:#22E0D0"></div><span class="tok">flux</span><span class="hex">#22E0D0</span><span class="use">glifo, numeração, segunda dimensão</span></div>
+  </div>
+
+  <h3>Estados — nenhum verde, nenhum ciano</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#6C8076"></div><span class="tok">▸ trabalhando</span><span class="hex">#6C8076</span><span class="use">apagado de propósito</span></div>
+    <div class="sw"><div class="chip" style="background:#7DB7E8"></div><span class="tok">⬤ respondeu</span><span class="hex">#7DB7E8</span><span class="use">tem algo pra ler</span></div>
+    <div class="sw"><div class="chip" style="background:#FFB454"></div><span class="tok">⏵ aprovar</span><span class="hex">#FFB454</span><span class="use">trava · sempre barra invertida</span></div>
+    <div class="sw"><div class="chip" style="background:#FF3B47"></div><span class="tok">✖ caiu</span><span class="hex">#FF3B47</span><span class="use">processo morto</span></div>
+    <div class="sw"><div class="chip" style="background:#3E534E"></div><span class="tok">○ parada</span><span class="hex">#3E534E</span><span class="use">contorno vazio</span></div>
+    <div class="sw"><div class="chip" style="background:#C77DFF"></div><span class="tok">⚠ órfã</span><span class="hex">#C77DFF</span><span class="use">violeta elétrico = anomalia</span></div>
+  </div>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 05</span><span>respondeu ≠ aprovar</span><span class="rule">─────────────────────────────────────────────────────────────────</span></h2>
+  <p>O coração do produto. A diferença <strong>não pode depender de cor</strong> — nem de brilho. <strong>Urgência é área preenchida, não matiz.</strong></p>
+  <table>
+    <tr><th>&nbsp;</th><th>Respondeu</th><th>Aprovar</th></tr>
+    <tr><td>Forma</td><td>ponto ⬤</td><td>triângulo ⏵</td></tr>
+    <tr><td>Área</td><td>glifo pequeno</td><td>barra sólida na linha inteira</td></tr>
+    <tr><td>Vídeo</td><td>normal</td><td>invertido</td></tr>
+    <tr><td>Movimento</td><td>estático</td><td>pisca a cada 2s</td></tr>
+    <tr><td>Cor</td><td>azul-gelo</td><td>âmbar</td></tr>
+  </table>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 06</span><span>tipografia</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
+  <div class="grid2">
+    <div class="panel">
+      <p class="faint" style="font-size:11px;margin-bottom:.8rem">DISPLAY · Martian Mono 800</p>
+      <p style="font-family:var(--font-display);font-weight:800;letter-spacing:.2em;font-size:20px;color:var(--fg-bright);margin:0;text-shadow:-2px 0 rgba(85,255,166,.5),2px 0 rgba(34,224,208,.5)">TESSERACT</p>
+      <p class="muted" style="font-size:12px;margin:.9rem 0 0">Aberração cromática de 2px: verde à esquerda, ciano à direita. Só aqui. Nunca em texto corrido, nunca no produto.</p>
+    </div>
+    <div class="panel">
+      <p class="faint" style="font-size:11px;margin-bottom:.8rem">PRODUTO · Iosevka Term</p>
+      <p style="font-size:16px;color:var(--fg-bright);margin:0">8 células recuperadas. Mesma posição.</p>
+      <p class="muted" style="font-size:12px;margin:.9rem 0 0">Estreita: mais colunas por célula. Sem glow, sem split, sem ligadura — ligadura embaralha grade.</p>
+    </div>
+  </div>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 07</span><span>aplicações</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
+  <div class="panel">
+    <p class="faint" style="font-size:11px">BANNER DE BOOT</p>
+<pre>   <em>┌────┐</em>
+   <em>│</em>┌───<em>┼</em>┐    <i>T E S S E R A C T</i>
+   <em>│</em>│ <b>▓</b> │<em>│</em>    <u>o mosaico não desmonta</u>
+   <em>└</em>┼───<em>┘</em>│
+    └────┘    <u>ts 0.1.0 // MIT</u>
+
+   <u>8 células recuperadas // 3 projetos // 41ms</u></pre>
+  </div>
+  <div class="grid3" style="margin-top:1.2rem">
+    <div class="panel"><p class="faint" style="font-size:11px">TÍTULO DA JANELA</p><pre><em>⧉</em> <i>ts</i> <u>— api/claude-refactor</u></pre></div>
+    <div class="panel"><p class="faint" style="font-size:11px">PROMPT</p><pre><em>⧉</em> <u>~/projetos/api</u> <b>›</b></pre></div>
+    <div class="panel"><p class="faint" style="font-size:11px">BADGE README</p><pre><i>⧉ tesseract // MIT</i></pre></div>
+  </div>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 08</span><span>tom de voz</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3 style="margin-top:0">Microcopy real</h3>
+      <div class="copy-line">Nenhuma célula neste projeto. <code>n</code> cria a primeira.</div>
+      <div class="copy-line">Travado esperando você. <code>Enter</code> aprova, <code>Esc</code> recusa.</div>
+      <div class="copy-line">Caiu com exit 1. <code>r</code> reinicia no mesmo lugar.</div>
+      <div class="copy-line">8 células recuperadas. Mesma posição.</div>
+      <div class="copy-line">Célula órfã: processo vivo, projeto sumiu. <code>m</code> move, <code>k</code> mata.</div>
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0;color:var(--state-dead)">Anti-exemplos</h3>
+      <div class="copy-line bad">Ops! Algo deu errado 😅</div>
+      <div class="copy-line bad">Carregando sua mágica...</div>
+      <div class="copy-line bad">ACESSO CONCEDIDO, RUNNER.</div>
+      <div class="copy-line bad">Nenhum item encontrado.</div>
+      <p class="faint" style="font-size:12px;margin:1rem 0 0">O terceiro é o risco novo: neon na imagem não autoriza cosplay no texto. A voz continua seca.</p>
+    </div>
+  </div>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 09</span><span>do &amp; don't</span><span class="rule">───────────────────────────────────────────────────────────────────────────</span></h2>
+  <div class="dodont">
+    <div class="yes">
+      <h4>Faça</h4>
+      <ol>
+        <li>Escuridão primeiro. O neon só existe porque 95% da tela está apagada.</li>
+        <li>Verde = posse, ciano = estrutura. Nunca invertido.</li>
+        <li>Glow e scanline só na superfície de marca, nunca no terminal.</li>
+        <li>Diferencie estado por forma e área antes de cor.</li>
+        <li>Um único fósforo aceso por tela.</li>
+        <li>Teste em preto e branco antes de aprovar.</li>
+      </ol>
+    </div>
+    <div class="no">
+      <h4>Não faça</h4>
+      <ol>
+        <li>Verde ou ciano em sinal de estado.</li>
+        <li>Chuva de caracteres, katakana decorativo, "ACESSO CONCEDIDO".</li>
+        <li>Glow em texto de UI — mata a densidade legível.</li>
+        <li>Mais de um selo invertido visível ao mesmo tempo.</li>
+        <li>Rosa neon. Duas cores já bastam; a terceira vira arcade.</li>
+        <li>A palavra "tesseract" sozinha perto de OCR ou imagem.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="dim">
+  <h2><span class="num">// 10</span><span>ansi 16</span><span class="rule">────────────────────────────────────────────────────────────────────────────────</span></h2>
+  <div class="ansi">
+    <div><div class="b" style="background:#070B0C"></div>0 black<br>#070B0C</div>
+    <div><div class="b" style="background:#C22F38"></div>1 red<br>#C22F38</div>
+    <div><div class="b" style="background:#1F7A4C"></div>2 green<br>#1F7A4C</div>
+    <div><div class="b" style="background:#C9A227"></div>3 yellow<br>#C9A227</div>
+    <div><div class="b" style="background:#3E7FA8"></div>4 blue<br>#3E7FA8</div>
+    <div><div class="b" style="background:#8B4FC4"></div>5 magenta<br>#8B4FC4</div>
+    <div><div class="b" style="background:#128C86"></div>6 cyan<br>#128C86</div>
+    <div><div class="b" style="background:#BFD1C6"></div>7 white<br>#BFD1C6</div>
+    <div><div class="b" style="background:#3E534E"></div>8 black<br>#3E534E</div>
+    <div><div class="b" style="background:#FF3B47"></div>9 red<br>#FF3B47</div>
+    <div><div class="b" style="background:#55FFA6"></div>10 green<br>#55FFA6</div>
+    <div><div class="b" style="background:#FFB454"></div>11 yellow<br>#FFB454</div>
+    <div><div class="b" style="background:#7DB7E8"></div>12 blue<br>#7DB7E8</div>
+    <div><div class="b" style="background:#C77DFF"></div>13 magenta<br>#C77DFF</div>
+    <div><div class="b" style="background:#22E0D0"></div>14 cyan<br>#22E0D0</div>
+    <div><div class="b" style="background:#E8F4EC"></div>15 white<br>#E8F4EC</div>
+  </div>
+  <p class="muted" style="margin-top:1rem"><code>background</code> #070B0C // <code>foreground</code> #BFD1C6 // <code>cursor</code> #55FFA6 // <code>cursor_text</code> #030507 // <code>selection</code> #121C1F</p>
+</section>
+
+<footer class="dim">
+  <span>⧉ TESSERACT</span><span>//</span><span>BRAND IDENTITY V2.0 — NEON</span><span>//</span><span>2026</span><span>//</span><span>O MOSAICO NÃO DESMONTA</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var body=document.body;
+  var bMode=document.getElementById('btn-mode');
+  var bMono=document.getElementById('btn-mono');
+  function toggle(cls,btn){
+    var on=body.classList.toggle(cls);
+    btn.setAttribute('aria-pressed',on?'true':'false');
+  }
+  bMode.addEventListener('click',function(){toggle('digitar',bMode);});
+  bMono.addEventListener('click',function(){toggle('mono',bMono);});
+  document.addEventListener('keydown',function(e){
+    if(e.metaKey||e.ctrlKey||e.altKey)return;
+    var k=e.key.toLowerCase();
+    if(k==='d')toggle('digitar',bMode);
+    if(k==='m')toggle('mono',bMono);
+    if(k==='escape'&&body.classList.contains('digitar'))toggle('digitar',bMode);
+  });
+})();
+</script>
+</body>
+</html>

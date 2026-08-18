@@ -2,3 +2,7 @@
 /ts
 # estado local de quem roda o Tesseract
 *.log
+# metadado do Windows que o WSL cola nos arquivos baixados
+*:Zone.Identifier
+# o zip que veio junto do kit de marca; o que vale são os arquivos extraídos
+style/files.zip
