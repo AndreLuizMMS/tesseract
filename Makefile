@@ -7,7 +7,7 @@ gate:
 	go test ./...
 
 build:
-	go build -trimpath -o ts ./cmd/tess
+	go build -trimpath -ldflags='-s -w' -o ts ./cmd/tess
 
 test:
 	go test ./...

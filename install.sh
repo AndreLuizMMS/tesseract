@@ -122,7 +122,7 @@ aviso "compilando o ts"
 mkdir -p "$destino"
 provisorio="$(mktemp "${destino}/.ts.XXXXXX")"
 trap 'rm -f "$provisorio"' EXIT
-(cd "$raiz" && "$go" build -trimpath -o "$provisorio" ./cmd/tess)
+(cd "$raiz" && "$go" build -trimpath -ldflags="-s -w" -o "$provisorio" ./cmd/tess)
 chmod 755 "$provisorio"
 # Troca por rename: o motor que está de pé continua no binário antigo até o
 # restart, em vez de o build esbarrar num arquivo em uso.
