@@ -14,8 +14,11 @@ import (
 )
 
 // cadenciaQuadro é de quanto em quanto tempo o motor olha se tem novidade para
-// mandar. Vinte e cinco quadros por segundo é fluido e barato.
-const cadenciaQuadro = 40 * time.Millisecond
+// mandar. É também o atraso máximo entre a tecla e o eco dela na tela, por isso
+// vale mais do que fluidez: cinquenta quadros por segundo dão dez milissegundos
+// de espera média ao digitar. Quadro sem novidade não é montado nem enviado, e
+// grade parada não gera nenhum — o preço só aparece quando há o que mostrar.
+const cadenciaQuadro = 20 * time.Millisecond
 
 // ErrMotorJaRodando é a recusa de subir um segundo motor sobre o mesmo socket.
 // Não é falha: quem pediu já tem o que queria.
