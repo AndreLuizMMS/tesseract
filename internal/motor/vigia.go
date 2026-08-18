@@ -19,6 +19,10 @@ const (
 	// voltasParaOlharODocker espaça a leitura do estado da stack de cada
 	// projeto, que é o que a tira mostra.
 	voltasParaOlharODocker = 40
+	// voltasParaRefrescar é o batimento lento que redesenha a grade mesmo sem
+	// nenhuma mudança. Serve ao que anda pelo relógio e não avisa ninguém — o
+	// contador da quota. Fora disso, grade parada não gera quadro nenhum.
+	voltasParaRefrescar = 10
 )
 
 // Vigiar acompanha as células e avisa quando alguma passa a pedir atenção. É o
@@ -33,14 +37,18 @@ func (m *Motor) Vigiar() {
 			return
 		case <-relogio.C:
 			volta++
-			m.conferirEstados()
+			mudou := m.conferirEstados()
 			if volta%voltasParaOlharODisco == 0 {
-				m.conferirDiretorios()
+				mudou = m.conferirDiretorios() || mudou
 			}
 			if volta%voltasParaOlharODocker == 1 {
-				m.conferirDocker()
+				mudou = m.conferirDocker() || mudou
 			}
-			m.marcarSujo()
+			// Grade parada não manda retrato: quem desenha do outro lado não
+			// tem o que redesenhar, e o motor não paga JSON à toa.
+			if mudou || volta%voltasParaRefrescar == 0 {
+				m.marcarSujo()
+			}
 		}
 	}
 }
@@ -52,10 +60,11 @@ func (m *Motor) pararVigia() {
 
 // conferirEstados anuncia as mudanças que valem aviso: quem respondeu, quem
 // pediu aprovação e quem caiu.
-func (m *Motor) conferirEstados() {
+func (m *Motor) conferirEstados() bool {
 	type anuncio struct{ texto string }
 	var anuncios []anuncio
 	var paraAdotarNome []string
+	mudou := false
 
 	m.mu.Lock()
 	for _, p := range m.projetos {
@@ -70,6 +79,7 @@ func (m *Motor) conferirEstados() {
 			}
 			anterior := c.ultimoEstado
 			c.ultimoEstado = estado
+			mudou = true
 			switch estado {
 			case celula.Respondeu:
 				anuncios = append(anuncios, anuncio{c.nome + " · " + nomeProjeto + " respondeu"})
@@ -94,25 +104,29 @@ func (m *Motor) conferirEstados() {
 	for _, id := range paraAdotarNome {
 		_ = m.AdotarNomeDoAgente(id)
 	}
+	return mudou
 }
 
 // conferirDiretorios marca como órfã a célula cujo projeto sumiu do disco.
-func (m *Motor) conferirDiretorios() {
+func (m *Motor) conferirDiretorios() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	mudou := false
 	for _, p := range m.projetos {
 		if info, err := os.Stat(p.caminho); err == nil && info.IsDir() {
 			continue
 		}
 		for _, c := range p.celulas {
+			mudou = mudou || c.ultimoEstado != celula.Orfa
 			c.ultimoEstado = celula.Orfa
 		}
 	}
+	return mudou
 }
 
 // conferirDocker atualiza o resumo da stack de cada projeto que tem compose. O
 // Docker nunca sobe sozinho: isto só lê.
-func (m *Motor) conferirDocker() {
+func (m *Motor) conferirDocker() bool {
 	m.mu.Lock()
 	type alvo struct {
 		p       *projeto
@@ -127,6 +141,7 @@ func (m *Motor) conferirDocker() {
 	}
 	m.mu.Unlock()
 
+	mudou := false
 	for _, a := range alvos {
 		servicos, err := docker.Servicos(a.caminho, a.compose)
 		resumo := ""
@@ -134,7 +149,9 @@ func (m *Motor) conferirDocker() {
 			resumo = docker.Resumo(servicos)
 		}
 		m.mu.Lock()
+		mudou = mudou || a.p.docker != resumo
 		a.p.docker = resumo
 		m.mu.Unlock()
 	}
+	return mudou
 }
