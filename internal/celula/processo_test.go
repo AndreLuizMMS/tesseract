@@ -326,3 +326,48 @@ func TestRedimensionarParaOMesmoTamanhoNaoLimpaATela(t *testing.T) {
 		t.Fatalf("o mesmo tamanho não podia limpar a tela:\n%s", telaDe(c))
 	}
 }
+
+// TestTelaParadaDevolveOMesmoQuadro prende o retrato guardado: desenhar uma
+// célula que não recebeu nada devolve exatamente o mesmo quadro, e o que chegou
+// do processo depois aparece assim mesmo.
+func TestTelaParadaDevolveOMesmoQuadro(t *testing.T) {
+	dir := t.TempDir()
+	hist, err := historico.Abrir(filepath.Join(dir, "hist.log"), historico.TetoPadrao)
+	if err != nil {
+		t.Fatalf("abrir histórico: %v", err)
+	}
+	defer hist.Fechar()
+
+	c, err := Nova("bash")
+	if err != nil {
+		t.Fatalf("fabricar célula: %v", err)
+	}
+	if err := c.Nascer(Config{
+		ID: "c1", Diretorio: dir, Nome: "testes",
+		Historico: hist, Colunas: 60, Linhas: 12,
+	}); err != nil {
+		t.Fatalf("nascer: %v", err)
+	}
+	defer c.Matar()
+
+	colarEEntrar(t, c, "echo primeiro")
+	if !esperarPor(t, 5*time.Second, func() bool { return strings.Contains(telaDe(c), "primeiro") }) {
+		t.Fatalf("o shell não escreveu na tela: %s", telaDe(c))
+	}
+
+	// Nada entrou entre um desenho e o outro: as duas leituras são a mesma
+	// fatia de linhas, não duas cópias iguais.
+	antes, depois := c.Desenhar(), c.Desenhar()
+	if len(antes.Linhas) == 0 || len(antes.Linhas) != len(depois.Linhas) {
+		t.Fatalf("quadros de tamanhos diferentes: %d e %d", len(antes.Linhas), len(depois.Linhas))
+	}
+	if &antes.Linhas[0] != &depois.Linhas[0] {
+		t.Fatal("tela parada devia devolver o quadro guardado, não redesenhar")
+	}
+
+	// O que chega depois tem de aparecer: guardar não pode congelar a célula.
+	colarEEntrar(t, c, "echo segundo")
+	if !esperarPor(t, 5*time.Second, func() bool { return strings.Contains(telaDe(c), "segundo") }) {
+		t.Fatalf("o quadro guardado congelou a célula: %s", telaDe(c))
+	}
+}

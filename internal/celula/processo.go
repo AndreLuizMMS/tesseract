@@ -31,6 +31,14 @@ type Processo struct {
 	rolagem   int
 	morrendo  bool // verdadeiro quando fomos nós que matamos
 	encerrado bool
+
+	// quadro é o último retrato desenhado, guardado sob o pincel. Desenhar uma
+	// tela interna parada custa o mesmo que desenhar uma que mudou, e o motor
+	// desenha a grade inteira 25 vezes por segundo — célula parada devolve o
+	// retrato de novo em vez de redesenhá-lo.
+	quadro        Quadro
+	quadroValido  bool
+	quadroRolagem int
 }
 
 // iniciar sobe o comando dentro de um pseudo terminal do tamanho pedido e
@@ -64,6 +72,7 @@ func (p *Processo) iniciar(cfg Config, programa string, args []string, ambiente 
 			// aqui, porque ainda não há processo para recebê-las.
 			p.pincel.Lock()
 			_, _ = p.emulador.Write(cauda)
+			p.quadroValido = false
 			p.pincel.Unlock()
 		}
 	}
@@ -110,6 +119,7 @@ func (p *Processo) lerDoProcesso(terminal *os.File, comando *exec.Cmd) {
 		if n > 0 {
 			p.pincel.Lock()
 			_, _ = p.emulador.Write(buf[:n])
+			p.quadroValido = false
 			p.pincel.Unlock()
 			if p.config.Historico != nil {
 				_, _ = p.config.Historico.Write(buf[:n])
@@ -177,6 +187,16 @@ func (p *Processo) Desenhar() Quadro {
 	p.pincel.Lock()
 	defer p.pincel.Unlock()
 
+	// Nada entrou na tela interna e a leitura está no mesmo lugar: o retrato é
+	// o mesmo de antes.
+	if p.quadroValido && p.quadroRolagem == rolagem {
+		return p.quadro
+	}
+
+	// A rolagem pedida é a chave do retrato guardado; a limitada é a que
+	// desenha. Elas só divergem quando ainda não há histórico suficiente, e o
+	// que cresce o histórico é escrita na tela interna — que já invalida.
+	pedida := rolagem
 	altura := p.emulador.Height()
 	acima := p.emulador.ScrollbackLen()
 	rolagem = min(rolagem, acima)
@@ -184,7 +204,7 @@ func (p *Processo) Desenhar() Quadro {
 
 	if rolagem == 0 {
 		posicao := p.emulador.CursorPosition()
-		return Quadro{Linhas: naTela, CursorX: posicao.X, CursorY: posicao.Y, AoVivo: true}
+		return p.guardarQuadro(pedida, Quadro{Linhas: naTela, CursorX: posicao.X, CursorY: posicao.Y, AoVivo: true})
 	}
 
 	// A janela rolada mistura as linhas que já saíram por cima com as que
@@ -203,7 +223,15 @@ func (p *Processo) Desenhar() Quadro {
 			linhas = append(linhas, "")
 		}
 	}
-	return Quadro{Linhas: linhas, Rolagem: rolagem, CursorX: -1, CursorY: -1}
+	return p.guardarQuadro(pedida, Quadro{Linhas: linhas, Rolagem: rolagem, CursorX: -1, CursorY: -1})
+}
+
+// guardarQuadro anota o retrato recém-desenhado. Chamado com o pincel na mão,
+// que é o mesmo cadeado de quem escreve na tela interna — o retrato guardado
+// nunca é de uma tela que já mudou.
+func (p *Processo) guardarQuadro(rolagem int, quadro Quadro) Quadro {
+	p.quadro, p.quadroRolagem, p.quadroValido = quadro, rolagem, true
+	return quadro
 }
 
 // Tecla entrega a tecla ao processo. Em modo DIGITAR toda tecla passa por
@@ -271,6 +299,7 @@ func (p *Processo) Redimensionar(colunas, linhas int) error {
 	if p.emulador != nil {
 		p.pincel.Lock()
 		p.emulador.Resize(colunas, linhas)
+		p.quadroValido = false
 		p.pincel.Unlock()
 	}
 	if terminal != nil {
