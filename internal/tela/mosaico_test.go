@@ -133,22 +133,22 @@ func TestCelulasDoMesmoProjetoFicamLadoALado(t *testing.T) {
 	estado := gradeDeTeste()
 	d := Dispor(estado, Foco{Projeto: 0}, 140, 30)
 
-	if len(d.faixas) != 3 {
-		t.Fatalf("três projetos, três fileiras: %#v", d.faixas)
+	if len(d.todasAsFaixas()) != 3 {
+		t.Fatalf("três projetos, três fileiras: %#v", d.todasAsFaixas())
 	}
-	if len(d.faixas[0].celulas) != 2 {
-		t.Fatalf("as duas células do primeiro projeto deviam dividir a fileira: %#v", d.faixas[0])
+	if len(d.todasAsFaixas()[0].celulas) != 2 {
+		t.Fatalf("as duas células do primeiro projeto deviam dividir a fileira: %#v", d.todasAsFaixas()[0])
 	}
 
 	primeira, segunda := d.miolos["c1"], d.miolos["c2"]
-	if primeira.Colunas < 60 || segunda.Colunas < 60 {
-		t.Fatalf("as células deviam dividir a largura: %#v %#v", primeira, segunda)
+	if primeira.Colunas < larguraApertadaDeCelula || segunda.Colunas < larguraApertadaDeCelula {
+		t.Fatalf("as células deviam dividir a largura da coluna: %#v %#v", primeira, segunda)
 	}
 	if primeira.Linhas != segunda.Linhas {
 		t.Fatalf("células da mesma fileira têm a mesma altura: %#v %#v", primeira, segunda)
 	}
-	if sozinha := d.miolos["c3"]; sozinha.Colunas < 130 {
-		t.Fatalf("a célula sozinha devia ocupar a largura inteira: %#v", sozinha)
+	if sozinha := d.miolos["c3"]; sozinha.Colunas <= primeira.Colunas {
+		t.Fatalf("a célula sozinha devia ocupar a coluna inteira: %#v", sozinha)
 	}
 }
 
@@ -164,10 +164,10 @@ func TestFileiraQuebraQuandoNaoCabeNaLargura(t *testing.T) {
 	}
 
 	d := Dispor(estado, Foco{}, 120, 40)
-	if len(d.faixas) < 2 {
-		t.Fatalf("seis células em 120 colunas não cabem numa fileira só: %#v", d.faixas)
+	if len(d.todasAsFaixas()) < 2 {
+		t.Fatalf("seis células em 120 colunas não cabem numa fileira só: %#v", d.todasAsFaixas())
 	}
-	for _, f := range d.faixas {
+	for _, f := range d.todasAsFaixas() {
 		if len(f.celulas) > 3 {
 			t.Fatalf("fileira com %d células fica ilegível", len(f.celulas))
 		}
@@ -175,6 +175,37 @@ func TestFileiraQuebraQuandoNaoCabeNaLargura(t *testing.T) {
 	for id, miolo := range d.Miolos() {
 		if miolo.Colunas < larguraMinimaDeCelula-2 {
 			t.Fatalf("a célula %s ficou com %d colunas", id, miolo.Colunas)
+		}
+	}
+}
+
+// TestProjetosViramColunasQuandoAAlturaAcaba — com projetos demais para a
+// altura, a tela cresce para o lado em vez de jogar célula para fora.
+func TestProjetosViramColunasQuandoAAlturaAcaba(t *testing.T) {
+	estado := protocolo.Estado{}
+	for i := range 6 {
+		estado.Projetos = append(estado.Projetos, protocolo.Projeto{
+			ID: "p" + strconv.Itoa(i), Nome: "projeto" + strconv.Itoa(i), Caminho: "/dev/p",
+			Celulas: []protocolo.Celula{{
+				ID: "c" + strconv.Itoa(i), Tipo: "sessao", Nome: "cel" + strconv.Itoa(i),
+				Estado: "trabalhando", AoVivo: true,
+			}},
+		})
+	}
+
+	d := Dispor(estado, Foco{}, 120, 35)
+	if len(d.colunas) != 2 {
+		t.Fatalf("seis projetos em 35 linhas deviam abrir duas colunas: %d", len(d.colunas))
+	}
+	if d.escondidas != 0 {
+		t.Fatalf("com as duas colunas nenhuma célula devia ficar de fora: %d", d.escondidas)
+	}
+	if len(d.Miolos()) != 6 {
+		t.Fatalf("as seis células deviam ter tamanho avisado ao motor: %#v", d.Miolos())
+	}
+	for id, miolo := range d.Miolos() {
+		if miolo.Colunas < larguraApertadaDeCelula || miolo.Linhas < alturaMinimaDeCelula-2 {
+			t.Fatalf("a célula %s ficou pequena demais: %#v", id, miolo)
 		}
 	}
 }
@@ -294,15 +325,17 @@ func TestGeometriaBateComODesenho(t *testing.T) {
 				t.Errorf("%dx%d: linha com %d colunas: %q", largura, altura, visivel, linha)
 			}
 		}
-		usado := 0
-		for _, f := range d.faixas {
-			if f.abre {
-				usado++
+		for _, c := range d.colunas {
+			usado := 0
+			for _, f := range c.faixas {
+				if f.abre {
+					usado++
+				}
+				usado += f.altura
 			}
-			usado += f.altura
-		}
-		if len(d.faixas) > 0 && usado > altura-2 {
-			t.Errorf("%dx%d: as fileiras somam %d linhas, o corpo tem %d", largura, altura, usado, altura-2)
+			if usado > altura-2 {
+				t.Errorf("%dx%d: a coluna soma %d linhas, o corpo tem %d", largura, altura, usado, altura-2)
+			}
 		}
 		for id, miolo := range d.Miolos() {
 			if miolo.Colunas < 1 || miolo.Linhas < 1 {

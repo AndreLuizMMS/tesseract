@@ -12,11 +12,22 @@ import (
 
 const (
 	// larguraMinimaDeCelula é o menos que uma célula precisa para o conteúdo
-	// dela ainda dizer alguma coisa.
+	// dela ainda dizer alguma coisa. A fileira enche até aqui antes de descer
+	// para a linha de baixo.
 	larguraMinimaDeCelula = 34
+	// larguraApertadaDeCelula é até onde a célula encolhe quando a alternativa
+	// é a fileira descer para fora da tela. Aperta, mas ainda se lê.
+	larguraApertadaDeCelula = 24
 	// alturaMinimaDeCelula é borda de cima, três linhas de conteúdo e borda de
 	// baixo.
 	alturaMinimaDeCelula = 5
+	// larguraMinimaDeColuna é o menos que uma coluna de projetos precisa para
+	// ainda caber duas células nela.
+	larguraMinimaDeColuna = 2 * larguraApertadaDeCelula
+	// alturaMinimaDeProjeto é a divisória mais a célula mais baixa que ainda
+	// diz alguma coisa. Quando os projetos não cabem nisso, a tela abre outra
+	// coluna em vez de deixar célula fora do quadro.
+	alturaMinimaDeProjeto = alturaMinimaDeCelula + 1
 )
 
 // Foco é onde o usuário está agora.
@@ -46,14 +57,36 @@ type faixa struct {
 	altura int
 }
 
+// coluna é uma fatia vertical da tela com os projetos que couberam nela. A
+// tela é uma coluna só enquanto os projetos couberem na altura; quando não
+// cabem, o mosaico abre colunas em vez de espremer faixa ou jogar célula para
+// fora.
+type coluna struct {
+	faixas  []faixa
+	x       int
+	largura int
+	// escondidas conta as células desta coluna que não couberam na altura.
+	escondidas int
+}
+
 // Disposicao é o resultado do cálculo de layout. Desenhar e avisar o tamanho ao
 // motor saem daqui, para nunca discordarem.
 type Disposicao struct {
-	faixas  []faixa
+	colunas []coluna
 	miolos  map[string]Geometria
 	origens map[string][2]int
 	// escondidas conta as células que não couberam na tela.
 	escondidas int
+}
+
+// todasAsFaixas junta as fileiras de todas as colunas, na ordem em que os
+// projetos aparecem.
+func (d Disposicao) todasAsFaixas() []faixa {
+	var faixas []faixa
+	for _, c := range d.colunas {
+		faixas = append(faixas, c.faixas...)
+	}
+	return faixas
 }
 
 // Miolos é o que a tela avisa ao motor: o tamanho útil de cada célula visível.
@@ -81,44 +114,87 @@ func Dispor(estado protocolo.Estado, foco Foco, largura, altura int) Disposicao 
 	}
 
 	corpo := altura - alturaDaBarra - 1 // o cabeçalho e o rodapé
-	todas := planejarFaixas(estado, largura)
-	visiveis := janelaDeFaixas(todas, faixaDoFoco(todas, foco), corpo)
-	d.escondidas = celulasDeFora(todas, visiveis)
-	d.faixas = repartirAltura(visiveis, corpo)
+	d.colunas = repartirColunas(estado, foco, largura, corpo)
 
-	y := alturaDaBarra // o cabeçalho
-	for _, f := range d.faixas {
-		if f.abre {
-			y++
-		}
-		projeto := estado.Projetos[f.projeto]
-		x := 0
-		for i, larguraCelula := range repartirLargura(len(f.celulas), largura) {
-			celula := projeto.Celulas[f.celulas[i]]
-			d.miolos[celula.ID] = Geometria{
-				Colunas: max(larguraCelula-2, 1),
-				Linhas:  max(f.altura-2, 1),
+	for _, c := range d.colunas {
+		d.escondidas += c.escondidas
+		y := alturaDaBarra // o cabeçalho
+		for _, f := range c.faixas {
+			if f.abre {
+				y++
 			}
-			d.origens[celula.ID] = [2]int{x + 1, y + 1}
-			x += larguraCelula
+			projeto := estado.Projetos[f.projeto]
+			x := c.x
+			for i, larguraCelula := range repartirLargura(len(f.celulas), c.largura) {
+				celula := projeto.Celulas[f.celulas[i]]
+				d.miolos[celula.ID] = Geometria{
+					Colunas: max(larguraCelula-2, 1),
+					Linhas:  max(f.altura-2, 1),
+				}
+				d.origens[celula.ID] = [2]int{x + 1, y + 1}
+				x += larguraCelula
+			}
+			y += f.altura
 		}
-		y += f.altura
 	}
 	return d
 }
 
+// repartirColunas divide os projetos em colunas e planeja as fileiras de cada
+// uma. É o que faz o mosaico crescer para o lado antes de crescer para baixo.
+func repartirColunas(estado protocolo.Estado, foco Foco, largura, corpo int) []coluna {
+	quantas := quantasColunas(len(estado.Projetos), largura, corpo)
+	porColuna := (len(estado.Projetos) + quantas - 1) / quantas
+	quantas = (len(estado.Projetos) + porColuna - 1) / porColuna
+	// uma coluna de respiro entre uma coluna de projetos e a outra, senão a
+	// divisória de uma parece continuar na outra.
+	larguras := repartirLargura(quantas, largura-(quantas-1))
+
+	colunas := make([]coluna, 0, quantas)
+	x := 0
+	for inicio := 0; inicio < len(estado.Projetos); inicio += porColuna {
+		c := coluna{x: x, largura: larguras[len(colunas)]}
+		todas := planejarFaixas(estado, inicio, min(inicio+porColuna, len(estado.Projetos)), c.largura, corpo)
+		visiveis := janelaDeFaixas(todas, faixaDoFoco(todas, foco), corpo)
+		c.escondidas = celulasDeFora(todas, visiveis)
+		c.faixas = repartirAltura(visiveis, corpo)
+		colunas = append(colunas, c)
+		x += c.largura + 1
+	}
+	return colunas
+}
+
+// quantasColunas decide em quantas colunas a tela se divide: uma só enquanto
+// os projetos couberem na altura com folga, mais quando a alternativa seria
+// faixa espremida ou célula fora da tela.
+func quantasColunas(projetos, largura, corpo int) int {
+	if projetos <= 1 {
+		return 1
+	}
+	cabemNaAltura := max(corpo/alturaMinimaDeProjeto, 1)
+	precisa := (projetos + cabemNaAltura - 1) / cabemNaAltura
+	return min(precisa, max(largura/larguraMinimaDeColuna, 1), projetos)
+}
+
 // planejarFaixas quebra cada projeto em fileiras de células que cabem na
-// largura, equilibradas para não sobrar uma fileira com uma célula só.
-func planejarFaixas(estado protocolo.Estado, largura int) []faixa {
-	cabemNaLargura := max(largura/larguraMinimaDeCelula, 1)
+// largura, equilibradas para não sobrar uma fileira com uma célula só. Quando
+// as fileiras não cabem na altura que o projeto tem, as células apertam em vez
+// de descer para fora da tela.
+func planejarFaixas(estado protocolo.Estado, inicio, fim, largura, corpo int) []faixa {
+	alturaDoProjeto := max(corpo/max(fim-inicio, 1)-1, alturaMinimaDeCelula)
+	fileirasQueCabem := max(alturaDoProjeto/alturaMinimaDeCelula, 1)
 	var faixas []faixa
-	for iProjeto, projeto := range estado.Projetos {
+	for iProjeto := inicio; iProjeto < fim; iProjeto++ {
+		projeto := estado.Projetos[iProjeto]
 		total := len(projeto.Celulas)
 		if total == 0 {
 			continue
 		}
-		quantasFileiras := (total + cabemNaLargura - 1) / cabemNaLargura
-		porFileira := (total + quantasFileiras - 1) / quantasFileiras
+		porFileira := equilibrar(total, max(largura/larguraMinimaDeCelula, 1))
+		if (total+porFileira-1)/porFileira > fileirasQueCabem {
+			apertadas := min((total+fileirasQueCabem-1)/fileirasQueCabem, max(largura/larguraApertadaDeCelula, 1))
+			porFileira = equilibrar(total, max(apertadas, porFileira))
+		}
 		for inicio := 0; inicio < total; inicio += porFileira {
 			fim := min(inicio+porFileira, total)
 			indices := make([]int, 0, fim-inicio)
@@ -129,6 +205,13 @@ func planejarFaixas(estado protocolo.Estado, largura int) []faixa {
 		}
 	}
 	return faixas
+}
+
+// equilibrar diz quantas células põr por fileira para nenhuma fileira ficar
+// muito mais vazia que a outra, respeitando o teto de quantas cabem.
+func equilibrar(total, cabem int) int {
+	fileiras := (total + cabem - 1) / cabem
+	return (total + fileiras - 1) / fileiras
 }
 
 // faixaDoFoco acha em que fileira está a célula focada.
@@ -228,17 +311,30 @@ func Desenhar(estado protocolo.Estado, foco Foco, modo teclado.Modo, largura, al
 	}
 
 	d := Dispor(estado, foco, largura, altura)
-	if len(d.faixas) == 0 {
+	if len(d.colunas) == 0 {
 		return telaVazia(modo, largura, altura, erro, estado.Aviso)
 	}
 
+	corpo := altura - alturaDaBarra - 1
+	blocos := make([][]string, len(d.colunas))
+	for i, c := range d.colunas {
+		blocos[i] = blocoDaColuna(estado, c, foco, modo)
+	}
+
 	linhas := barraDeTitulo(modo, largura, contarChamados(estado), estado.Quota)
-	for _, f := range d.faixas {
-		projeto := estado.Projetos[f.projeto]
-		if f.abre {
-			linhas = append(linhas, divisoriaDoProjeto(projeto, largura, modo, f.projeto == foco.Projeto))
+	for l := range corpo {
+		var linha strings.Builder
+		for i, bloco := range blocos {
+			if i > 0 {
+				linha.WriteString(" ")
+			}
+			if l < len(bloco) {
+				linha.WriteString(bloco[l])
+				continue
+			}
+			linha.WriteString(strings.Repeat(" ", d.colunas[i].largura))
 		}
-		linhas = append(linhas, fileiraDeCelulas(projeto, f, foco, modo, largura)...)
+		linhas = append(linhas, linha.String())
 	}
 	if d.escondidas > 0 && len(linhas) > 1 {
 		linhas[len(linhas)-1] = marcarEscondidas(linhas[len(linhas)-1], d.escondidas, largura)
@@ -248,6 +344,20 @@ func Desenhar(estado protocolo.Estado, foco Foco, modo teclado.Modo, largura, al
 	}
 	linhas = linhas[:altura-1]
 	return strings.Join(append(linhas, rodape(modo, largura, erro)), "\n")
+}
+
+// blocoDaColuna desenha uma coluna inteira: cada projeto com sua divisória e
+// as fileiras de células dele, todas na largura da coluna.
+func blocoDaColuna(estado protocolo.Estado, c coluna, foco Foco, modo teclado.Modo) []string {
+	var linhas []string
+	for _, f := range c.faixas {
+		projeto := estado.Projetos[f.projeto]
+		if f.abre {
+			linhas = append(linhas, divisoriaDoProjeto(projeto, c.largura, modo, f.projeto == foco.Projeto))
+		}
+		linhas = append(linhas, fileiraDeCelulas(projeto, f, foco, modo, c.largura)...)
+	}
+	return linhas
 }
 
 // divisoriaDoProjeto é a linha que separa um projeto do outro: o nome, o
