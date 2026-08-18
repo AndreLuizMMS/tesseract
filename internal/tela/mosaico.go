@@ -545,6 +545,97 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 	return linhas
 }
 
+// quadro é o retângulo que uma célula ocupa na tela. É o que a navegação usa
+// para saber o que está de fato acima, abaixo e ao lado — a seta segue o
+// desenho, não a ordem da lista.
+type quadro struct {
+	projeto, celula       int
+	x, y, largura, altura int
+}
+
+func (q quadro) centro() (int, int) {
+	return q.x + q.largura/2, q.y + q.altura/2
+}
+
+// quadros lista o retângulo de cada célula visível, na ordem dos projetos.
+func (d Disposicao) quadros(estado protocolo.Estado) []quadro {
+	var todos []quadro
+	for p, projeto := range estado.Projetos {
+		for c, celula := range projeto.Celulas {
+			origem, tem := d.origens[celula.ID]
+			if !tem {
+				continue
+			}
+			miolo := d.miolos[celula.ID]
+			todos = append(todos, quadro{
+				projeto: p, celula: c,
+				x: origem[0], y: origem[1],
+				largura: miolo.Colunas, altura: miolo.Linhas,
+			})
+		}
+	}
+	return todos
+}
+
+// Vizinha diz para onde a seta leva o foco: a célula que está literalmente
+// naquela direção no mosaico. Numa grade 2x2, a seta para baixo desce uma
+// fileira em vez de andar para o lado. Devolve falso quando não há nada
+// naquele lado — aí quem chama decide o que fazer.
+func Vizinha(estado protocolo.Estado, foco Foco, largura, altura, dx, dy int) (Foco, bool) {
+	d := Dispor(estado, foco, largura, altura)
+	todos := d.quadros(estado)
+	var atual quadro
+	achouAtual := false
+	for _, q := range todos {
+		if q.projeto == foco.Projeto && q.celula == foco.Celula {
+			atual, achouAtual = q, true
+		}
+	}
+	if !achouAtual {
+		return foco, false
+	}
+
+	ax, ay := atual.centro()
+	melhor, achou := Foco{}, false
+	var melhorAvanco, melhorDesvio int
+	for _, q := range todos {
+		if q.projeto == atual.projeto && q.celula == atual.celula {
+			continue
+		}
+		// Só conta quem divide a mesma faixa (na horizontal) ou a mesma coluna
+		// (na vertical). A seta não corta na diagonal: célula que está acima
+		// não é célula que está à esquerda.
+		if !cruzam(atual, q, dx, dy) {
+			continue
+		}
+		qx, qy := q.centro()
+		avanco := (qx-ax)*dx + (qy-ay)*dy
+		if avanco <= 0 {
+			continue
+		}
+		desvio := abs((qy-ay)*dx) + abs((qx-ax)*dy)
+		if !achou || avanco < melhorAvanco || (avanco == melhorAvanco && desvio < melhorDesvio) {
+			melhor, melhorAvanco, melhorDesvio, achou = Foco{Projeto: q.projeto, Celula: q.celula}, avanco, desvio, true
+		}
+	}
+	return melhor, achou
+}
+
+// cruzam diz se dois quadros se encontram no eixo perpendicular ao da seta.
+func cruzam(a, b quadro, dx, dy int) bool {
+	if dx != 0 {
+		return a.y < b.y+b.altura && b.y < a.y+a.altura
+	}
+	return a.x < b.x+b.largura && b.x < a.x+a.largura
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 // Ajustar prende o foco dentro do que existe.
 func Ajustar(estado protocolo.Estado, foco Foco) Foco {
 	if len(estado.Projetos) == 0 {

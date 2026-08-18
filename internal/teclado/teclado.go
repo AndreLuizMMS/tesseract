@@ -38,14 +38,14 @@ const (
 	Nada Acao = ""
 
 	// Andar — só setas, nenhuma letra.
-	CelulaAnterior  Acao = "celula-anterior"
-	CelulaProxima   Acao = "celula-proxima"
-	ProjetoAnterior Acao = "projeto-anterior"
-	ProjetoProximo  Acao = "projeto-proximo"
-	PularChamado    Acao = "pular-chamado"
-	IrParaProjeto   Acao = "ir-para-projeto"
-	ProximaAba      Acao = "proxima-aba"
-	AbaAnterior     Acao = "aba-anterior"
+	CelulaAnterior Acao = "celula-anterior"
+	CelulaProxima  Acao = "celula-proxima"
+	CelulaAcima    Acao = "celula-acima"
+	CelulaAbaixo   Acao = "celula-abaixo"
+	PularChamado   Acao = "pular-chamado"
+	IrParaProjeto  Acao = "ir-para-projeto"
+	ProximaAba     Acao = "proxima-aba"
+	AbaAnterior    Acao = "aba-anterior"
 
 	// Teclado e tela.
 	EntrarDigitar Acao = "entrar-digitar"
@@ -110,10 +110,10 @@ type Atalho struct {
 var mapa = map[Modo][]Atalho{
 	Navegar: {
 		// Navegação é exclusivamente direcional: letra nenhuma anda pela grade.
-		{Tecla: "left", Acao: CelulaAnterior, Ajuda: "anda entre as células, atravessando projeto", Grupo: "←→ célula", Rodape: true, Curto: "←→ célula"},
-		{Tecla: "right", Acao: CelulaProxima, Ajuda: "próxima célula", Grupo: "←→ célula"},
-		{Tecla: "up", Acao: ProjetoAnterior, Ajuda: "anda entre os projetos", Grupo: "↑↓ projeto", Rodape: true, Curto: "↑↓ projeto"},
-		{Tecla: "down", Acao: ProjetoProximo, Ajuda: "próximo projeto", Grupo: "↑↓ projeto"},
+		{Tecla: "left", Acao: CelulaAnterior, Ajuda: "a seta anda para a célula que está literalmente daquele lado no mosaico, atravessando projeto", Grupo: "↑↓←→ célula", Rodape: true, Curto: "↑↓←→ célula"},
+		{Tecla: "right", Acao: CelulaProxima, Ajuda: "célula à direita", Grupo: "↑↓←→ célula"},
+		{Tecla: "up", Acao: CelulaAcima, Ajuda: "célula da fileira de cima", Grupo: "↑↓←→ célula"},
+		{Tecla: "down", Acao: CelulaAbaixo, Ajuda: "célula da fileira de baixo", Grupo: "↑↓←→ célula"},
 		{Tecla: "space", Acao: PularChamado, Ajuda: "pula para a próxima célula que pede atenção, atravessando projeto"},
 		{Tecla: "tab", Acao: ProximaAba, Ajuda: "troca a aba da célula: claude, cursor, shell", Grupo: "tab ⇥ aba", Rodape: true, Curto: "tab aba"},
 		{Tecla: "shift+tab", Acao: AbaAnterior, Ajuda: "aba anterior", Grupo: "tab ⇥ aba"},

@@ -217,3 +217,34 @@ func TestColarNoFormularioCabeNumaLinha(t *testing.T) {
 		t.Fatalf("o caminho colado devia entrar sem a quebra de linha, veio %q", valor)
 	}
 }
+
+// TestSetasNaGrade2x2AndamLiteral — quatro células de um projeto viram 2x2, e
+// a seta segue o desenho: ↓ desce uma fileira em vez de andar para o lado.
+func TestSetasNaGrade2x2AndamLiteral(t *testing.T) {
+	estado := protocolo.Estado{Projetos: []protocolo.Projeto{{ID: "p1", Nome: "regula-mais", Caminho: "/dev/rm"}}}
+	for i := range 4 {
+		estado.Projetos[0].Celulas = append(estado.Projetos[0].Celulas, protocolo.Celula{
+			ID: "c" + string(rune('0'+i)), Tipo: "sessao", Nome: "sessao", Estado: "trabalhando", AoVivo: true,
+		})
+	}
+	m := &Modelo{estado: estado, visao: visaoMosaico, tamanhos: map[string]Geometria{}, largura: 200, altura: 40}
+
+	// 0 1
+	// 2 3
+	for _, caso := range []struct {
+		de     int
+		tecla  string
+		espera int
+	}{
+		{0, "right", 1}, {1, "left", 0},
+		{0, "down", 2}, {2, "up", 0},
+		{1, "down", 3}, {3, "up", 1},
+		{2, "right", 3}, {3, "left", 2},
+	} {
+		m.foco = Foco{Celula: caso.de}
+		m.telaNavegando(caso.tecla)
+		if m.foco.Projeto != 0 || m.foco.Celula != caso.espera {
+			t.Errorf("%s da célula %d devia ir para a %d, foi para %#v", caso.tecla, caso.de, caso.espera, m.foco)
+		}
+	}
+}

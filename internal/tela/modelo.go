@@ -321,13 +321,13 @@ func (m *Modelo) telaNavegando(tecla string) (tea.Model, tea.Cmd) {
 
 	switch acao {
 	case teclado.CelulaAnterior:
-		m.andarPelasCelulas(-1)
+		m.andarNaDirecao(-1, 0)
 	case teclado.CelulaProxima:
-		m.andarPelasCelulas(1)
-	case teclado.ProjetoAnterior:
-		m.foco.Projeto, m.foco.Celula = m.foco.Projeto-1, 0
-	case teclado.ProjetoProximo:
-		m.foco.Projeto, m.foco.Celula = m.foco.Projeto+1, 0
+		m.andarNaDirecao(1, 0)
+	case teclado.CelulaAcima:
+		m.andarNaDirecao(0, -1)
+	case teclado.CelulaAbaixo:
+		m.andarNaDirecao(0, 1)
 	case teclado.IrParaProjeto:
 		if n, err := strconv.Atoi(tecla); err == nil {
 			m.foco.Projeto, m.foco.Celula = n-1, 0
@@ -536,6 +536,27 @@ func (m *Modelo) telaDosAchados(tecla string) tea.Cmd {
 		m.achados = nil
 	}
 	return nil
+}
+
+// andarNaDirecao segue a seta ao pé da letra: no mosaico o foco vai para a
+// célula que está literalmente daquele lado no desenho. Quando não há nenhuma
+// — a borda da tela, ou uma fileira que não coube —, o foco anda um passo na
+// ordem dos projetos, para nenhuma célula ficar inalcançável. Na lista, que é
+// uma coluna só, a seta de cima e de baixo continua trocando de projeto.
+func (m *Modelo) andarNaDirecao(dx, dy int) {
+	if m.mostrandoMosaico() {
+		if vizinha, tem := Vizinha(m.estado, m.foco, m.largura, m.altura, dx, dy); tem {
+			m.foco.Projeto, m.foco.Celula = vizinha.Projeto, vizinha.Celula
+			return
+		}
+		m.andarPelasCelulas(dx + dy)
+		return
+	}
+	if dy != 0 {
+		m.foco.Projeto, m.foco.Celula = m.foco.Projeto+dy, 0
+		return
+	}
+	m.andarPelasCelulas(dx)
 }
 
 // andarPelasCelulas caminha pela grade inteira, atravessando projeto: no

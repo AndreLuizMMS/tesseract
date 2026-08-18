@@ -56,7 +56,7 @@ func TestTodaTeclaTemAjuda(t *testing.T) {
 func TestNenhumaLetraAndaPelaGrade(t *testing.T) {
 	andar := map[Acao]bool{
 		CelulaAnterior: true, CelulaProxima: true,
-		ProjetoAnterior: true, ProjetoProximo: true,
+		CelulaAcima: true, CelulaAbaixo: true,
 	}
 	setas := map[string]bool{"up": true, "down": true, "left": true, "right": true}
 	for _, atalho := range Atalhos(Navegar) {
@@ -90,8 +90,8 @@ func TestAjudaAgrupaAsFamilias(t *testing.T) {
 	if contagem["1…9 projeto N"] != 1 {
 		t.Error("os números deviam aparecer como uma linha só na ajuda")
 	}
-	if contagem["←→ célula"] != 1 || contagem["↑↓ projeto"] != 1 {
-		t.Error("as setas deviam aparecer como uma linha por eixo")
+	if contagem["↑↓←→ célula"] != 1 {
+		t.Error("as quatro setas deviam aparecer como uma linha só na ajuda")
 	}
 }
 
