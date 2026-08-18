@@ -235,6 +235,28 @@ func Detectar() Perfil {
 	return CorTotal
 }
 
+// Tinta é um estilo já traduzido nos códigos que o terminal recebe: o que vem
+// antes do texto e o que vem depois. Pedir o desenho ao lipgloss custa a cópia
+// do estilo inteiro a cada chamada, e o mosaico pinta centenas de linhas por
+// quadro — o mesmo par de códigos, repetido.
+type Tinta struct{ antes, depois string }
+
+// Tingir congela um estilo em tinta. Só serve a estilo de cor: quem tem
+// largura, moldura ou recheio precisa do lipgloss por inteiro.
+func Tingir(estilo lipgloss.Style) Tinta {
+	antes, depois, _ := strings.Cut(estilo.Render("\x00"), "\x00")
+	return Tinta{antes: antes, depois: depois}
+}
+
+// Render pinta uma linha. Texto vazio sai vazio: pintar o nada só gastaria
+// bytes na tela.
+func (t Tinta) Render(texto string) string {
+	if texto == "" {
+		return ""
+	}
+	return t.antes + texto + t.depois
+}
+
 // Pintar devolve o estilo com frente e fundo já resolvidos para o perfil
 // corrente. Fundo vazio significa "não pinta fundo".
 func Pintar(frente, fundo string) lipgloss.Style {

@@ -3,6 +3,8 @@ package tema
 import (
 	"strings"
 	"testing"
+
+	"charm.land/lipgloss/v2"
 )
 
 // verdesECianos são as cores que NÃO podem virar estado. Verde é posse do
@@ -120,6 +122,24 @@ func TestTodoTokenTemDestinoEmDezesseisCores(t *testing.T) {
 	for _, m := range mapa {
 		if _, ok := ansi16[m.Cor]; !ok {
 			t.Fatalf("cor de estado %s sem equivalente na ANSI 16", m.Cor)
+		}
+	}
+}
+
+// TestTintaPintaIgualAoEstilo prende o congelamento: a tinta tem de escrever
+// exatamente os mesmos códigos que o estilo escreveria, senão a tela muda de
+// aparência sem ninguém pedir.
+func TestTintaPintaIgualAoEstilo(t *testing.T) {
+	for _, estilo := range []lipgloss.Style{
+		Pintar(FgFaint, ""),
+		Pintar(FgBright, BgRaised).Bold(true),
+		Pintar(BrandPhosphor, ""),
+	} {
+		tinta := Tingir(estilo)
+		for _, texto := range []string{"tesseract", "  espaços  ", "acentuação é ótima", "▸ ⬤ ⏵"} {
+			if tinta.Render(texto) != estilo.Render(texto) {
+				t.Fatalf("tinta divergiu do estilo em %q: %q != %q", texto, tinta.Render(texto), estilo.Render(texto))
+			}
 		}
 	}
 }

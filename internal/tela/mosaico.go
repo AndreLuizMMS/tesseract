@@ -402,6 +402,10 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 			pintarEstado.Render(estado) +
 			pintarTopo.Render(traco[1]),
 	}
+	// A lateral é a mesma em todas as linhas da caixa: pintar uma vez e repetir
+	// custa muito menos do que pedir o mesmo desenho a cada linha, e o miolo de
+	// uma célula tem dezenas delas.
+	lateral := pintarQuadro.Render(traco[5])
 	for i := range max(altura-2, 0) {
 		conteudo := ""
 		if i < len(celula.Linhas) {
@@ -410,7 +414,7 @@ func caixaDaCelula(celula protocolo.Celula, modo teclado.Modo, focada bool, larg
 				conteudo = apagar(conteudo)
 			}
 		}
-		linhas = append(linhas, pintarQuadro.Render(traco[5])+preencher(conteudo, miolo)+pintarQuadro.Render(traco[5]))
+		linhas = append(linhas, lateral+preencher(conteudo, miolo)+lateral)
 	}
 	if altura >= 2 {
 		linhas = append(linhas, pintarQuadro.Render(traco[2]+strings.Repeat(traco[4], miolo)+traco[3]))

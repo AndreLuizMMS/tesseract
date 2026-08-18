@@ -37,6 +37,10 @@ var (
 	corQuotaAlta = tema.Pintar(tema.StateBlock, "")
 	// corGradeAtiva é a tira do projeto que está com o foco.
 	corGradeAtiva = tema.Pintar(tema.LineActive, "")
+	// tintaApagada é o cinza do miolo das células fora do foco, congelado em
+	// código de terminal: é a pintura mais repetida do aplicativo, uma vez por
+	// linha de cada célula que não está com o teclado.
+	tintaApagada = tema.Tingir(corApagada)
 )
 
 // corProjeto é o nome do projeto na tira: caixa alta em fg.bright, o topo da
@@ -279,9 +283,21 @@ func tresPartes(esquerda, meio, direita string, largura int) string {
 	return preencher(linha, largura)
 }
 
+// larguraDe mede a linha na tela. A saída de terminal é quase toda ASCII, e
+// nesse caso um byte é uma coluna — a conta certa de gráfema, que sabe de
+// acento composto e de letra que ocupa duas colunas, só entra quando precisa.
+func larguraDe(texto string) int {
+	for i := range len(texto) {
+		if texto[i] < 0x20 || texto[i] > 0x7e {
+			return lipgloss.Width(texto)
+		}
+	}
+	return len(texto)
+}
+
 // preencher completa a linha com espaços até a largura, cortando o que sobrar.
 func preencher(texto string, largura int) string {
-	atual := lipgloss.Width(texto)
+	atual := larguraDe(texto)
 	switch {
 	case atual == largura:
 		return texto
@@ -351,10 +367,7 @@ func apagar(texto string) string {
 		}
 		saida.WriteRune(r)
 	}
-	if saida.Len() == 0 {
-		return ""
-	}
-	return corApagada.Render(saida.String())
+	return tintaApagada.Render(saida.String())
 }
 
 // lar é o diretório da conta, lido uma vez só.
