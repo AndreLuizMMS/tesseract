@@ -1,58 +1,61 @@
 <p align="center">
-  <img src="themes/logo-hero.svg" alt="Tesseract — o mosaico não desmonta" width="720">
+  <img src="themes/logo-hero.svg" alt="Tesseract — the mosaic doesn't fall apart" width="720">
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6" alt="licença MIT"></a>
-  <a href="https://github.com/AndreLuizMMS/tesseract/releases"><img src="https://img.shields.io/badge/vers%C3%A3o-0.1.0-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6" alt="versão 0.1.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6" alt="MIT license"></a>
+  <a href="https://github.com/AndreLuizMMS/tesseract/releases"><img src="https://img.shields.io/badge/vers%C3%A3o-0.1.0-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6" alt="version 0.1.0"></a>
   <a href="#instalar"><img src="https://img.shields.io/badge/plataforma-Linux%20%7C%20WSL%20%7C%20macOS-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6" alt="Linux, WSL, macOS"></a>
 </p>
 
 <br>
 
-Vários agentes de IA rodando lado a lado numa grade só. Claude Code, Cursor CLI, shells,
-logs de Docker e markdown, cada um numa célula viva, todos visíveis ao mesmo tempo — sem
-aba, sem alternar, sem descobrir tarde demais que um deles está travado esperando um sim.
-Por baixo, um motor que é serviço da sua conta: você fecha a tela e o trabalho continua, a
-máquina reinicia e a grade volta nas mesmas posições, com as conversas reatadas.
+Several AI agents running side by side in a single grid. Claude Code, Cursor CLI, shells,
+Docker logs and markdown, each in a living cell, all visible at the same time — no tabs,
+no switching, no finding out too late that one of them is stuck waiting for a yes.
+Underneath, an engine that's a service on your account: you close the screen and the work
+keeps going, the machine reboots and the grid comes back in the same positions, with the
+conversations picked back up.
 
 <p align="center">
-  <img src="docs/img/mosaico.svg" alt="O mosaico do Tesseract: três projetos, cinco células, uma travada esperando aprovação" width="1000">
+  <img src="docs/img/mosaico.svg" alt="The Tesseract mosaic: three projects, five cells, one stuck waiting for approval" width="1000">
 </p>
 
-`⬤ respondeu` tem algo para ler. `⏵ aprovar` **não anda** sem você — e é o único sinal que
-vira barra sólida na linha inteira, piscando, porque urgência aqui é área preenchida, não
-cor. Funciona de longe, no canto do olho e com `NO_COLOR=1`.
+`⬤ answered` has something to read. `⏵ approve` **won't move** without you — and it's the
+only signal that turns into a solid bar across the whole line, blinking, because urgency
+here is filled area, not color. Works from a distance, out of the corner of your eye, and
+with `NO_COLOR=1`.
 
-## Instalar
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AndreLuizMMS/tesseract/main/install.sh | bash
 ```
 
-Uma linha. O instalador baixa o Go se a máquina não tiver um que sirva, compila o comando
-`ts`, instala o serviço de usuário e sobe o motor. **Atualizar é rodar a mesma linha.**
+One line. The installer downloads Go if the machine doesn't have a usable one, compiles
+the `ts` command, installs the user service and starts the engine. **Updating is running
+the same line.**
 
-Depois, dentro de qualquer projeto:
+Then, inside any project:
 
 ```bash
 ts
 ```
 
-## Atalhos
+## Shortcuts
 
-Andar é só com as setas — letra nenhuma mexe na grade. `↵` entra na célula e **toda** tecla
-passa a ser dela; `ctrl-l` devolve o teclado. `?` abre o mapa na tela.
+Moving around is only with the arrows — no letter touches the grid. `↵` enters the cell and
+**every** key becomes hers; `ctrl-l` gives back the keyboard. `?` opens the map on screen.
 
-**[O mapa completo do teclado →](docs/atalhos.md)**
+**[The full keyboard map →](docs/atalhos.md)**
 
-## Documentação
+## Documentation
 
 | | |
 |---|---|
-| [Manual](docs/manual.md) | projetos, células, os dois modos, Docker, configuração |
-| [Atalhos](docs/atalhos.md) | o teclado inteiro e os comandos de linha |
+| [Manual](docs/manual.md) | projects, cells, the two modes, Docker, configuration |
+| [Shortcuts](docs/atalhos.md) | the whole keyboard and the command line |
 
-## Licença
+## License
 
 MIT.

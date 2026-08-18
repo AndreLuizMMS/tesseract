@@ -1,5 +1,5 @@
 # themes/alacritty.toml
-# Importe no alacritty.toml:
+# Import in alacritty.toml:
 #   [general]
 #   import = ["~/.config/alacritty/themes/tesseract-neon.toml"]
 
@@ -13,8 +13,8 @@ bright_foreground = "#E8F4EC"
 text = "#030507"
 cursor = "#55FFA6"
 
-# Cursor do modo vi: sem cor própria na paleta. Repete o cursor normal em vez
-# de inventar matiz. (Decisão conservadora.)
+# Vi-mode cursor: no color of its own in the palette. Repeats the normal
+# cursor instead of inventing a hue. (Conservative decision.)
 [colors.vi_mode_cursor]
 text = "#030507"
 cursor = "#55FFA6"
@@ -63,9 +63,9 @@ magenta = "#C77DFF"
 cyan    = "#22E0D0"
 white   = "#E8F4EC"
 
-# Alacritty pede a família "dim" completa. A paleta não tem uma terceira
-# rampa, então dim reusa as cores normais e escuras já definidas — nenhuma
-# cor nova foi criada.
+# Alacritty requires the full "dim" family. The palette has no third ramp,
+# so dim reuses the normal and dark colors already defined — no new color
+# was created.
 [colors.dim]
 black   = "#030507"
 red     = "#C22F38"

@@ -1,82 +1,83 @@
-# Atalhos
+# Shortcuts
 
-O mapa inteiro sai do próprio código: nenhuma tecla que não exista aparece aqui.
+The whole map comes straight from the code: no key that doesn't exist shows up here.
 
-## Teclado
+## Keyboard
 
-**Andar — só setas, nenhuma letra**
+**Move — only arrows, no letters**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `↑` `↓` | célula anterior / próxima, atravessando projeto |
-| `←` `→` | projeto anterior / próximo |
-| `espaço` | pula para a próxima célula que pede atenção, atravessando projeto |
-| `1`…`9` | vai direto para o projeto N |
-| `tab` | troca a aba da célula: claude, cursor, shell, md (`shift-tab` volta) |
+| `↑` `↓` | previous / next cell, crossing projects |
+| `←` `→` | previous / next project |
+| `space` | jumps to the next cell asking for attention, crossing projects |
+| `1`…`9` | goes straight to project N |
+| `tab` | switches the cell's tab: claude, cursor, shell, md (`shift-tab` goes back) |
 
-**Teclado e tela**
+**Keyboard and screen**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `↵` | entra em DIGITAR na célula focada |
-| `ctrl-l` | devolve o teclado ao aplicativo |
-| `o` | célula focada em tela cheia (liga e desliga) |
-| `v` | alterna mosaico ↔ lista |
+| `↵` | enters TYPE mode on the focused cell |
+| `ctrl-l` | gives the keyboard back to the app |
+| `o` | focused cell in full screen (toggles on and off) |
+| `v` | switches mosaic ↔ list |
 
-**Criar, matar, nomear**
+**Create, kill, rename**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `n` | criar — um formulário só, que começa na sua casa e não pergunta o tipo |
-| `r` | retoma célula parada, ou sobe célula caída |
-| `D` | mata a célula focada — sempre confirma |
-| `R` | renomeia a célula **e propaga o nome para dentro do agente** |
-| `ctrl-r` | adota na célula o nome que o agente deu à conversa |
+| `n` | create — a single form, that starts at your home dir and doesn't ask the type |
+| `r` | resumes a stopped cell, or restarts a crashed one |
+| `D` | kills the focused cell — always confirms |
+| `R` | renames the cell **and propagates the name into the agent** |
+| `ctrl-r` | adopts, on the cell, the name the agent gave the conversation |
 
-**Agir e ler**
+**Act and read**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `p` | manda prompt para a célula focada sem entrar nela |
-| `d` | abre o painel Docker do projeto focado |
-| `ctrl-e` | abre o diretório do projeto na IDE configurada (`cursor /caminho`) |
-| roda do mouse | rola o histórico da célula |
-| arrastar com o mouse | marca um trecho da célula e **copia ao soltar** |
-| `/` | busca no histórico da célula focada |
-| `esc` | sai da rolagem / fecha o que estiver aberto |
-| `?` | ajuda |
-| `q` | fecha a tela — o motor continua rodando |
+| `p` | sends a prompt to the focused cell without entering it |
+| `d` | opens the Docker panel for the focused project |
+| `ctrl-e` | opens the project directory in the configured IDE (`cursor /path`) |
+| mouse wheel | scrolls the cell's history |
+| drag with mouse | marks a section of the cell and **copies on release** |
+| `/` | searches the focused cell's history |
+| `esc` | exits scrolling / closes whatever is open |
+| `?` | help |
+| `q` | closes the screen — the engine keeps running |
 
-## Comandos
+## Commands
 
 ```
-ts                 abre a tela, subindo o motor se preciso
-ts novo <dir>      adiciona um projeto sem abrir a tela
-ts status          estado do motor e resumo de projetos e células
-ts stop            desliga o motor e todas as células
-ts reset           apaga o estado salvo e derruba tudo, preservando a configuração
+ts                 opens the screen, starting the engine if needed
+ts novo <dir>      adds a project without opening the screen
+ts status          engine state and summary of projects and cells
+ts stop            shuts down the engine and all cells
+ts reset           deletes the saved state and tears everything down, keeping the config
 ```
 
-## Recuperação
+## Recovery
 
-`wsl --shutdown` mata todos os processos. Quando a WSL volta, o serviço sobe sozinho e
-reconstrói a grade:
+`wsl --shutdown` kills every process. When WSL comes back, the service starts by itself and
+rebuilds the grid:
 
-| Tipo | O que acontece |
+| Type | What happens |
 |---|---|
-| `sessao` | volta na mesma aba, com a conversa de cada agente reatada e **parada**. Nenhum prompt é disparado |
-| aba `bash` | shell novo e limpo; o histórico anterior fica rolável acima da linha de queda |
-| `logs` | volta a acompanhar o serviço; se a stack estiver parada, engata sozinha quando ele subir |
-| `md` | relê o arquivo |
-| Docker | **não sobe sozinho**. Subir stack é decisão sua |
+| `session` | comes back on the same tab, with each agent's conversation resumed and **stopped**. No prompt is fired |
+| `bash` tab | new, clean shell; the previous history stays scrollable above the drop line |
+| `logs` | goes back to following the service; if the stack is stopped, it hooks in by itself once it comes up |
+| `md` | rereads the file |
+| Docker | **doesn't come up by itself**. Bringing up a stack is your call |
 
-O risco que a recuperação automática cria — agente trabalhando sem ninguém na frente da
-tela — é cortado na raiz: **reatar a conversa nunca dispara trabalho**. Existe um teste que
-falha se qualquer byte for escrito no teclado do agente durante a reconstituição.
+The risk that automatic recovery creates — an agent working with nobody in front of the
+screen — is cut at the root: **resuming a conversation never fires off work**. There's a
+test that fails if a single byte gets written to the agent's keyboard during
+reconstitution.
 
-## Aviso
+## Notification
 
-Quem notifica é o motor, não a tela. Som e notificação do sistema com o nome da célula e do
-projeto, mesmo com a tela fechada. Na WSL, o toast sai pelo PowerShell do Windows; se você
-tiver `wsl-notify-send.exe` ou `notify-send`, eles são usados no lugar. Os dois avisos são
-desligáveis, separadamente.
+The engine notifies, not the screen. Sound and system notification with the cell's and the
+project's name, even with the screen closed. On WSL, the toast goes out through Windows
+PowerShell; if you have `wsl-notify-send.exe` or `notify-send`, those are used instead. Both
+notifications can be turned off, separately.

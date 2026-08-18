@@ -1,30 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 136 136" width="136" height="136" role="img" aria-label="Tesseract">
   <!--
     themes/logo.svg
-    Dois quadrados 100x100, traço 8, o de trás deslocado +24/+24.
-    Sem gradiente, sem sombra, sem raio de borda, sem brilho.
-    Cantos em esquadro: stroke-linejoin="miter".
+    Two 100x100 squares, stroke 8, the back one offset +24/+24.
+    No gradient, no shadow, no border radius, no glow.
+    Square corners: stroke-linejoin="miter".
 
-    Decisão registrada: a tessera 18x18 fica no centro geométrico da marca
-    inteira (66,66) — o ponto médio entre o centro do quadrado da frente
-    (54,54) e o do quadrado de trás (78,78). É o mesmo lugar do ▓ na versão
-    em caractere: dentro da área onde os dois quadrados se cruzam.
+    Decision on record: the 18x18 tessera sits at the whole mark's geometric
+    center (66,66) — the midpoint between the front square's center (54,54)
+    and the back square's (78,78). It's the same spot as the ▓ in the
+    character version: inside the area where the two squares overlap.
 
-    Nota: na versão em caractere o quadrado da frente é brand.core (#1F7A4C) e
-    o ▓ é o phosphor. No vetor a ordem se inverte — quadrado da frente em
-    phosphor (#55FFA6) e tessera em fg.bright (#E8F4EC) — porque no traço fino
-    de 8 unidades o verde escuro some contra fundo escuro.
+    Note: in the character version the front square is brand.core (#1F7A4C)
+    and the ▓ is the phosphor. In the vector the order flips — front square in
+    phosphor (#55FFA6) and tessera in fg.bright (#E8F4EC) — because at the
+    thin 8-unit stroke the dark green disappears against a dark background.
   -->
   <title>Tesseract</title>
 
-  <!-- quadrado de trás: a segunda dimensão -->
+  <!-- back square: the second dimension -->
   <rect x="28" y="28" width="100" height="100"
         fill="none" stroke="#22E0D0" stroke-width="8" stroke-linejoin="miter"/>
 
-  <!-- quadrado da frente -->
+  <!-- front square -->
   <rect x="4" y="4" width="100" height="100"
         fill="none" stroke="#55FFA6" stroke-width="8" stroke-linejoin="miter"/>
 
-  <!-- tessera acesa -->
+  <!-- lit tessera -->
   <rect x="57" y="57" width="18" height="18" fill="#E8F4EC"/>
 </svg>

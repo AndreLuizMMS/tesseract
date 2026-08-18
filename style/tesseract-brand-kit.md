@@ -1,72 +1,72 @@
 # Tesseract — Brand Kit
 
-**Versão 2.0 · NEON · identidade para software de terminal**
+**Version 2.0 · NEON · identity for terminal software**
 
-Marca: `Tesseract` · Comando: `ts` · Glifo: `⧉` · Tagline: *o mosaico não desmonta*
-
----
-
-## 1. As duas regras fundadoras
-
-O símbolo é **dois quadrados**. Por isso a marca tem **duas cores**, e cada uma carrega um significado fixo.
-
-> **Verde é posse.** Verde nunca é cor de estado. Verde significa "seu teclado está aqui". Existe um único fósforo aceso na tela inteira, em uma célula por vez.
-
-> **Ciano é estrutura.** Ciano é a segunda dimensão — o quadrado de trás, a grade, o glifo, a numeração. Também nunca é estado.
-
-Consequência: o alfabeto de estados (▸ ⬤ ⏵ ✖ ○ ⚠) não usa verde nem ciano. Nenhum tom, em lugar nenhum.
-
-**O neon só funciona porque quase tudo está apagado.** Escuridão é o material principal; o brilho é a exceção. Se mais de 5% da tela estiver acesa, a identidade quebrou.
+Brand: `Tesseract` · Command: `ts` · Glyph: `⧉` · Tagline: *the mosaic never falls apart*
 
 ---
 
-## 2. Onde o cyberpunk pode aparecer — e onde não
+## 1. The two founding rules
 
-| Efeito | Superfície de marca<br><small>site, README, banner, docs, social</small> | Produto<br><small>dentro do terminal</small> |
+The symbol is **two squares**. That's why the brand has **two colors**, each carrying a fixed meaning.
+
+> **Green is ownership.** Green is never a state color. Green means "your keyboard is here". There's a single phosphor glow lit across the whole screen, in one cell at a time.
+
+> **Cyan is structure.** Cyan is the second dimension — the back square, the grid, the glyph, the numbering. It's also never a state.
+
+Consequence: the state alphabet (▸ ⬤ ⏵ ✖ ○ ⚠) uses neither green nor cyan. No shade, anywhere.
+
+**Neon only works because almost everything is off.** Darkness is the primary material; the glow is the exception. If more than 5% of the screen is lit, the identity has broken.
+
+---
+
+## 2. Where cyberpunk can show up — and where it can't
+
+| Effect | Brand surface<br><small>site, README, banner, docs, social</small> | Product<br><small>inside the terminal</small> |
 |---|---|---|
-| Duotone verde + ciano | sim | sim |
-| Glow / bloom | sim | **não** — terminal não emite luz |
-| Scanline, vinheta CRT | sim | **não** |
-| Aberração cromática | só no wordmark | **não** |
-| Glitch / jitter | só em hover do símbolo | **não** |
-| Chuva de caracteres, katakana | **não** | **não** |
-| Rosa neon como terceira cor | **não** | **não** — vira arcade |
+| Green + cyan duotone | yes | yes |
+| Glow / bloom | yes | **no** — a terminal doesn't emit light |
+| Scanline, CRT vignette | yes | **no** |
+| Chromatic aberration | wordmark only | **no** |
+| Glitch / jitter | symbol hover only | **no** |
+| Digital rain, katakana | **no** | **no** |
+| Neon pink as a third color | **no** | **no** — turns it into arcade |
 
-Motivo único para todos os "não" do produto: o Tesseract promete **denso, legível e confiável**. Glow em texto de UI destrói densidade legível. O neon é a imagem da marca, não a textura do trabalho.
-
----
-
-## 3. Essência
-
-| Campo | Definição |
-|---|---|
-| Essência | Um mosaico de agentes que não desmonta |
-| Promessa | Nada esconde atrás de aba, nada se perde quando a janela fecha |
-| Arquétipo | Governante (ordem, controle) + Criador (instrumento de ofício) |
-| Personalidade | Denso · Disciplinado · Permanente · Alerta sem gritar |
-| Metáfora | Torre de comando feita de pedras de mosaico |
-
-**Tagline:** `O mosaico não desmonta.`
-**One-liner técnico:** `Vários agentes. Uma grade. Um teclado por vez.`
-**Descrição:** `Painel de terminal para rodar agentes de IA lado a lado, com sessões que sobrevivem à máquina.`
+Single reason for every "no" in the product: Tesseract promises **dense, legible, and reliable**. Glow on UI text destroys legible density. Neon is the brand's imagery, not the texture of the work.
 
 ---
 
-## 4. Símbolo
+## 3. Essence
 
-Dois quadrados iguais deslocados na diagonal (projeção do hipercubo) + uma tessera acesa no centro da sobreposição.
-
-| Regra | Valor |
+| Field | Definition |
 |---|---|
-| Quadrado da frente | 100 × 100, traço 8, cor `brand.phosphor` |
-| Quadrado de trás | idêntico, deslocado +24 em X e +24 em Y, cor `flux` |
-| Tessera | 18 × 18 sólido, `fg.bright`, no centro da sobreposição |
-| Proibido | raio de borda, gradiente, sombra, preenchimento nos quadrados |
-| Respiro | metade da largura do quadrado externo, todos os lados |
+| Essence | A mosaic of agents that never falls apart |
+| Promise | Nothing hides behind a tab, nothing is lost when the window closes |
+| Archetype | Ruler (order, control) + Creator (instrument of craft) |
+| Personality | Dense · Disciplined · Permanent · Alert without shouting |
+| Metaphor | A command tower built from mosaic stones |
 
-### Versão em caractere — canônica, 7×5
+**Tagline:** `The mosaic never falls apart.`
+**Technical one-liner:** `Multiple agents. One grid. One keyboard at a time.`
+**Description:** `Terminal panel for running AI agents side by side, with sessions that survive the machine.`
 
-Esta é a versão que vive dentro do produto.
+---
+
+## 4. Symbol
+
+Two equal squares offset diagonally (hypercube projection) + a lit tessera at the center of the overlap.
+
+| Rule | Value |
+|---|---|
+| Front square | 100 × 100, stroke 8, color `brand.phosphor` |
+| Back square | identical, offset +24 on X and +24 on Y, color `flux` |
+| Tessera | 18 × 18 solid, `fg.bright`, at the center of the overlap |
+| Forbidden | border radius, gradient, shadow, fill on the squares |
+| Clear space | half the outer square's width, on all sides |
+
+### Character version — canonical, 7×5
+
+This is the version that lives inside the product.
 
 ```
 ┌────┐
@@ -76,221 +76,221 @@ Esta é a versão que vive dentro do produto.
  └────┘
 ```
 
-Colorização em terminal: quadrado de trás em `color14` (ciano), da frente em `color2` (verde), `▓` em `color10` (fósforo).
+Terminal coloring: back square in `color14` (cyan), front square in `color2` (green), `▓` in `color10` (phosphor).
 
-### Glifo único
+### Single glyph
 
-`⧉` (U+29C9) — prompt, título de janela, badge, qualquer lugar com um caractere.
+`⧉` (U+29C9) — prompt, window title, badge, anywhere with room for one character.
 
-### Degradação
+### Degradation
 
-| Tamanho | O que mostrar |
+| Size | What to show |
 |---|---|
-| ≥ 48px | Símbolo completo, duotone, tessera |
-| 24–47px | Completo, traço proporcionalmente mais grosso |
-| 16px (favicon) | Só os dois quadrados, monocromático, **sem** tessera |
-| 1 caractere | `⧉` |
-| Dentro do app | Versão 7×5 em box-drawing |
+| ≥ 48px | Full symbol, duotone, tessera |
+| 24–47px | Full, proportionally thicker stroke |
+| 16px (favicon) | Just the two squares, monochrome, **no** tessera |
+| 1 character | `⧉` |
+| Inside the app | 7×5 box-drawing version |
 
 ---
 
-## 5. Paleta v2.0
+## 5. Palette v2.0
 
-### Escuridão
+### Darkness
 
-| Token | Hex | Uso |
+| Token | Hex | Use |
 |---|---|---|
-| `bg.void` | `#030507` | Fundo do modo DIGITAR |
-| `bg.base` | `#070B0C` | Fundo padrão |
-| `bg.surface` | `#0C1315` | Corpo da célula |
-| `bg.raised` | `#121C1F` | Cabeçalho, seleção, painel Docker |
-| `line.dim` | `#16282A` | Grade não focada |
-| `line.active` | `#205047` | Grade do projeto focado |
+| `bg.void` | `#030507` | TYPE mode background |
+| `bg.base` | `#070B0C` | Default background |
+| `bg.surface` | `#0C1315` | Cell body |
+| `bg.raised` | `#121C1F` | Header, selection, Docker panel |
+| `line.dim` | `#16282A` | Unfocused grid |
+| `line.active` | `#205047` | Focused project grid |
 
-### Texto
+### Text
 
-| Token | Hex | Uso |
+| Token | Hex | Use |
 |---|---|---|
-| `fg.faint` | `#3E534E` | Desligado, ajuda, atalhos |
-| `fg.muted` | `#6C8076` | Texto secundário |
-| `fg.default` | `#BFD1C6` | Texto principal |
-| `fg.bright` | `#E8F4EC` | Títulos, tessera |
+| `fg.faint` | `#3E534E` | Off, help, shortcuts |
+| `fg.muted` | `#6C8076` | Secondary text |
+| `fg.default` | `#BFD1C6` | Primary text |
+| `fg.bright` | `#E8F4EC` | Titles, tessera |
 
-### Neon — verde é posse
+### Neon — green is ownership
 
-| Token | Hex | Uso | Frequência |
+| Token | Hex | Use | Frequency |
 |---|---|---|---|
-| `brand.deep` | `#0B3322` | Fundo de selos | livre |
-| `brand.core` | `#1F7A4C` | Grade do projeto ativo, logo | livre |
-| `brand.live` | `#35C27A` | Célula focada em NAVEGAR | 1 por tela |
-| `brand.phosphor` | `#55FFA6` | **Dono do teclado.** Cursor, borda DIGITAR, selo, tessera | **1 por tela** |
+| `brand.deep` | `#0B3322` | Badge background | free |
+| `brand.core` | `#1F7A4C` | Active project grid, logo | free |
+| `brand.live` | `#35C27A` | Focused cell in NAVIGATE | 1 per screen |
+| `brand.phosphor` | `#55FFA6` | **Keyboard owner.** Cursor, TYPE border, badge, tessera | **1 per screen** |
 
-### Neon — ciano é estrutura
+### Neon — cyan is structure
 
-| Token | Hex | Uso |
+| Token | Hex | Use |
 |---|---|---|
-| `flux.deep` | `#082F31` | Fundos de rótulo |
-| `flux.core` | `#128C86` | Grade, cantos, labels |
-| `flux` | `#22E0D0` | Glifo `⧉`, numeração, quadrado de trás |
+| `flux.deep` | `#082F31` | Label backgrounds |
+| `flux.core` | `#128C86` | Grid, corners, labels |
+| `flux` | `#22E0D0` | `⧉` glyph, numbering, back square |
 
-### Estados — nenhum verde, nenhum ciano
+### States — no green, no cyan
 
-| Sinal | Estado | Token | Hex |
+| Signal | State | Token | Hex |
 |---|---|---|---|
-| `▸` | trabalhando | `state.working` | `#6C8076` |
-| `⬤` | respondeu | `state.read` | `#7DB7E8` |
-| `⏵` | aprovar | `state.block` | `#FFB454` |
-| `✖` | caiu | `state.dead` | `#FF3B47` |
-| `○` | parada | `state.off` | `#3E534E` |
-| `⚠` | órfã | `state.orphan` | `#C77DFF` |
+| `▸` | working | `state.working` | `#6C8076` |
+| `⬤` | responded | `state.read` | `#7DB7E8` |
+| `⏵` | approve | `state.block` | `#FFB454` |
+| `✖` | crashed | `state.dead` | `#FF3B47` |
+| `○` | stopped | `state.off` | `#3E534E` |
+| `⚠` | orphaned | `state.orphan` | `#C77DFF` |
 
 ---
 
-## 6. Respondeu ≠ Aprovar
+## 6. Responded ≠ Approve
 
-O coração do produto. A diferença **não pode depender de cor nem de brilho**.
+The heart of the product. The difference **cannot depend on color or brightness**.
 
-**Regra: urgência é área preenchida, não matiz.**
+**Rule: urgency is filled area, not hue.**
 
-| | Respondeu | Aprovar |
+| | Responded | Approve |
 |---|---|---|
-| Forma | ponto `⬤` | triângulo `⏵` |
-| Área | glifo pequeno | **barra sólida na linha inteira** |
-| Vídeo | normal | **invertido** |
-| Movimento | estático | pisca a cada 2s |
-| Cor | azul-gelo | âmbar |
+| Shape | dot `⬤` | triangle `⏵` |
+| Area | small glyph | **solid bar across the full line** |
+| Video | normal | **inverted** |
+| Motion | static | blinks every 2s |
+| Color | ice blue | amber |
 
-Teste: com `NO_COLOR=1`, a linha de `aprovar` continua sendo a única barra sólida da tela.
-
----
-
-## 7. Os dois modos
-
-### NAVEGAR
-
-- Fundo `bg.base`, células em `bg.surface`
-- Grade em traço simples `┌ ─ ┐ │ └ ┘`, em `flux.core`
-- Projeto focado em `line.active`, os outros em `line.dim`
-- Célula selecionada com borda `brand.live`
-- Todos os estados visíveis
-
-### DIGITAR
-
-- Fundo cai para `bg.void`; tudo que não é a célula ativa vai para `fg.faint`
-- Célula ativa mantém `bg.surface` e ganha **borda dupla** `╔ ═ ╗ ║ ╚ ╝` em `brand.phosphor`
-- Selo invertido no canto superior direito: `▓ DIGITAR ▓` (fundo fósforo, texto `bg.void`)
-- Cursor em bloco, `brand.phosphor`
-
-**Regra:** traço simples = você comanda o app. Traço duplo = a célula comanda o teclado. Funciona sem cor.
+Test: with `NO_COLOR=1`, the `approve` line remains the only solid bar on screen.
 
 ---
 
-## 8. Tipografia
+## 7. The two modes
 
-| Papel | Fonte | Nota |
+### NAVIGATE
+
+- Background `bg.base`, cells in `bg.surface`
+- Grid in single stroke `┌ ─ ┐ │ └ ┘`, in `flux.core`
+- Focused project in `line.active`, the rest in `line.dim`
+- Selected cell with `brand.live` border
+- All states visible
+
+### TYPE
+
+- Background drops to `bg.void`; everything but the active cell goes to `fg.faint`
+- Active cell keeps `bg.surface` and gets a **double border** `╔ ═ ╗ ║ ╚ ╝` in `brand.phosphor`
+- Inverted badge in the top-right corner: `▓ TYPE ▓` (phosphor background, `bg.void` text)
+- Block cursor, `brand.phosphor`
+
+**Rule:** single stroke = you command the app. Double stroke = the cell commands the keyboard. Works without color.
+
+---
+
+## 8. Typography
+
+| Role | Font | Note |
 |---|---|---|
-| Display / wordmark | **Martian Mono** 800 | Só caixa alta, tracking +.24em, com aberração cromática de 2px |
-| Produto | **Iosevka Term** | Estreita = mais colunas por célula |
-| Alternativa livre | **JetBrains Mono** | Se Iosevka for densa demais |
-| Alternativa paga | **Berkeley Mono** | Caráter, se quiser pagar |
+| Display / wordmark | **Martian Mono** 800 | Uppercase only, tracking +.24em, with 2px chromatic aberration |
+| Product | **Iosevka Term** | Narrow = more columns per cell |
+| Free alternative | **JetBrains Mono** | If Iosevka is too dense |
+| Paid alternative | **Berkeley Mono** | Character, if you're willing to pay |
 
-**Não use:** Fira Code, Cascadia, Inter, nada com ligadura de seta — ligadura embaralha alinhamento de grade.
+**Don't use:** Fira Code, Cascadia, Inter, anything with arrow ligatures — ligatures scramble grid alignment.
 
-Hierarquia dentro do app:
+Hierarchy inside the app:
 
-| Nível | Estilo |
+| Level | Style |
 |---|---|
-| Nome do projeto | Caixa alta, `fg.bright`, tracking +1 |
-| Nome da célula | `fg.default` |
-| Estado / metadado | `fg.muted` |
-| Ajuda / atalho | `fg.faint` |
+| Project name | Uppercase, `fg.bright`, tracking +1 |
+| Cell name | `fg.default` |
+| State / metadata | `fg.muted` |
+| Help / shortcut | `fg.faint` |
 
 ---
 
-## 9. Aplicações
+## 9. Applications
 
-### Banner de boot
+### Boot banner
 
 ```
    ┌────┐
    │┌───┼┐    T E S S E R A C T
-   ││ ▓ ││    o mosaico não desmonta
+   ││ ▓ ││    the mosaic never falls apart
    └┼───┘│
     └────┘    ts 0.1.0 // MIT
 
-   8 células recuperadas // 3 projetos // 41ms
+   8 cells recovered // 3 projects // 41ms
 ```
 
-### Outras superfícies
+### Other surfaces
 
-| Superfície | Forma |
+| Surface | Form |
 |---|---|
-| Título da janela | `⧉ ts — api/claude-refactor` |
-| Prompt | `⧉ ~/projetos/api ›` |
-| Badge de README | `⧉ tesseract // MIT` |
-| Favicon | dois quadrados, sólido, sem tessera |
-| Fundo claro (README GitHub) | símbolo sólido `#070B0C`, sem neon — verde claro em branco não lê |
+| Window title | `⧉ ts — api/claude-refactor` |
+| Prompt | `⧉ ~/projects/api ›` |
+| README badge | `⧉ tesseract // MIT` |
+| Favicon | two squares, solid, no tessera |
+| Light background (GitHub README) | solid `#070B0C` symbol, no neon — light green on white doesn't read |
 
 ---
 
-## 10. Tom de voz
+## 10. Tone of voice
 
-Direto, técnico, no imperativo, com o atalho junto. Sem exclamação, sem emoji, sem primeira pessoa do plural.
+Direct, technical, imperative, with the shortcut attached. No exclamation marks, no emoji, no first-person plural.
 
-| Somos | Não somos |
+| We are | We are not |
 |---|---|
-| Precisos | Frios |
-| Curtos | Secos |
-| Técnicos | Herméticos |
-| Calmos no erro | Dramáticos |
+| Precise | Cold |
+| Short | Terse |
+| Technical | Hermetic |
+| Calm on error | Dramatic |
 
-### Microcopy real
-
-```
-Nenhuma célula neste projeto. `n` cria a primeira.
-Travado esperando você. `Enter` aprova, `Esc` recusa.
-Caiu com exit 1. `r` reinicia no mesmo lugar.
-8 células recuperadas. Mesma posição.
-Célula órfã: processo vivo, projeto sumiu. `m` move, `k` mata.
-```
-
-### Anti-exemplos
+### Real microcopy
 
 ```
-Ops! Algo deu errado 😅
-Carregando sua mágica...
-ACESSO CONCEDIDO, RUNNER.
-Nenhum item encontrado.
+No cells in this project yet. `n` creates the first one.
+Blocked, waiting on you. `Enter` approves, `Esc` declines.
+Crashed with exit 1. `r` restarts in the same spot.
+8 cells recovered. Same position.
+Orphaned cell: process alive, project gone. `m` moves it, `k` kills it.
 ```
 
-O terceiro é o risco novo da v2: **neon na imagem não autoriza cosplay no texto**. A voz continua seca.
-O quarto falha por outro motivo: descreve o vazio sem dar a saída. Todo estado vazio termina numa tecla.
+### Anti-examples
+
+```
+Oops! Something went wrong 😅
+Loading your magic...
+ACCESS GRANTED, RUNNER.
+No items found.
+```
+
+The third is the new risk in v2: **neon in the imagery doesn't authorize cosplay in the copy**. The voice stays dry.
+The fourth fails for a different reason: it describes the emptiness without giving the way out. Every empty state ends on a key.
 
 ---
 
 ## 11. Do & Don't
 
-**Faça**
+**Do**
 
-1. Escuridão primeiro — o neon só existe porque 95% da tela está apagada.
-2. Verde = posse, ciano = estrutura. Nunca invertido.
-3. Glow e scanline só na superfície de marca, nunca no terminal.
-4. Diferencie estados por forma e área antes de cor.
-5. Um único fósforo aceso por tela.
-6. Teste tudo com `NO_COLOR=1` antes de aprovar.
+1. Darkness first — neon only exists because 95% of the screen is off.
+2. Green = ownership, cyan = structure. Never reversed.
+3. Glow and scanline only on the brand surface, never in the terminal.
+4. Distinguish states by shape and area before color.
+5. A single phosphor glow lit per screen.
+6. Test everything with `NO_COLOR=1` before approving.
 
-**Não faça**
+**Don't**
 
-1. Verde ou ciano em sinal de estado.
-2. Chuva de caracteres, katakana decorativo, "ACESSO CONCEDIDO".
-3. Glow em texto de UI.
-4. Mais de um selo invertido visível ao mesmo tempo.
-5. Rosa neon como terceira cor.
-6. A palavra "tesseract" sozinha perto de OCR ou imagem.
+1. Green or cyan as a state signal.
+2. Digital rain, decorative katakana, "ACCESS GRANTED".
+3. Glow on UI text.
+4. More than one inverted badge visible at once.
+5. Neon pink as a third color.
+6. The word "tesseract" alone next to OCR or imagery.
 
 ---
 
-## 12. ANSI 16 — a base do colorscheme
+## 12. ANSI 16 — the base of the colorscheme
 
 ```
 background      #070B0C
@@ -336,14 +336,14 @@ color15  white    #E8F4EC
 
 ---
 
-## 13. Checklist de implementação
+## 13. Implementation checklist
 
-- [ ] 20 tokens como constantes no código, nenhum hex solto
-- [ ] Grade em traço simples (NAVEGAR) e duplo (DIGITAR)
-- [ ] `brand.phosphor` só acessível pelo componente da célula ativa
-- [ ] `aprovar` renderiza barra invertida, não só glifo colorido
-- [ ] Banner de boot com o mark 7×5 duotone
-- [ ] Prompt e título de janela com `⧉`
-- [ ] Rodar com `NO_COLOR=1` — estados continuam distinguíveis
-- [ ] Testar em terminal de 16 cores (WSL padrão)
-- [ ] Testar o README em tema claro do GitHub
+- [ ] 20 tokens as constants in the code, no loose hex
+- [ ] Grid in single stroke (NAVIGATE) and double (TYPE)
+- [ ] `brand.phosphor` only accessible through the active cell's component
+- [ ] `approve` renders an inverted bar, not just a colored glyph
+- [ ] Boot banner with the 7×5 duotone mark
+- [ ] Prompt and window title with `⧉`
+- [ ] Run with `NO_COLOR=1` — states remain distinguishable
+- [ ] Test on a 16-color terminal (default WSL)
+- [ ] Test the README on GitHub's light theme

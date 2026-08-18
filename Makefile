@@ -1,4 +1,4 @@
-# Atalhos do dia a dia. O portão é sempre o mesmo: build, vet e testes.
+# Everyday shortcuts. The gate is always the same: build, vet, and tests.
 .PHONY: gate build test instalar desinstalar limpar
 
 gate:

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -62,7 +62,7 @@ body{
 }
 body.digitar{--page-bg:var(--bg-void);}
 
-/* scanlines + vinheta CRT — só na superfície de marca, nunca no produto */
+/* scanlines + CRT vignette — brand surface only, never in the product */
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:200;
   background:repeating-linear-gradient(0deg,rgba(0,0,0,.34) 0 1px,transparent 1px 3px);
@@ -76,7 +76,7 @@ body::after{
 body.digitar::before{opacity:.78;}
 body.mono::before{opacity:.32;}
 
-/* ---------- barra ---------- */
+/* ---------- bar ---------- */
 .bar{
   position:sticky;top:0;z-index:150;display:flex;align-items:center;gap:1.2ch;
   padding:.7rem 4vw;background:var(--page-bg);
@@ -96,7 +96,7 @@ body.mono::before{opacity:.32;}
 .key:focus-visible{outline:2px solid var(--flux);outline-offset:2px;}
 .key kbd{color:var(--flux);font-family:inherit;}
 
-/* ---------- estrutura ---------- */
+/* ---------- structure ---------- */
 .wrap{max-width:var(--measure);margin:0 auto;padding:0 4vw;position:relative;z-index:2;}
 body.digitar main .dim{opacity:.09;}
 main .dim{transition:opacity 260ms linear;}
@@ -189,7 +189,7 @@ body.mono .wordmark{text-shadow:none;}
 .sw .hex{font-size:11px;color:var(--fg-faint);letter-spacing:.06em;}
 .sw .use{font-size:11px;color:var(--fg-muted);margin-top:.4rem;display:block;line-height:1.4;}
 
-/* ---------- mosaico ---------- */
+/* ---------- mosaic ---------- */
 .mosaic{background:var(--bg-surface);border:1px solid var(--line-active);font-size:13px;position:relative;}
 body.digitar .mosaic{border:3px double var(--brand-phosphor);box-shadow:var(--glow-p);}
 .mosaic-head{display:flex;align-items:center;gap:1ch;padding:.5rem 1rem;
@@ -222,7 +222,7 @@ body.digitar .caret{opacity:1;}
 @keyframes blink{0%,50%{background:var(--brand-phosphor)}51%,100%{background:transparent}}
 .stage-note{font-size:11px;color:var(--fg-faint);margin-top:.7rem;letter-spacing:.06em;}
 
-/* ---------- do & dont ---------- */
+/* ---------- do & don't ---------- */
 .dodont{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line-dim);}
 .dodont>div{padding:1.3rem 1.5rem;}
 .dodont>div:first-child{border-right:1px solid var(--line-dim);}
@@ -266,8 +266,8 @@ footer{margin-top:6rem;padding-top:1.4rem;border-top:1px solid var(--line-dim);
   <span class="glyph">⧉</span><span>ts 0.1.0</span>
   <span class="sep">//</span><span>brand identity v2.0 — neon</span>
   <div class="bar-keys">
-    <button class="key" id="btn-mono" aria-pressed="false"><kbd>m</kbd> sem cor</button>
-    <button class="key" id="btn-mode" aria-pressed="false"><kbd>d</kbd> digitar</button>
+    <button class="key" id="btn-mono" aria-pressed="false"><kbd>m</kbd> no color</button>
+    <button class="key" id="btn-mode" aria-pressed="false"><kbd>d</kbd> type</button>
   </div>
 </div>
 
@@ -276,9 +276,9 @@ footer{margin-top:6rem;padding-top:1.4rem;border-top:1px solid var(--line-dim);
 <section class="hero dim">
   <div class="boot">
     <span>&gt; ts --restore</span>
-    <span class="ok">&gt; motor de sessão: <b style="color:var(--brand-phosphor)">vivo</b></span>
-    <span>&gt; 8 células recuperadas · 3 projetos · mesma posição</span>
-    <span>&gt; grade montada em 41ms</span>
+    <span class="ok">&gt; session engine: <b style="color:var(--brand-phosphor)">alive</b></span>
+    <span>&gt; 8 cells recovered · 3 projects · same position</span>
+    <span>&gt; grid mounted in 41ms</span>
   </div>
 
   <div class="hero-mark">
@@ -301,194 +301,194 @@ footer{margin-top:6rem;padding-top:1.4rem;border-top:1px solid var(--line-dim);
     </div>
     <div>
       <p class="wordmark">TESSERACT</p>
-      <p class="hero-tag">o mosaico não desmonta</p>
+      <p class="hero-tag">the mosaic never falls apart</p>
     </div>
   </div>
-  <p class="hero-meta">PAINEL DE TERMINAL PARA AGENTES DE IA // COMANDO <code>ts</code> // MIT</p>
+  <p class="hero-meta">TERMINAL PANEL FOR AI AGENTS // COMMAND <code>ts</code> // MIT</p>
 
   <div class="founding">
-    <span class="label">Regra fundadora</span>
-    <p>Verde não é uma cor de estado. Verde é <em>posse do teclado</em>. O neon é escasso de propósito: um único fósforo na tela inteira, uma célula por vez. Escuridão é o material — o brilho só existe porque quase tudo está apagado.</p>
+    <span class="label">Founding rule</span>
+    <p>Green is not a state color. Green is <em>keyboard ownership</em>. Neon is scarce on purpose: a single phosphor glow across the entire screen, one cell at a time. Darkness is the material — the glow only exists because almost everything else is off.</p>
   </div>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 01</span><span>a virada neon</span><span class="rule">──────────────────────────────────────────────────────────────────────────</span></h2>
-  <p>Duas cores agora, não uma. O símbolo é <strong>dois quadrados</strong> — a segunda dimensão ganhou cor própria.</p>
+  <h2><span class="num">// 01</span><span>the neon shift</span><span class="rule">──────────────────────────────────────────────────────────────────────────</span></h2>
+  <p>Two colors now, not one. The symbol is <strong>two squares</strong> — the second dimension earned its own color.</p>
   <div class="grid2">
     <div class="panel">
-      <h3 style="margin-top:0">Verde fósforo <code>#55FFA6</code></h3>
-      <p class="muted" style="margin:0">Posse. O quadrado da frente, o cursor, a célula que tem seu teclado. Uma por tela.</p>
+      <h3 style="margin-top:0">Phosphor green <code>#55FFA6</code></h3>
+      <p class="muted" style="margin:0">Ownership. The front square, the cursor, the cell that holds your keyboard. One per screen.</p>
     </div>
     <div class="panel">
-      <h3 style="margin-top:0;color:var(--flux)">Ciano flux <code style="color:var(--flux)">#22E0D0</code></h3>
-      <p class="muted" style="margin:0">Estrutura. O quadrado de trás, a grade, os números de seção, o glifo <code>⧉</code>. Nunca é estado — igual ao verde.</p>
+      <h3 style="margin-top:0;color:var(--flux)">Flux cyan <code style="color:var(--flux)">#22E0D0</code></h3>
+      <p class="muted" style="margin:0">Structure. The back square, the grid, the section numbers, the <code>⧉</code> glyph. Never a state color — same as green.</p>
     </div>
   </div>
-  <h3>O que ficou de fora, e por quê</h3>
+  <h3>What was left out, and why</h3>
   <table>
-    <tr><td>Glow e scanline</td><td>Só na superfície de marca — site, README, banner. Terminal não emite luz; dentro do app o efeito é falso e atrapalha leitura</td></tr>
-    <tr><td>Aberração cromática</td><td>Só no wordmark. Aplicada a texto de UI, quebra a legibilidade densa que o produto promete</td></tr>
-    <tr><td>Chuva de caracteres</td><td>Fora. É a única citação cyberpunk que virou piada — e roubaria o verde do teclado</td></tr>
-    <tr><td>Verde em estado</td><td>Continua proibido. Neon não muda a semântica</td></tr>
+    <tr><td>Glow and scanline</td><td>Brand surface only — site, README, banner. A terminal doesn't emit light; inside the app the effect is fake and hurts readability</td></tr>
+    <tr><td>Chromatic aberration</td><td>Wordmark only. Applied to UI text, it breaks the dense legibility the product promises</td></tr>
+    <tr><td>Digital rain</td><td>Out. It's the one cyberpunk reference that became a joke — and it would steal the green from the keyboard</td></tr>
+    <tr><td>Green as state</td><td>Still forbidden. Neon doesn't change the semantics</td></tr>
   </table>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 02</span><span>símbolo</span><span class="rule">────────────────────────────────────────────────────────────────────────────────</span></h2>
-  <p>Dois quadrados iguais deslocados na diagonal — projeção do hipercubo — com a tessera acesa na sobreposição. Agora com o segundo quadrado em ciano: o volume compartilhado é onde as duas cores se cruzam.</p>
+  <h2><span class="num">// 02</span><span>symbol</span><span class="rule">────────────────────────────────────────────────────────────────────────────────</span></h2>
+  <p>Two equal squares offset diagonally — a hypercube projection — with the tessera lit at the overlap. Now with the second square in cyan: the shared volume is where the two colors cross.</p>
   <div class="grid3" style="margin-top:1.6rem">
     <div class="panel" style="text-align:center">
-      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Símbolo Tesseract duotone">
+      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Tesseract duotone symbol">
         <rect x="30" y="30" width="100" height="100" fill="none" stroke="var(--flux)" stroke-width="8"/>
         <rect x="6" y="6" width="100" height="100" fill="none" stroke="var(--brand-phosphor)" stroke-width="8"/>
         <rect x="59" y="59" width="18" height="18" fill="var(--fg-bright)"/>
       </svg>
-      <p class="faint" style="font-size:11px;margin:.6rem 0 0">duotone · superfície de marca</p>
+      <p class="faint" style="font-size:11px;margin:.6rem 0 0">duotone · brand surface</p>
     </div>
     <div class="panel" style="text-align:center">
-      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Símbolo monocromático">
+      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Monochrome symbol">
         <rect x="6" y="6" width="100" height="100" fill="none" stroke="var(--fg-default)" stroke-width="11"/>
         <rect x="30" y="30" width="100" height="100" fill="none" stroke="var(--fg-default)" stroke-width="11"/>
       </svg>
-      <p class="faint" style="font-size:11px;margin:.6rem 0 0">favicon 16px · sem tessera</p>
+      <p class="faint" style="font-size:11px;margin:.6rem 0 0">16px favicon · no tessera</p>
     </div>
     <div class="panel" style="text-align:center;background:var(--fg-bright)">
-      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Símbolo em fundo claro">
+      <svg viewBox="0 0 136 136" width="130" height="130" aria-label="Symbol on light background">
         <rect x="6" y="6" width="100" height="100" fill="none" stroke="#070B0C" stroke-width="8"/>
         <rect x="30" y="30" width="100" height="100" fill="none" stroke="#070B0C" stroke-width="8"/>
         <rect x="59" y="59" width="18" height="18" fill="#070B0C"/>
       </svg>
-      <p style="font-size:11px;margin:.6rem 0 0;color:#3E534E">README claro · sólido, sem neon</p>
+      <p style="font-size:11px;margin:.6rem 0 0;color:#3E534E">light README · solid, no neon</p>
     </div>
   </div>
 
-  <h3>Versão em caractere — canônica, 7×5</h3>
+  <h3>Character version — canonical, 7×5</h3>
   <div class="panel">
 <pre><em>┌────┐</em>
 <em>│</em>┌───<em>┼</em>┐
 <em>│</em>│ <b>▓</b> │<em>│</em>
 <em>└</em>┼───<em>┘</em>│
  └────┘</pre>
-    <p class="faint" style="font-size:11px;margin:.9rem 0 0">Quadrado de trás em ciano, da frente em verde, tessera em fósforo. Em terminal de 16 cores: <code>color14</code> + <code>color2</code> + <code>color10</code>.</p>
+    <p class="faint" style="font-size:11px;margin:.9rem 0 0">Back square in cyan, front square in green, tessera in phosphor. On a 16-color terminal: <code>color14</code> + <code>color2</code> + <code>color10</code>.</p>
   </div>
 </section>
 
 <section>
-  <h2 class="dim"><span class="num">// 03</span><span>os dois modos</span><span class="rule">─────────────────────────────────────────────────────────────────────────</span></h2>
-  <p class="dim">Panorama × túnel. Aperte <code>d</code>: a página inteira entra em DIGITAR, a scanline fecha, tudo apaga e uma célula fica acesa com borda dupla. É o produto demonstrando o produto.</p>
+  <h2 class="dim"><span class="num">// 03</span><span>the two modes</span><span class="rule">─────────────────────────────────────────────────────────────────────────</span></h2>
+  <p class="dim">Overview × tunnel. Press <code>d</code>: the whole page enters TYPE mode, the scanline tightens, everything else dims, and one cell stays lit with a double border. It's the product demonstrating the product.</p>
 
   <div class="mosaic">
     <div class="mosaic-head">
       <span class="corner">┌─</span><span>api/</span>
-      <span class="badge-mode">▓ DIGITAR ▓</span>
+      <span class="badge-mode">▓ TYPE ▓</span>
     </div>
-    <div class="cell read"><span class="sig">⬤</span><span class="nm">claude-refactor</span><span class="st">respondeu · 2min</span></div>
-    <div class="cell working"><span class="sig">▸</span><span class="nm">vitest --watch</span><span class="st">trabalhando</span></div>
-    <div class="cell block"><span class="sig">⏵</span><span class="nm">claude-migration</span><span class="st">aprovar — Enter</span></div>
-    <div class="cell focus"><span class="sig">▸</span><span class="nm">shell<span class="caret"></span></span><span class="st">seu teclado</span></div>
-    <div class="cell dead"><span class="sig">✖</span><span class="nm">docker-logs</span><span class="st">caiu · exit 1</span></div>
-    <div class="cell orphan"><span class="sig">⚠</span><span class="nm">claude-spec</span><span class="st">órfã</span></div>
-    <div class="cell off"><span class="sig">○</span><span class="nm">psql</span><span class="st">parada</span></div>
+    <div class="cell read"><span class="sig">⬤</span><span class="nm">claude-refactor</span><span class="st">responded · 2min</span></div>
+    <div class="cell working"><span class="sig">▸</span><span class="nm">vitest --watch</span><span class="st">working</span></div>
+    <div class="cell block"><span class="sig">⏵</span><span class="nm">claude-migration</span><span class="st">approve — Enter</span></div>
+    <div class="cell focus"><span class="sig">▸</span><span class="nm">shell<span class="caret"></span></span><span class="st">your keyboard</span></div>
+    <div class="cell dead"><span class="sig">✖</span><span class="nm">docker-logs</span><span class="st">crashed · exit 1</span></div>
+    <div class="cell orphan"><span class="sig">⚠</span><span class="nm">claude-spec</span><span class="st">orphaned</span></div>
+    <div class="cell off"><span class="sig">○</span><span class="nm">psql</span><span class="st">stopped</span></div>
   </div>
-  <p class="stage-note">Traço simples = você comanda o app. Traço duplo = a célula comanda o teclado. Aperte <code>m</code>: sem cor nenhuma, a barra de <code>aprovar</code> continua sendo a única sólida.</p>
+  <p class="stage-note">Single line = you command the app. Double line = the cell commands the keyboard. Press <code>m</code>: no color at all, the <code>approve</code> bar remains the only solid one.</p>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 04</span><span>paleta</span><span class="rule">─────────────────────────────────────────────────────────────────────────────────</span></h2>
-  <h3>Escuridão — o material principal</h3>
+  <h2><span class="num">// 04</span><span>palette</span><span class="rule">─────────────────────────────────────────────────────────────────────────────────</span></h2>
+  <h3>Darkness — the primary material</h3>
   <div class="swatches">
-    <div class="sw"><div class="chip" style="background:#030507"></div><span class="tok">bg.void</span><span class="hex">#030507</span><span class="use">modo DIGITAR</span></div>
-    <div class="sw"><div class="chip" style="background:#070B0C"></div><span class="tok">bg.base</span><span class="hex">#070B0C</span><span class="use">fundo padrão</span></div>
-    <div class="sw"><div class="chip" style="background:#0C1315"></div><span class="tok">bg.surface</span><span class="hex">#0C1315</span><span class="use">corpo da célula</span></div>
-    <div class="sw"><div class="chip" style="background:#121C1F"></div><span class="tok">bg.raised</span><span class="hex">#121C1F</span><span class="use">cabeçalho, seleção</span></div>
+    <div class="sw"><div class="chip" style="background:#030507"></div><span class="tok">bg.void</span><span class="hex">#030507</span><span class="use">TYPE mode</span></div>
+    <div class="sw"><div class="chip" style="background:#070B0C"></div><span class="tok">bg.base</span><span class="hex">#070B0C</span><span class="use">default background</span></div>
+    <div class="sw"><div class="chip" style="background:#0C1315"></div><span class="tok">bg.surface</span><span class="hex">#0C1315</span><span class="use">cell body</span></div>
+    <div class="sw"><div class="chip" style="background:#121C1F"></div><span class="tok">bg.raised</span><span class="hex">#121C1F</span><span class="use">header, selection</span></div>
   </div>
 
-  <h3>Neon — verde é posse, ciano é estrutura</h3>
+  <h3>Neon — green is ownership, cyan is structure</h3>
   <div class="swatches">
-    <div class="sw"><div class="chip" style="background:#1F7A4C"></div><span class="tok">brand.core</span><span class="hex">#1F7A4C</span><span class="use">grade do projeto ativo</span></div>
-    <div class="sw"><div class="chip" style="background:#55FFA6"></div><span class="tok">brand.phosphor</span><span class="hex">#55FFA6</span><span class="use">dono do teclado · 1 por tela</span></div>
-    <div class="sw"><div class="chip" style="background:#128C86"></div><span class="tok">flux.core</span><span class="hex">#128C86</span><span class="use">grade, cantos, rótulos</span></div>
-    <div class="sw"><div class="chip" style="background:#22E0D0"></div><span class="tok">flux</span><span class="hex">#22E0D0</span><span class="use">glifo, numeração, segunda dimensão</span></div>
+    <div class="sw"><div class="chip" style="background:#1F7A4C"></div><span class="tok">brand.core</span><span class="hex">#1F7A4C</span><span class="use">active project grid</span></div>
+    <div class="sw"><div class="chip" style="background:#55FFA6"></div><span class="tok">brand.phosphor</span><span class="hex">#55FFA6</span><span class="use">keyboard owner · 1 per screen</span></div>
+    <div class="sw"><div class="chip" style="background:#128C86"></div><span class="tok">flux.core</span><span class="hex">#128C86</span><span class="use">grid, corners, labels</span></div>
+    <div class="sw"><div class="chip" style="background:#22E0D0"></div><span class="tok">flux</span><span class="hex">#22E0D0</span><span class="use">glyph, numbering, second dimension</span></div>
   </div>
 
-  <h3>Estados — nenhum verde, nenhum ciano</h3>
+  <h3>States — no green, no cyan</h3>
   <div class="swatches">
-    <div class="sw"><div class="chip" style="background:#6C8076"></div><span class="tok">▸ trabalhando</span><span class="hex">#6C8076</span><span class="use">apagado de propósito</span></div>
-    <div class="sw"><div class="chip" style="background:#7DB7E8"></div><span class="tok">⬤ respondeu</span><span class="hex">#7DB7E8</span><span class="use">tem algo pra ler</span></div>
-    <div class="sw"><div class="chip" style="background:#FFB454"></div><span class="tok">⏵ aprovar</span><span class="hex">#FFB454</span><span class="use">trava · sempre barra invertida</span></div>
-    <div class="sw"><div class="chip" style="background:#FF3B47"></div><span class="tok">✖ caiu</span><span class="hex">#FF3B47</span><span class="use">processo morto</span></div>
-    <div class="sw"><div class="chip" style="background:#3E534E"></div><span class="tok">○ parada</span><span class="hex">#3E534E</span><span class="use">contorno vazio</span></div>
-    <div class="sw"><div class="chip" style="background:#C77DFF"></div><span class="tok">⚠ órfã</span><span class="hex">#C77DFF</span><span class="use">violeta elétrico = anomalia</span></div>
+    <div class="sw"><div class="chip" style="background:#6C8076"></div><span class="tok">▸ working</span><span class="hex">#6C8076</span><span class="use">deliberately dim</span></div>
+    <div class="sw"><div class="chip" style="background:#7DB7E8"></div><span class="tok">⬤ responded</span><span class="hex">#7DB7E8</span><span class="use">something to read</span></div>
+    <div class="sw"><div class="chip" style="background:#FFB454"></div><span class="tok">⏵ approve</span><span class="hex">#FFB454</span><span class="use">blocking · always inverted bar</span></div>
+    <div class="sw"><div class="chip" style="background:#FF3B47"></div><span class="tok">✖ crashed</span><span class="hex">#FF3B47</span><span class="use">dead process</span></div>
+    <div class="sw"><div class="chip" style="background:#3E534E"></div><span class="tok">○ stopped</span><span class="hex">#3E534E</span><span class="use">empty outline</span></div>
+    <div class="sw"><div class="chip" style="background:#C77DFF"></div><span class="tok">⚠ orphaned</span><span class="hex">#C77DFF</span><span class="use">electric violet = anomaly</span></div>
   </div>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 05</span><span>respondeu ≠ aprovar</span><span class="rule">─────────────────────────────────────────────────────────────────</span></h2>
-  <p>O coração do produto. A diferença <strong>não pode depender de cor</strong> — nem de brilho. <strong>Urgência é área preenchida, não matiz.</strong></p>
+  <h2><span class="num">// 05</span><span>responded ≠ approve</span><span class="rule">─────────────────────────────────────────────────────────────────</span></h2>
+  <p>The heart of the product. The difference <strong>cannot depend on color</strong> — nor brightness. <strong>Urgency is filled area, not hue.</strong></p>
   <table>
-    <tr><th>&nbsp;</th><th>Respondeu</th><th>Aprovar</th></tr>
-    <tr><td>Forma</td><td>ponto ⬤</td><td>triângulo ⏵</td></tr>
-    <tr><td>Área</td><td>glifo pequeno</td><td>barra sólida na linha inteira</td></tr>
-    <tr><td>Vídeo</td><td>normal</td><td>invertido</td></tr>
-    <tr><td>Movimento</td><td>estático</td><td>pisca a cada 2s</td></tr>
-    <tr><td>Cor</td><td>azul-gelo</td><td>âmbar</td></tr>
+    <tr><th>&nbsp;</th><th>Responded</th><th>Approve</th></tr>
+    <tr><td>Shape</td><td>dot ⬤</td><td>triangle ⏵</td></tr>
+    <tr><td>Area</td><td>small glyph</td><td>solid bar across the full line</td></tr>
+    <tr><td>Video</td><td>normal</td><td>inverted</td></tr>
+    <tr><td>Motion</td><td>static</td><td>blinks every 2s</td></tr>
+    <tr><td>Color</td><td>ice blue</td><td>amber</td></tr>
   </table>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 06</span><span>tipografia</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
+  <h2><span class="num">// 06</span><span>typography</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
   <div class="grid2">
     <div class="panel">
       <p class="faint" style="font-size:11px;margin-bottom:.8rem">DISPLAY · Martian Mono 800</p>
       <p style="font-family:var(--font-display);font-weight:800;letter-spacing:.2em;font-size:20px;color:var(--fg-bright);margin:0;text-shadow:-2px 0 rgba(85,255,166,.5),2px 0 rgba(34,224,208,.5)">TESSERACT</p>
-      <p class="muted" style="font-size:12px;margin:.9rem 0 0">Aberração cromática de 2px: verde à esquerda, ciano à direita. Só aqui. Nunca em texto corrido, nunca no produto.</p>
+      <p class="muted" style="font-size:12px;margin:.9rem 0 0">2px chromatic aberration: green to the left, cyan to the right. Here only. Never in body text, never in the product.</p>
     </div>
     <div class="panel">
-      <p class="faint" style="font-size:11px;margin-bottom:.8rem">PRODUTO · Iosevka Term</p>
-      <p style="font-size:16px;color:var(--fg-bright);margin:0">8 células recuperadas. Mesma posição.</p>
-      <p class="muted" style="font-size:12px;margin:.9rem 0 0">Estreita: mais colunas por célula. Sem glow, sem split, sem ligadura — ligadura embaralha grade.</p>
+      <p class="faint" style="font-size:11px;margin-bottom:.8rem">PRODUCT · Iosevka Term</p>
+      <p style="font-size:16px;color:var(--fg-bright);margin:0">8 cells recovered. Same position.</p>
+      <p class="muted" style="font-size:12px;margin:.9rem 0 0">Narrow: more columns per cell. No glow, no split, no ligatures — ligatures scramble the grid.</p>
     </div>
   </div>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 07</span><span>aplicações</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
+  <h2><span class="num">// 07</span><span>applications</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
   <div class="panel">
-    <p class="faint" style="font-size:11px">BANNER DE BOOT</p>
+    <p class="faint" style="font-size:11px">BOOT BANNER</p>
 <pre>   <em>┌────┐</em>
    <em>│</em>┌───<em>┼</em>┐    <i>T E S S E R A C T</i>
-   <em>│</em>│ <b>▓</b> │<em>│</em>    <u>o mosaico não desmonta</u>
+   <em>│</em>│ <b>▓</b> │<em>│</em>    <u>the mosaic never falls apart</u>
    <em>└</em>┼───<em>┘</em>│
     └────┘    <u>ts 0.1.0 // MIT</u>
 
-   <u>8 células recuperadas // 3 projetos // 41ms</u></pre>
+   <u>8 cells recovered // 3 projects // 41ms</u></pre>
   </div>
   <div class="grid3" style="margin-top:1.2rem">
-    <div class="panel"><p class="faint" style="font-size:11px">TÍTULO DA JANELA</p><pre><em>⧉</em> <i>ts</i> <u>— api/claude-refactor</u></pre></div>
-    <div class="panel"><p class="faint" style="font-size:11px">PROMPT</p><pre><em>⧉</em> <u>~/projetos/api</u> <b>›</b></pre></div>
-    <div class="panel"><p class="faint" style="font-size:11px">BADGE README</p><pre><i>⧉ tesseract // MIT</i></pre></div>
+    <div class="panel"><p class="faint" style="font-size:11px">WINDOW TITLE</p><pre><em>⧉</em> <i>ts</i> <u>— api/claude-refactor</u></pre></div>
+    <div class="panel"><p class="faint" style="font-size:11px">PROMPT</p><pre><em>⧉</em> <u>~/projects/api</u> <b>›</b></pre></div>
+    <div class="panel"><p class="faint" style="font-size:11px">README BADGE</p><pre><i>⧉ tesseract // MIT</i></pre></div>
   </div>
 </section>
 
 <section class="dim">
-  <h2><span class="num">// 08</span><span>tom de voz</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
+  <h2><span class="num">// 08</span><span>tone of voice</span><span class="rule">────────────────────────────────────────────────────────────────────────────</span></h2>
   <div class="grid2">
     <div class="panel">
-      <h3 style="margin-top:0">Microcopy real</h3>
-      <div class="copy-line">Nenhuma célula neste projeto. <code>n</code> cria a primeira.</div>
-      <div class="copy-line">Travado esperando você. <code>Enter</code> aprova, <code>Esc</code> recusa.</div>
-      <div class="copy-line">Caiu com exit 1. <code>r</code> reinicia no mesmo lugar.</div>
-      <div class="copy-line">8 células recuperadas. Mesma posição.</div>
-      <div class="copy-line">Célula órfã: processo vivo, projeto sumiu. <code>m</code> move, <code>k</code> mata.</div>
+      <h3 style="margin-top:0">Real microcopy</h3>
+      <div class="copy-line">No cells in this project yet. <code>n</code> creates the first one.</div>
+      <div class="copy-line">Blocked, waiting on you. <code>Enter</code> approves, <code>Esc</code> declines.</div>
+      <div class="copy-line">Crashed with exit 1. <code>r</code> restarts in the same spot.</div>
+      <div class="copy-line">8 cells recovered. Same position.</div>
+      <div class="copy-line">Orphaned cell: process alive, project gone. <code>m</code> moves it, <code>k</code> kills it.</div>
     </div>
     <div class="panel">
-      <h3 style="margin-top:0;color:var(--state-dead)">Anti-exemplos</h3>
-      <div class="copy-line bad">Ops! Algo deu errado 😅</div>
-      <div class="copy-line bad">Carregando sua mágica...</div>
-      <div class="copy-line bad">ACESSO CONCEDIDO, RUNNER.</div>
-      <div class="copy-line bad">Nenhum item encontrado.</div>
-      <p class="faint" style="font-size:12px;margin:1rem 0 0">O terceiro é o risco novo: neon na imagem não autoriza cosplay no texto. A voz continua seca.</p>
+      <h3 style="margin-top:0;color:var(--state-dead)">Anti-examples</h3>
+      <div class="copy-line bad">Oops! Something went wrong 😅</div>
+      <div class="copy-line bad">Loading your magic...</div>
+      <div class="copy-line bad">ACCESS GRANTED, RUNNER.</div>
+      <div class="copy-line bad">No items found.</div>
+      <p class="faint" style="font-size:12px;margin:1rem 0 0">The third is the new risk: neon in the imagery doesn't authorize cosplay in the copy. The voice stays dry.</p>
     </div>
   </div>
 </section>
@@ -497,25 +497,25 @@ footer{margin-top:6rem;padding-top:1.4rem;border-top:1px solid var(--line-dim);
   <h2><span class="num">// 09</span><span>do &amp; don't</span><span class="rule">───────────────────────────────────────────────────────────────────────────</span></h2>
   <div class="dodont">
     <div class="yes">
-      <h4>Faça</h4>
+      <h4>Do</h4>
       <ol>
-        <li>Escuridão primeiro. O neon só existe porque 95% da tela está apagada.</li>
-        <li>Verde = posse, ciano = estrutura. Nunca invertido.</li>
-        <li>Glow e scanline só na superfície de marca, nunca no terminal.</li>
-        <li>Diferencie estado por forma e área antes de cor.</li>
-        <li>Um único fósforo aceso por tela.</li>
-        <li>Teste em preto e branco antes de aprovar.</li>
+        <li>Darkness first. Neon only exists because 95% of the screen is off.</li>
+        <li>Green = ownership, cyan = structure. Never reversed.</li>
+        <li>Glow and scanline only on the brand surface, never in the terminal.</li>
+        <li>Distinguish state by shape and area before color.</li>
+        <li>A single phosphor glow lit per screen.</li>
+        <li>Test in black and white before approving.</li>
       </ol>
     </div>
     <div class="no">
-      <h4>Não faça</h4>
+      <h4>Don't</h4>
       <ol>
-        <li>Verde ou ciano em sinal de estado.</li>
-        <li>Chuva de caracteres, katakana decorativo, "ACESSO CONCEDIDO".</li>
-        <li>Glow em texto de UI — mata a densidade legível.</li>
-        <li>Mais de um selo invertido visível ao mesmo tempo.</li>
-        <li>Rosa neon. Duas cores já bastam; a terceira vira arcade.</li>
-        <li>A palavra "tesseract" sozinha perto de OCR ou imagem.</li>
+        <li>Green or cyan as a state signal.</li>
+        <li>Digital rain, decorative katakana, "ACCESS GRANTED".</li>
+        <li>Glow on UI text — it kills legible density.</li>
+        <li>More than one inverted badge visible at once.</li>
+        <li>Neon pink. Two colors are already enough; a third turns it into arcade.</li>
+        <li>The word "tesseract" alone next to OCR or imagery.</li>
       </ol>
     </div>
   </div>
@@ -545,7 +545,7 @@ footer{margin-top:6rem;padding-top:1.4rem;border-top:1px solid var(--line-dim);
 </section>
 
 <footer class="dim">
-  <span>⧉ TESSERACT</span><span>//</span><span>BRAND IDENTITY V2.0 — NEON</span><span>//</span><span>2026</span><span>//</span><span>O MOSAICO NÃO DESMONTA</span>
+  <span>⧉ TESSERACT</span><span>//</span><span>BRAND IDENTITY V2.0 — NEON</span><span>//</span><span>2026</span><span>//</span><span>THE MOSAIC NEVER FALLS APART</span>
 </footer>
 
 </div>

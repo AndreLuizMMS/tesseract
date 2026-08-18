@@ -1,90 +1,90 @@
 ```
      ┌────┐
      │┌───┼┐    T E S S E R A C T
-     ││ ▓ ││    o mosaico não desmonta
+     ││ ▓ ││    the mosaic doesn't come apart
      └┼───┘│
       └────┘    ts 0.1.0 // MIT
 ```
 
-[![licença](https://img.shields.io/badge/licen%C3%A7a-MIT-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](../LICENSE)
-[![versão](https://img.shields.io/badge/vers%C3%A3o-0.1.0-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](https://github.com/andreluiz/tesseract/releases)
-[![plataforma](https://img.shields.io/badge/plataforma-Linux%20%7C%20WSL%20%7C%20macOS-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](#instalação)
+[![license](https://img.shields.io/badge/licen%C3%A7a-MIT-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](../LICENSE)
+[![version](https://img.shields.io/badge/vers%C3%A3o-0.1.0-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](https://github.com/andreluiz/tesseract/releases)
+[![platform](https://img.shields.io/badge/plataforma-Linux%20%7C%20WSL%20%7C%20macOS-55FFA6?style=flat-square&labelColor=070B0C&color=55FFA6)](#installation)
 
-> O banner acima é feito só de traço e sombreado — nada nele depende de cor.
-> Ele lê igual no tema escuro e no tema claro do GitHub, no `cat`, no `less` e
-> num terminal com `NO_COLOR=1`. Essa é a regra: **se some quando a cor some,
-> não entra**.
+> The banner above is made only of lines and shading — nothing in it depends
+> on color. It reads the same in GitHub's dark and light theme, in `cat`, in
+> `less`, and in a terminal with `NO_COLOR=1`. That's the rule: **if it
+> disappears when color disappears, it doesn't go in**.
 
-**Tesseract** é um painel de terminal onde vários agentes de IA rodam lado a
-lado numa grade. Um comando, `ts`, e a tela inteira é o seu mosaico: cada
-célula é um agente vivo, cada projeto é uma faixa, e o motor continua de pé
-quando você fecha a tela.
+**Tesseract** is a terminal panel where several AI agents run side by side in
+a grid. One command, `ts`, and the whole screen is your mosaic: each cell is
+a live agent, each project is a lane, and the engine keeps running when you
+close the screen.
 
 ---
 
-## O alfabeto de estados
+## The alphabet of states
 
-Toda célula está em exatamente um estado, e o estado tem sempre **três**
-sinais: um glifo, uma cor e uma forma. Tire a cor e o glifo continua. Tire a
-cor e o glifo e a forma continua — só o estado que **bloqueia** ocupa a linha
-inteira.
+Every cell is in exactly one state, and the state always has **three**
+signals: a glyph, a color and a shape. Take away the color and the glyph
+remains. Take away the color and the glyph and the shape remains — only the
+state that **blocks** takes up the whole line.
 
-| Sinal | Estado | O que fazer |
+| Signal | State | What to do |
 |---|---|---|
-| `▸ TRABALHANDO` | processo vivo produzindo | nada — deixe trabalhar |
-| `⬤ RESPONDEU` | devolveu a vez, tem texto esperando | leia quando puder; não trava nada |
-| `⏵ APROVAR` | travou numa pergunta e **não anda** | responda: o trabalho está parado nisso |
-| `✖ CAIU` | o processo morreu sozinho | `r` sobe de novo |
-| `○ PARADA` | sem processo, célula preservada | `r` retoma de onde parou |
-| `⚠ ÓRFÃ` | o diretório do projeto sumiu do disco | recrie o caminho ou mate a célula |
+| `▸ WORKING` | live process producing | nothing — let it work |
+| `⬤ REPLIED` | handed back the turn, has text waiting | read when you can; nothing is blocked |
+| `⏵ APPROVE` | stuck on a question and **not moving** | answer: the work is stopped on this |
+| `✖ DIED` | the process died on its own | `r` brings it back up |
+| `○ STOPPED` | no process, cell preserved | `r` resumes where it left off |
+| `⚠ ORPHAN` | the project's directory vanished from disk | recreate the path or kill the cell |
 
-**Respondeu ≠ aprovar.** É a distinção que faz o alarme valer alguma coisa:
-agente parado numa pergunta bloqueia o trabalho; agente que terminou o turno
-apenas tem algo para ler.
+**Replied ≠ approve.** That's the distinction that makes the alarm worth
+something: an agent stuck on a question blocks the work; an agent that
+finished its turn just has something to read.
 
-Por isso `⏵ APROVAR` é a **única** linha que aparece como barra sólida
-invertida, ocupando a largura toda: urgência aqui é área preenchida, não
-matiz. Os outros cinco estados são um glifo e um rótulo.
+That's why `⏵ APPROVE` is the **only** line that appears as a solid inverted
+bar, taking up the full width: urgency here is filled area, not hue. The
+other five states are a glyph and a label.
 
-E **nenhuma cor de estado é verde ou ciano**, nunca — os dois têm dono:
+And **no state color is ever green or cyan** — the two are already owned:
 
-- **verde é posse do teclado.** O verde phosphor `#55FFA6` aparece no máximo
-  uma vez por tela, na célula que está com o seu teclado. Em mais nada.
-- **ciano é estrutura.** Grade, cantos, numeração, rótulos. Nunca um estado.
-
----
-
-## Os dois modos
-
-Nunca há dois donos do teclado ao mesmo tempo. É essa regra que torna colisão
-de atalho estruturalmente impossível.
-
-### NAVEGAR — o teclado é do aplicativo
-
-O padrão. Toda tecla é comando: as setas andam pela grade, as letras agem
-sobre a célula focada. A borda das células é **simples**, o fundo é o fundo
-padrão, e a barra de baixo mostra os atalhos.
-
-### DIGITAR — o teclado é da célula
-
-`↵` entra. A partir daí **toda tecla vai para o agente, sem nenhuma exceção**
-— nem `q`, nem `D`, nem `tab`, nem as setas. Só `ctrl-l` devolve o teclado ao
-aplicativo.
-
-O modo é impossível de errar, porque ele muda quatro coisas ao mesmo tempo:
-
-1. o fundo da tela escurece;
-2. a borda da célula focada vira **dupla**;
-3. o selo `▓ DIGITAR ▓` aparece invertido;
-4. a célula que tem o teclado fica **verde phosphor** — e é o único verde
-   phosphor da tela.
-
-Com `NO_COLOR=1` os itens 1 e 4 somem, e os itens 2 e 3 continuam: borda
-dupla e selo invertido não dependem de cor nenhuma.
+- **green is keyboard ownership.** Phosphor green `#55FFA6` appears at most
+  once per screen, in the cell that has your keyboard. Nothing else.
+- **cyan is structure.** Grid, corners, numbering, labels. Never a state.
 
 ---
 
-## Instalação
+## The two modes
+
+There are never two keyboard owners at the same time. That rule is what makes
+shortcut collisions structurally impossible.
+
+### NAVIGATE — the keyboard belongs to the app
+
+The default. Every key is a command: arrows move through the grid, letters
+act on the focused cell. Cell borders are **simple**, the background is the
+default background, and the bottom bar shows the shortcuts.
+
+### TYPE — the keyboard belongs to the cell
+
+`↵` enters. From there **every key goes to the agent, no exceptions**
+— not `q`, not `D`, not `tab`, not the arrows. Only `ctrl-l` returns the
+keyboard to the app.
+
+The mode is impossible to mistake, because it changes four things at once:
+
+1. the screen background darkens;
+2. the focused cell's border becomes **double**;
+3. the `▓ TYPE ▓` badge appears inverted;
+4. the cell holding the keyboard turns **phosphor green** — and it's the
+   only phosphor green on screen.
+
+With `NO_COLOR=1` items 1 and 4 disappear, and items 2 and 3 remain: double
+border and inverted badge don't depend on color at all.
+
+---
+
+## Installation
 
 ```sh
 git clone https://github.com/andreluiz/tesseract
@@ -92,101 +92,101 @@ cd tesseract
 ./install.sh
 ```
 
-Ou compilando direto:
+Or building directly:
 
 ```sh
 go install github.com/andreluiz/tesseract/cmd/ts@latest
 ```
 
-Depois, é um comando só:
+Then, it's a single command:
 
 ```sh
 ts
 ```
 
-Requisitos: Go 1.25+ para compilar, um terminal com suporte a 256 cores para
-a experiência completa, e nada além disso — o Tesseract lê e escreve na
-própria pasta de configuração e não pede daemon de terceiros.
+Requirements: Go 1.25+ to build, a terminal with 256-color support for the
+full experience, and nothing beyond that — Tesseract reads and writes only
+in its own config folder and requires no third-party daemon.
 
 ---
 
-## Atalhos
+## Shortcuts
 
-**Andar — só setas, nenhuma letra**
+**Move — arrows only, no letters**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `←` `→` | célula anterior / próxima, atravessando projeto |
-| `↑` `↓` | projeto anterior / próximo |
-| `espaço` | pula para a próxima célula que pede atenção |
-| `1`…`9` | vai direto para o projeto N |
-| `tab` | troca a aba da célula (`shift-tab` volta) |
+| `←` `→` | previous / next cell, crossing projects |
+| `↑` `↓` | previous / next project |
+| `space` | jump to the next cell that needs attention |
+| `1`…`9` | jump straight to project N |
+| `tab` | switch the cell's tab (`shift-tab` goes back) |
 
-**Teclado e tela**
+**Keyboard and screen**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `↵` | entra em DIGITAR na célula focada |
-| `ctrl-l` | devolve o teclado ao aplicativo |
-| `o` | célula focada em tela cheia |
-| `v` | alterna mosaico ↔ lista |
+| `↵` | enters TYPE mode on the focused cell |
+| `ctrl-l` | returns the keyboard to the app |
+| `o` | focused cell in full screen |
+| `v` | toggles mosaic ↔ list |
 
-**Criar, matar, nomear**
+**Create, kill, rename**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `n` | criar — pede o projeto, depois a célula |
-| `r` | retoma célula parada, ou sobe célula caída |
-| `D` | mata a célula focada — sempre confirma |
-| `ctrl-r` | adota na célula o nome que o agente deu à conversa |
+| `n` | create — asks for the project, then the cell |
+| `r` | resumes a stopped cell, or brings a dead cell back up |
+| `D` | kills the focused cell — always confirms |
+| `ctrl-r` | adopts, as the cell name, the name the agent gave the conversation |
 
-**Agir e ler**
+**Act and read**
 
-| Tecla | Ação |
+| Key | Action |
 |---|---|
-| `p` | manda prompt para a célula focada sem entrar nela |
-| `d` | abre o painel Docker do projeto focado |
-| `ctrl-e` | abre o diretório do projeto na IDE configurada |
-| `/` | busca no histórico da célula focada |
-| `esc` | sai da rolagem e fecha o que estiver aberto |
-| `?` | ajuda |
-| `q` | fecha a tela — o motor continua rodando |
+| `p` | sends a prompt to the focused cell without entering it |
+| `d` | opens the focused project's Docker panel |
+| `ctrl-e` | opens the project directory in the configured IDE |
+| `/` | searches the focused cell's history |
+| `esc` | exits scrolling and closes whatever is open |
+| `?` | help |
+| `q` | closes the screen — the engine keeps running |
 
 ---
 
-## Configuração de tema
+## Theme configuration
 
-A paleta inteira mora em um arquivo só, `internal/tema/tema.go`. Nenhum outro
-arquivo do projeto escreve hex — quem desenha pede o token pelo nome
-(`tema.BrandPhosphor`, `tema.FluxCore`, `tema.StateBlock`). O script
-`scripts/check-theme.sh` falha se alguém quebrar essa regra, ou se tentar usar
-verde ou ciano como cor de estado.
+The whole palette lives in a single file, `internal/tema/tema.go`. No other
+file in the project writes hex — whatever draws asks for the token by name
+(`tema.BrandPhosphor`, `tema.FluxCore`, `tema.StateBlock`). The
+`scripts/check-theme.sh` script fails if anyone breaks that rule, or tries
+to use green or cyan as a state color.
 
-### O terminal e as ferramentas
+### The terminal and the tools
 
-A pasta `themes/` traz o **Tesseract Neon** pronto para o resto da mesa:
+The `themes/` folder ships **Tesseract Neon** ready for the rest of the desk:
 
-| Arquivo | Para |
+| File | For |
 |---|---|
-| `windows-terminal.json` | fragmento do array `schemes` |
+| `windows-terminal.json` | fragment of the `schemes` array |
 | `wezterm.toml` | WezTerm |
 | `alacritty.toml` | Alacritty |
 | `kitty.conf` | kitty |
 | `ghostty` | Ghostty |
-| `tesseract-neon.yaml` | esquema base16/base24 (tinted-theming) |
-| `tmux.conf` | barra de status |
+| `tesseract-neon.yaml` | base16/base24 scheme (tinted-theming) |
+| `tmux.conf` | status bar |
 | `starship.toml` | prompt |
 | `fzf.env` | `FZF_DEFAULT_OPTS` |
-| `bat.tmTheme` | bat e delta |
-| `delta.gitconfig` | seção `[delta]` do git |
-| `nvim/tesseract.lua` | colorscheme do Neovim |
-| `eza-ls-colors.sh` | `LS_COLORS` e `EZA_COLORS` |
-| `claude-code.md` | como fazer o Claude Code parar de ter cor própria dentro da célula |
+| `bat.tmTheme` | bat and delta |
+| `delta.gitconfig` | git's `[delta]` section |
+| `nvim/tesseract.lua` | Neovim colorscheme |
+| `eza-ls-colors.sh` | `LS_COLORS` and `EZA_COLORS` |
+| `claude-code.md` | how to make Claude Code stop having its own color inside the cell |
 
-Cada um deles segue as mesmas regras do painel: verde só onde há posse, ciano
-só onde há estrutura, estado em nenhum dos dois.
+Each of them follows the same rules as the panel: green only where there's
+ownership, cyan only where there's structure, state color in neither.
 
-O tema de sintaxe (`bat.tmTheme`) serve o `bat` e o `delta` ao mesmo tempo:
+The syntax theme (`bat.tmTheme`) serves both `bat` and `delta`:
 
 ```sh
 mkdir -p "$(bat --config-dir)/themes"
@@ -195,35 +195,35 @@ bat cache --build
 export BAT_THEME="Tesseract Neon"
 ```
 
-### Terminal pobre e sem cor
+### Poor and colorless terminals
 
-O tema tem três perfis e escolhe sozinho:
+The theme has three profiles and picks the right one on its own:
 
-| Perfil | Quando | O que muda |
+| Profile | When | What changes |
 |---|---|---|
-| 24 bits | `COLORTERM=truecolor` ou `TERM=*256color*` | a paleta sai como está |
-| 16 cores | qualquer outro `TERM` com cor | cada token cai no seu índice da ANSI 16 |
-| sem cor | `NO_COLOR` definido, ou `TERM=dumb` | só negrito, reverso e borda |
+| 24-bit | `COLORTERM=truecolor` or `TERM=*256color*` | the palette comes out as-is |
+| 16 colors | any other `TERM` with color | each token falls back to its ANSI 16 index |
+| no color | `NO_COLOR` set, or `TERM=dumb` | only bold, reverse and border |
 
-Nos três, o alfabeto de estados continua legível — porque o glifo e a forma
-carregam o significado sozinhos, e a cor só reforça.
+In all three, the alphabet of states stays legible — because the glyph and
+the shape carry the meaning on their own, and color only reinforces it.
 
-### Verificando
+### Checking
 
 ```sh
 ./scripts/check-theme.sh
 ```
 
-O script imprime a paleta inteira em blocos ANSI para inspeção a olho, e falha
-se encontrar verde ou ciano no mapa de estados, ou hex escrito fora do arquivo
-de tema.
+The script prints the whole palette in ANSI blocks for visual inspection, and
+fails if it finds green or cyan in the state map, or hex written outside the
+theme file.
 
 ---
 
-## A marca
+## The brand
 
-O símbolo é um tesserato achatado: dois quadrados, um atrás do outro,
-deslocados — e uma tessera acesa no meio.
+The symbol is a flattened tesseract: two squares, one behind the other,
+offset — with a lit tessera in the middle.
 
 ```
 ┌────┐
@@ -233,20 +233,21 @@ deslocados — e uma tessera acesa no meio.
  └────┘
 ```
 
-Na versão em caractere: o quadrado de trás é ciano (`#22E0D0`, a segunda
-dimensão), o da frente é verde escuro (`#1F7A4C`), e a tessera é o phosphor
-(`#55FFA6`). No vetor a ordem se inverte — o quadrado da frente carrega o
-phosphor e a tessera é branca (`#E8F4EC`), porque no traço fino o verde escuro
-some contra fundo escuro. Em um caractere só, o símbolo é `⧉` (U+29C9).
+In the character version: the back square is cyan (`#22E0D0`, the second
+dimension), the front one is dark green (`#1F7A4C`), and the tessera is
+phosphor (`#55FFA6`). In the vector, the order flips — the front square
+carries the phosphor and the tessera is white (`#E8F4EC`), because at thin
+stroke widths the dark green disappears against a dark background. As a
+single character, the symbol is `⧉` (U+29C9).
 
-Versões vetoriais: `themes/logo.svg` (colorida) e `themes/logo-mono.svg`
-(traço único em `currentColor`, para favicon e 16px).
+Vector versions: `themes/logo.svg` (color) and `themes/logo-mono.svg`
+(single stroke in `currentColor`, for favicon and 16px).
 
-Brilho, scanline e aberração cromática existem **só** na superfície de marca —
-README, site, banner. Dentro do terminal, nunca.
+Glow, scanline and chromatic aberration exist **only** on the brand surface —
+README, site, banner. Never inside the terminal.
 
 ---
 
-## Licença
+## License
 
-MIT. Veja [LICENSE](../LICENSE).
+MIT. See [LICENSE](../LICENSE).

@@ -1,9 +1,10 @@
 # themes/tesseract-neon.yaml
-# Esquema tinted-theming (base16), com extensão base24 opcional no fim.
+# tinted-theming (base16) scheme, with optional base24 extension at the end.
 #
-# Regra que governa o mapeamento: a rampa neutra base00→base07 vem inteira da
-# rampa de base/fg da paleta, e as oito cores base08→base0F saem das cores de
-# estado e dos ANSI 16. Nenhum hex foi criado, alterado ou aproximado.
+# Rule governing the mapping: the neutral ramp base00→base07 comes entirely
+# from the palette's base/fg ramp, and the eight colors base08→base0F come
+# from the state colors and the ANSI 16. No hex was created, altered, or
+# approximated.
 
 system: "base16"
 name: "Tesseract Neon"
@@ -11,65 +12,69 @@ author: "Tesseract (github.com/andreluiz/tesseract)"
 variant: "dark"
 
 palette:
-  # base00 — fundo padrão. É o bg.base, o fundo de tudo fora do modo DIGITAR.
+  # base00 — default background. This is bg.base, the background of
+  # everything outside TYPE mode.
   base00: "#070B0C"
-  # base01 — fundo elevado leve (linha atual, gutter). É o bg.surface, o mesmo
-  # tom do corpo da célula.
+  # base01 — slightly raised background (current line, gutter). This is
+  # bg.surface, the same tone as the cell body.
   base01: "#0C1315"
-  # base02 — fundo de seleção. É o bg.raised, o mesmo do cabeçalho e da
-  # seleção da grade: seleção no editor e seleção na grade têm o mesmo peso.
+  # base02 — selection background. This is bg.raised, the same as the header
+  # and the grid's selection: selection in the editor and selection in the
+  # grid carry the same weight.
   base02: "#121C1F"
-  # base03 — comentários e invisíveis. É o fg.faint, o tom de "desligado".
+  # base03 — comments and invisibles. This is fg.faint, the "off" tone.
   base03: "#3E534E"
-  # base04 — texto secundário (status bar). É o fg.muted.
+  # base04 — secondary text (status bar). This is fg.muted.
   base04: "#6C8076"
-  # base05 — texto padrão. É o fg.default.
+  # base05 — default text. This is fg.default.
   base05: "#BFD1C6"
-  # base06 — texto claro (ênfase). É o fg.bright, o tom dos títulos.
+  # base06 — light text (emphasis). This is fg.bright, the heading tone.
   base06: "#E8F4EC"
-  # base07 — o mais claro de todos. A paleta não tem nada acima de fg.bright,
-  # e inventar um tom mais claro é proibido — então base07 repete #E8F4EC.
-  # Consequência prática: nenhum tema deve usar base06 e base07 lado a lado.
+  # base07 — the lightest of all. The palette has nothing above fg.bright,
+  # and inventing a lighter tone is forbidden — so base07 repeats #E8F4EC.
+  # Practical consequence: no theme should use base06 and base07 side by side.
   base07: "#E8F4EC"
-  # base08 — variáveis, deletado, erro. É o state.dead: a mesma cor que grita
-  # "caiu" na grade grita "quebrou" no código.
+  # base08 — variables, deleted, error. This is state.dead: the same color
+  # that screams "died" in the grid screams "broke" in the code.
   base08: "#FF3B47"
-  # base09 — números, constantes, booleanos. É o state.block, a cor de
-  # "precisa da sua mão".
+  # base09 — numbers, constants, booleans. This is state.block, the color
+  # of "needs your hand".
   base09: "#FFB454"
-  # base0A — classes, títulos, busca. É o amarelo do ANSI 3: fica entre o
-  # laranja do bloqueio e o vermelho do erro sem se confundir com nenhum.
+  # base0A — classes, headings, search. This is ANSI 3's yellow: it sits
+  # between the blocking orange and the error red without being confused
+  # with either.
   base0A: "#C9A227"
-  # base0B — strings, adicionado. É o brand.core, o verde escuro. Não é o
-  # phosphor: dentro de um buffer aparecem centenas de strings, e o #55FFA6
-  # existe uma vez por tela só.
+  # base0B — strings, added. This is brand.core, the dark green. Not the
+  # phosphor: hundreds of strings appear inside a buffer, and #55FFA6
+  # exists only once per screen.
   base0B: "#1F7A4C"
-  # base0C — suporte, regex, escape. É o flux, o ciano de estrutura.
+  # base0C — support, regex, escape. This is flux, the structural cyan.
   base0C: "#22E0D0"
-  # base0D — funções, métodos. É o azul claro (ANSI 12), a única família fria
-  # que não é ciano.
+  # base0D — functions, methods. This is light blue (ANSI 12), the only
+  # cool family that isn't cyan.
   base0D: "#7DB7E8"
-  # base0E — palavras-chave. É o roxo claro (ANSI 13).
+  # base0E — keywords. This is light purple (ANSI 13).
   base0E: "#C77DFF"
-  # base0F — depreciado, delimitador embutido. Base16 pede um marrom aqui e a
-  # paleta não tem marrom. Escolha conservadora: o roxo escuro do ANSI 5, que
-  # é o único tom da paleta ainda não usado e lê como "apagado" ao lado do
-  # base0E.
+  # base0F — deprecated, embedded delimiter. Base16 asks for a brown here
+  # and the palette has no brown. Conservative choice: the dark purple of
+  # ANSI 5, the only tone in the palette not yet used, which reads as
+  # "muted" next to base0E.
   base0F: "#8B4FC4"
 
-  # --- Extensão base24 (opcional) -------------------------------------------
-  # Ferramentas base16 ignoram estas chaves. Ferramentas base24 ganham os
-  # fundos mais fundos e a rampa "bright" do ANSI 16, que a paleta já define.
+  # --- base24 extension (optional) -------------------------------------------
+  # base16 tools ignore these keys. base24 tools gain the deeper backgrounds
+  # and the "bright" ramp from the ANSI 16, which the palette already defines.
 
-  # base10 — fundo mais escuro que o padrão. É o bg.void, o fundo do DIGITAR.
+  # base10 — background darker than the default. This is bg.void, the TYPE
+  # mode background.
   base10: "#030507"
-  # base11 — o fundo mais fundo. A paleta não tem nada abaixo do bg.void, e
-  # base11 repete #030507 em vez de inventar preto.
+  # base11 — the deepest background. The palette has nothing below bg.void,
+  # and base11 repeats #030507 instead of inventing black.
   base11: "#030507"
-  # base12–base17 — a metade brilhante do ANSI 16, na ordem do base24.
-  base12: "#FF3B47" # vermelho brilhante
-  base13: "#FFB454" # amarelo brilhante
-  base14: "#55FFA6" # verde brilhante — brand.phosphor
-  base15: "#22E0D0" # ciano brilhante — flux
-  base16: "#7DB7E8" # azul brilhante
-  base17: "#C77DFF" # magenta brilhante
+  # base12–base17 — the bright half of the ANSI 16, in base24 order.
+  base12: "#FF3B47" # bright red
+  base13: "#FFB454" # bright yellow
+  base14: "#55FFA6" # bright green — brand.phosphor
+  base15: "#22E0D0" # bright cyan — flux
+  base16: "#7DB7E8" # bright blue
+  base17: "#C77DFF" # bright magenta

@@ -1,8 +1,8 @@
-# binário compilado aqui mesmo
+# binary compiled right here
 /ts
-# estado local de quem roda o Tesseract
+# local state of whoever runs Tesseract
 *.log
-# metadado do Windows que o WSL cola nos arquivos baixados
+# Windows metadata that WSL attaches to downloaded files
 *:Zone.Identifier
-# o zip que veio junto do kit de marca; o que vale são os arquivos extraídos
+# the zip that came with the brand kit; what matters are the extracted files
 style/files.zip
