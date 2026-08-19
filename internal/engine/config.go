@@ -23,7 +23,7 @@ type AgentProfile struct {
 
 // Config is what the user can change without touching code.
 type Config struct {
-	// Editor is the command `ctrl-e` runs in the project's directory: `cursor
+	// Editor is the command `ctrl-e` runs in the project's directory: `code
 	// /path/to/project` opens the IDE there.
 	Editor string `json:"editor,omitempty"`
 	// Sound and Notify turn the two alerts on and off, independently.
@@ -42,7 +42,7 @@ type Config struct {
 // applies for every field the file doesn't bring.
 func DefaultConfig() Config {
 	return Config{
-		Editor:       "cursor",
+		Editor:       "code",
 		Sound:        true,
 		Notify:       true,
 		HistoryLimit: history.DefaultCap,
