@@ -289,3 +289,41 @@ func TestLiveWindowIgnoresADeadSocket(t *testing.T) {
 		t.Fatalf("with no open window there's no socket, got %q", found)
 	}
 }
+
+// TestEditorDoesNotStallOnTheWSLPrompt — the `code`/`codium` launcher inside
+// WSL asks on stdin whether to open the Linux install, and the engine has no
+// stdin to answer with. The fake editor here refuses exactly like the real
+// launcher does, and only opens when the variable that skips the question is
+// in the environment.
+func TestEditorDoesNotStallOnTheWSLPrompt(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "opened")
+	fake := filepath.Join(dir, "fake-editor")
+	script := "#!/bin/sh\nif [ -z \"$DONT_PROMPT_WSL_INSTALL\" ]; then\n\tread -r answer\n\texit 1\nfi\nprintf '%s' \"$1\" > " + marker + "\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatalf("preparing: %v", err)
+	}
+
+	config := testConfig()
+	config.Editor = fake
+	m := New(t.TempDir(), config)
+	if err := m.Start(); err != nil {
+		t.Fatalf("starting: %v", err)
+	}
+	defer m.Shutdown()
+
+	project := t.TempDir()
+	if _, err := m.Create(protocol.Create{Path: project, Type: "bash"}); err != nil {
+		t.Fatalf("creating: %v", err)
+	}
+	if err := m.OpenInEditor(m.Snapshot().Projects[0].ID); err != nil {
+		t.Fatalf("the editor should have opened: %v", err)
+	}
+	opened, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("the editor didn't open: %v", err)
+	}
+	if string(opened) != project {
+		t.Fatalf("opened %q, expected the project's directory %q", opened, project)
+	}
+}

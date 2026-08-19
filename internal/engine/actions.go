@@ -150,7 +150,12 @@ func (e *Engine) OpenInEditor(projectID string) error {
 		return fmt.Errorf("no editor configured")
 	}
 	fields := strings.Fields(editor)
-	environment := withDisplay(os.Environ())
+	// The `code`/`codium` launcher inside WSL asks, on stderr, whether to
+	// really open the Linux install, and waits for an answer on stdin. The
+	// engine is a service and has no stdin: the read hits EOF, the answer
+	// comes out empty, and the launcher exits without opening anything. This
+	// variable is the launcher's own way out of that prompt.
+	environment := append(withDisplay(os.Environ()), "DONT_PROMPT_WSL_INSTALL=1")
 	binaryName, arguments := fields[0], append(fields[1:], path)
 	// With no IDE installed inside Linux, what opens the folder on WSL is the
 	// Windows-side install, on its PATH. It decides whether to reuse an open
