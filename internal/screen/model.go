@@ -320,6 +320,7 @@ func oneLine(text string) string {
 func (m *Model) handleTyping(key string, msg tea.KeyPressMsg) tea.Cmd {
 	if keyboard.Lookup(keyboard.Type, key) == keyboard.ExitType {
 		m.typing = false
+		m.focus.Full = false
 		return nil
 	}
 	// Everything else goes to the cell, no exceptions.
