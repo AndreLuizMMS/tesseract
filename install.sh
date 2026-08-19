@@ -135,6 +135,18 @@ aviso "installing the service"
 mkdir -p "$servicos"
 cp "$raiz/systemd/tesseract.service" "$servicos/tesseract.service"
 
+# An engine brought up by hand — which is what `ts` does when it finds none —
+# doesn't belong to the service, so restarting the unit would leave it there
+# serving the old binary and the change wouldn't show up. Whoever is holding
+# the socket goes down first, no matter who started it.
+if [ -S "${XDG_RUNTIME_DIR:-$HOME/.local/state}/tesseract/engine.sock" ] ||
+	pgrep -f "^$destino/ts engine$" >/dev/null 2>&1; then
+	aviso "shutting down the engine that's already running"
+	# Anchored: without it the pattern also matches any shell whose command
+	# line merely mentions the engine — this very script included.
+	"$destino/ts" stop >/dev/null 2>&1 || pkill -f "^$destino/ts engine$" || true
+fi
+
 if tem systemctl && systemctl --user show-environment >/dev/null 2>&1; then
 	systemctl --user daemon-reload
 	systemctl --user enable tesseract.service >/dev/null
