@@ -109,7 +109,7 @@ func Arrange(state protocol.State, focus Focus, width, height int) Layout {
 		item := focusedProject.Cells[focus.Cell]
 		inner := FullCellInner(width, height)
 		d.inners[item.ID] = inner
-		d.origins[item.ID] = [2]int{1, 2}
+		d.origins[item.ID] = [2]int{1, 3}
 		return d
 	}
 
@@ -167,34 +167,57 @@ func splitColumns(state protocol.State, focus Focus, width, body int) []column {
 // columnCount decides how many columns the screen splits into. The terminal
 // is wide and short: stacking projects on top of each other leaves each cell
 // three lines tall, so the screen splits vertically as long as the width
-// backs up what the projects want — three one-cell projects on a wide screen
-// become three columns. Height still forces a column when the projects don't
+// backs up what each project wants. It takes the most columns the width can
+// actually serve — three projects on a wide screen become three columns,
+// each with the whole height — instead of a single width for the fullest
+// project, which used to leave two projects sharing a column while a third
+// had one to itself. Height still forces a column when the projects don't
 // fit stacked.
 func columnCount(projects []protocol.Project, width, body int) int {
 	if len(projects) <= 1 {
 		return 1
 	}
-	wanted := min(max(width/widthProjectsWant(projects), 1), len(projects))
+	// The most columns the width can serve wins: a column all to itself is
+	// what gives a project the screen's whole height. Splitting the projects
+	// evenly by count is what used to leave two of them sharing a column,
+	// half as tall, while a third had one to itself.
+	for how := len(projects); how > 1; how-- {
+		if columnsFit(projects, how, width) {
+			return how
+		}
+	}
 	fitInHeight := max(body/minProjectHeight, 1)
-	needed := min((len(projects)+fitInHeight-1)/fitInHeight, max(width/minColumnWidth, 1))
-	return min(max(wanted, needed), len(projects))
+	return min(max((len(projects)+fitInHeight-1)/fitInHeight, 1), len(projects))
 }
 
-// widthProjectsWant is the column width that serves the fullest project:
-// its whole row, with every cell still readable. It's what keeps the screen
-// from opening columns narrower than the cells that already exist.
-func widthProjectsWant(projects []protocol.Project) int {
-	wanted := minColumnWidth
-	for _, project := range projects {
-		total := len(project.Cells)
-		if total == 0 {
-			continue
+// columnsFit says whether splitting the projects into this many columns
+// leaves every column wide enough for the projects that land in it: their
+// fullest row, with every cell in it at least tight.
+func columnsFit(projects []protocol.Project, how, width int) bool {
+	perColumn := (len(projects) + how - 1) / how
+	how = (len(projects) + perColumn - 1) / perColumn
+	widths := splitWidth(how, width-(how-1))
+	for i, start := 0, 0; start < len(projects); i, start = i+1, start+perColumn {
+		want := minColumnWidth
+		for _, project := range projects[start:min(start+perColumn, len(projects))] {
+			want = max(want, widthProjectWants(project))
 		}
-		rows := squareRows(total)
-		perRow := (total + rows - 1) / rows
-		wanted = max(wanted, perRow*minCellWidth)
+		if i >= len(widths) || widths[i] < want {
+			return false
+		}
 	}
-	return wanted
+	return true
+}
+
+// widthProjectWants is the tightest width that still serves a project's
+// fullest row.
+func widthProjectWants(project protocol.Project) int {
+	total := len(project.Cells)
+	if total == 0 {
+		return 0
+	}
+	rows := squareRows(total)
+	return ((total + rows - 1) / rows) * tightCellWidth
 }
 
 // planRows breaks each project into rows of cells that fit the width,

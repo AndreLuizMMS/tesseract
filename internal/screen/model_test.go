@@ -21,18 +21,15 @@ func testModel(state protocol.State) *Model {
 func TestArrowsMoveThroughTheGrid(t *testing.T) {
 	m := testModel(testGrid())
 
+	// The projects split into columns: to the right of the first one is the
+	// column beside it, not the cell below.
 	m.handleNavigate("right")
-	if m.focus.Cell != 1 {
-		t.Fatalf("→ should go to the next cell, focus %#v", m.focus)
-	}
-	// On the grid every cell is in view, so moving crosses project.
-	m.handleNavigate("right")
-	if m.focus.Project != 1 || m.focus.Cell != 0 {
-		t.Fatalf("→ should cross into the next project: %#v", m.focus)
+	if m.focus.Project != 2 || m.focus.Cell != 0 {
+		t.Fatalf("→ should cross into the column beside: %#v", m.focus)
 	}
 	m.handleNavigate("left")
-	if m.focus.Project != 0 || m.focus.Cell != 1 {
-		t.Fatalf("← should go back to the previous cell: %#v", m.focus)
+	if m.focus.Project != 0 {
+		t.Fatalf("← should go back to the first column: %#v", m.focus)
 	}
 	m.focus = Focus{}
 	m.handleNavigate("left")
@@ -42,11 +39,16 @@ func TestArrowsMoveThroughTheGrid(t *testing.T) {
 
 	m.focus = Focus{}
 	m.handleNavigate("down")
+	if m.focus.Project != 0 || m.focus.Cell != 1 {
+		t.Fatalf("↓ should go to the cell below: %#v", m.focus)
+	}
+	m.handleNavigate("down")
 	if m.focus.Project != 1 || m.focus.Cell != 0 {
-		t.Fatalf("↓ should go to the next project: %#v", m.focus)
+		t.Fatalf("↓ should go on to the next project: %#v", m.focus)
 	}
 	m.handleNavigate("up")
-	if m.focus.Project != 0 {
+	m.handleNavigate("up")
+	if m.focus.Project != 0 || m.focus.Cell != 0 {
 		t.Fatalf("↑ should go back: %#v", m.focus)
 	}
 }

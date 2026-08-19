@@ -546,3 +546,21 @@ func TestSquareGridYieldsToHeight(t *testing.T) {
 		t.Fatalf("no cell should fall off screen: %d", d.hidden)
 	}
 }
+
+// TestFullScreenCursorOriginLandsOnTheFirstContentLine — in full screen the
+// cursor was landing one line above the text.
+func TestFullScreenCursorOriginLandsOnTheFirstContentLine(t *testing.T) {
+	state := testGrid()
+	focus := Focus{Project: 0, Cell: 0, Full: true}
+	x, y, has := OriginInGrid(state, focus, 120, 30, "c1")
+	if !has {
+		t.Fatal("the full-screen cell needs an origin")
+	}
+	lines := strings.Split(noStyle(Draw(state, focus, keyboard.Browse, 120, 30, "")), "\n")
+	if y >= len(lines) {
+		t.Fatalf("the origin fell off screen: line %d of %d", y, len(lines))
+	}
+	if got := string([]rune(lines[y])[x:]); !strings.HasPrefix(got, "Moved the token check") {
+		t.Fatalf("the origin doesn't sit on the first content line: %q", got)
+	}
+}
