@@ -3,8 +3,11 @@ package screen
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/andreluiz/tesseract/internal/keyboard"
 	"github.com/andreluiz/tesseract/internal/protocol"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 // spinnerFrames is the drawing for work in progress. Without it, bringing up
@@ -108,6 +111,10 @@ func (p *DockerPanel) Key(key string) (request *protocol.Docker, open bool) {
 	case keyboard.LogAsCell:
 		// The log becomes a cell in the grid, so the panel closes.
 		return p.request("log", chosen), false
+	case keyboard.ShellAsCell:
+		// Same as the log: the shell becomes a cell, and the panel gives the
+		// keyboard back to the grid.
+		return p.request("shell", chosen), false
 
 	// On the whole stack: the uppercase key is always the stack version of
 	// the lowercase one.
@@ -122,10 +129,10 @@ func (p *DockerPanel) Key(key string) (request *protocol.Docker, open bool) {
 }
 
 func (p *DockerPanel) request(action, service string) *protocol.Docker {
-	if action != "up" && action != "down" && action != "restart" && action != "rebuild" && action != "log" {
+	if action != "up" && action != "down" && action != "restart" && action != "rebuild" && action != "log" && action != "shell" {
 		return nil
 	}
-	if service == "" && action == "log" {
+	if service == "" && (action == "log" || action == "shell") {
 		return nil
 	}
 	return &protocol.Docker{Project: p.Project, Action: action, Service: service}
@@ -159,15 +166,20 @@ func (p *DockerPanel) Draw(width int) []string {
 	}
 
 	for i, service := range p.List {
-		mark := "  "
-		if i == p.Selected {
-			mark = focusedBorderColor.Render("▸ ")
-		}
 		dot, paint := "○", faintColor
 		if strings.HasPrefix(service.State, "up") {
 			dot, paint = "●", markerFor("answered").color()
 		}
-		body = append(body, mark+
+		if i == p.Selected {
+			// The picked line is a lit bar, not a caret: a whole painted row
+			// pulsing on the left is found by the eye without reading.
+			row := pad(service.Name, nameColumn) + pad(dot+" "+service.State, 16) +
+				pad(orDash(service.Port), 9) + pad(orDash(service.Health), 12) + orDash(service.Uptime)
+			body = append(body, pulseColor(p.frame).Render("▌")+
+				selectedRowColor.Render(" "+pad(row, max(inner-5, 1))))
+			continue
+		}
+		body = append(body, "  "+
 			barColor.Render(pad(service.Name, nameColumn))+
 			paint.Render(pad(dot+" "+service.State, 16))+
 			faintColor.Render(pad(orDash(service.Port), 9))+
@@ -184,6 +196,22 @@ func (p *DockerPanel) Draw(width int) []string {
 		title += " · " + fileName(p.File)
 	}
 	return floatingBox(title, body, inner)
+}
+
+// pulseShades is the breathing of the picked line: the bar goes from the
+// project's green to the phosphor and back, one step per frame.
+var pulseShades = []lipgloss.Style{
+	theme.Paint(theme.BrandCore, ""),
+	theme.Paint(theme.BrandLive, ""),
+	theme.Paint(theme.BrandPhosphor, ""),
+	theme.Paint(theme.BrandLive, ""),
+}
+
+// selectedRowColor is the picked line's body: raised background, bright text.
+var selectedRowColor = theme.Paint(theme.FgBright, theme.BgRaised)
+
+func pulseColor(frame int) lipgloss.Style {
+	return pulseShades[(frame/2)%len(pulseShades)]
 }
 
 func orDash(text string) string {

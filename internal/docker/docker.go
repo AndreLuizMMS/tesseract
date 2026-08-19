@@ -186,6 +186,23 @@ func LogCommand(file, service string) (string, []string) {
 	return "docker", []string{"compose", "--file", file, "logs", "--follow", "--tail", "200", service}
 }
 
+// ShellCommand is the command that opens a shell inside a service's running
+// container. It answers to the same keyboard as the bash cell: an
+// interactive terminal with color, not a reading.
+//
+// Alpine images have no bash, so the container picks whichever shell it
+// actually has — asked with `command -v`, because a failed `exec` takes the
+// shell down with it and the fallback would never run.
+func ShellCommand(file, service string) (string, []string) {
+	return "docker", []string{
+		"compose", "--file", file, "exec",
+		"--env", "TERM=xterm-256color",
+		"--env", "COLORTERM=truecolor",
+		service,
+		"sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash; fi; exec sh",
+	}
+}
+
 // ReadServices parses the output of `docker compose ps --format json`, which
 // comes as one object per line.
 func ReadServices(out []byte) ([]Service, error) {

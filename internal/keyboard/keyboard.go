@@ -95,6 +95,7 @@ const (
 	RestartService  Action = "restart-service"
 	RebuildService  Action = "rebuild-service"
 	LogAsCell       Action = "log-as-cell"
+	ShellAsCell     Action = "shell-as-cell"
 	UpStack         Action = "up-stack"
 	StopStack       Action = "stop-stack"
 	RestartStack    Action = "restart-stack"
@@ -172,6 +173,7 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "r", Action: RestartService, Help: "restarts the picked service", Footer: true, Short: "r restart"},
 		{Key: "b", Action: RebuildService, Help: "rebuilds the picked service"},
 		{Key: "l", Action: LogAsCell, Help: "opens the service's log as a cell", Footer: true, Short: "l log becomes cell"},
+		{Key: "a", Action: ShellAsCell, Help: "attaches a shell inside the picked service's container", Footer: true, Short: "a shell becomes cell"},
 		{Key: "U", Action: UpStack, Help: "brings up the whole stack"},
 		{Key: "S", Action: StopStack, Help: "stops the whole stack"},
 		{Key: "R", Action: RestartStack, Help: "restarts the whole stack"},

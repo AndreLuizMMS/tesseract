@@ -24,6 +24,18 @@ func prepareKind(t *testing.T, kind, dir string) Config {
 			"claude": {Program: fake},
 			"cursor": {Program: fake},
 		}
+	case "shell":
+		// A fake `docker` that stays up: the contract is the cell's, not the
+		// stack's, and there's no container to enter in a test.
+		bin := filepath.Join(dir, "bin")
+		if err := os.MkdirAll(bin, 0o755); err != nil {
+			t.Fatalf("prepare bin: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(bin, "docker"), []byte("#!/bin/sh\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
+			t.Fatalf("prepare fake docker: %v", err)
+		}
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		fallthrough
 	case "logs":
 		compose := filepath.Join(dir, "docker-compose.yml")
 		if err := os.WriteFile(compose, []byte("services:\n  web:\n    image: nginx\n"), 0o644); err != nil {

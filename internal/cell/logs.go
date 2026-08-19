@@ -95,3 +95,33 @@ func (l *Logs) Kill() error {
 	}
 	return l.Process.Kill()
 }
+
+// Resize refollows the service at the new width. The internal screen doesn't
+// reflow what's already on it: a log read inside a narrow cell keeps its
+// lines broken where they were broken, and going full screen would show
+// wide space with narrow text. Reading the log again at the new size is what
+// makes it whole — a logs cell is read-only and `docker compose logs` starts
+// over from the tail, so nothing is lost by asking again.
+func (l *Logs) Resize(columns, lines int) error {
+	l.mu.Lock()
+	sameWidth := l.config.Columns == columns
+	running := !l.finished
+	l.mu.Unlock()
+
+	if err := l.Process.Resize(columns, lines); err != nil {
+		return err
+	}
+	if sameWidth || columns <= 0 || !running {
+		return nil
+	}
+
+	_ = l.Process.Kill()
+	l.waitForPreviousDeath()
+	l.brush.Lock()
+	// Erase what's on the screen and the history behind it: everything there
+	// is wrapped at the old width, and the reread brings it back.
+	_, _ = l.emulator.Write([]byte("\x1b[2J\x1b[3J\x1b[H"))
+	l.frameValid = false
+	l.brush.Unlock()
+	return l.reconnect(l.program, l.args, terminalEnvironment())
+}

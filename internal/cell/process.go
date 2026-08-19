@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
@@ -86,6 +87,11 @@ func (p *Process) start(cfg Config, program string, args []string, environment [
 // lets a log cell go back to following the service when it comes back up,
 // without losing what was already written.
 func (p *Process) reconnect(program string, args, environment []string) error {
+	// The reader of the old pseudo terminal has the last word about the
+	// state: if it's still on its way out, it would mark as dead a cell that
+	// is already streaming again.
+	p.waitForPreviousDeath()
+
 	p.mu.Lock()
 	columns, lines := p.config.Columns, p.config.Lines
 	p.mu.Unlock()
@@ -110,6 +116,20 @@ func (p *Process) reconnect(program string, args, environment []string) error {
 
 	go p.readFromProcess(terminal, cmd)
 	return nil
+}
+
+// waitForPreviousDeath holds until the process that was in here is gone for
+// good. It returns right away when there's none — the first spawn.
+func (p *Process) waitForPreviousDeath() {
+	for range 200 {
+		p.mu.Lock()
+		gone := p.cmd == nil || p.finished
+		p.mu.Unlock()
+		if gone {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // readFromProcess carries what the process wrote to the internal screen and

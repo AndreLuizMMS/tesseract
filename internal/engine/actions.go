@@ -384,14 +384,18 @@ func (e *Engine) Docker(request protocol.Docker) (protocol.Services, error) {
 	}
 	switch request.Action {
 	case "list":
-	case "log":
+	case "log", "shell":
 		if request.Service == "" {
 			return response, fmt.Errorf("which service?")
 		}
+		kind, label := "logs", "logs "
+		if request.Action == "shell" {
+			kind, label = "shell", "shell "
+		}
 		_, err := e.Create(protocol.Create{
 			Path:   target.path,
-			Type:   "logs",
-			Name:   "logs " + request.Service,
+			Type:   kind,
+			Name:   label + request.Service,
 			Target: request.Service,
 		})
 		return response, err
