@@ -220,3 +220,49 @@ func TestClaudeIdleScreenStillEndsTheTurn(t *testing.T) {
 		t.Fatalf("after the answer the turn has to end, got %q", state)
 	}
 }
+
+// TestClaudeThinkingPauseIsStillWork is the notification-per-step bug: with
+// extended thinking the bar between two tool calls drops the token counter
+// and says only that it's thinking, and the cell used to read that pause as
+// an answer — one notice per step of the same turn.
+func TestClaudeThinkingPauseIsStillWork(t *testing.T) {
+	bars := []string{
+		"✽ Beboppin'… (1m 12s · thinking with high effort)",
+		"✻ Beboppin'… (1m 20s · still thinking with high effort)",
+	}
+	for _, bar := range bars {
+		turn := NewTurn(claudeMarkers)
+		turn.Interact()
+		for range readingsToArm + readingsToEnd*2 {
+			if state := turn.Observe("wrote the file\n" + bar); state != Working {
+				t.Fatalf("thinking bar %q read as %q", bar, state)
+			}
+		}
+	}
+}
+
+// TestClaudePermissionQuestionsWaitForTheUser — the permission question
+// changes with the tool, and one that isn't recognized falls through to the
+// end of the turn: the cell would announce an answer while the agent is
+// standing still waiting for a yes.
+func TestClaudePermissionQuestionsWaitForTheUser(t *testing.T) {
+	questions := []string{
+		"Do you want to proceed?",
+		"Do you want to make this edit to claude.go?",
+		"Do you want to create turn.go?",
+	}
+	for _, question := range questions {
+		turn := NewTurn(claudeMarkers)
+		turn.Interact()
+		for range readingsToArm {
+			turn.Observe("✽ Flambéing… (35s · ↓ 1.4k tokens)")
+		}
+		var state State
+		for range readingsToEnd * 2 {
+			state = turn.Observe("● Write(turn.go)\n\n" + question + "\n❯ 1. Yes\n  2. No")
+		}
+		if state != Approve {
+			t.Fatalf("question %q read as %q", question, state)
+		}
+	}
+}

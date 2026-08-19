@@ -27,10 +27,19 @@ var claudeMarkers = Markers{
 	// survives every width is the token counter and, before the first
 	// token, the time it spent thinking — and neither is always the end of
 	// the line, so the marker can't carry the closing paren.
-	Working: []string{"esc to interrupt", "tokens", "thought for"},
+	//
+	// "thinking" covers the long pause between two tool calls: while the
+	// model reasons, the bar drops the token counter and says only that
+	// it's thinking, and without this the cell reads a mid-turn pause as an
+	// answer and notifies for every step of the work.
+	Working: []string{"esc to interrupt", "tokens", "thought for", "thinking"},
 	Question: []string{
 		"No, and tell Claude what to do differently",
-		"Do you want to proceed?",
+		// The permission question changes with the tool — proceed, make
+		// this edit, create the file. Only the opening survives all of
+		// them, and an unrecognized question would end the turn as if the
+		// answer had come.
+		"Do you want to",
 		"1. Yes, I trust this folder",
 	},
 }
