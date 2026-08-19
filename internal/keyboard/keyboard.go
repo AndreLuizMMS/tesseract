@@ -49,6 +49,12 @@ const (
 	NextTab      Action = "next-tab"
 	PreviousTab  Action = "previous-tab"
 
+	// History scrolling — jumps bigger than the mouse wheel.
+	ScrollPageUp   Action = "scroll-page-up"
+	ScrollPageDown Action = "scroll-page-down"
+	ScrollTop      Action = "scroll-top"
+	ScrollBottom   Action = "scroll-bottom"
+
 	// Keyboard and screen.
 	EnterType    Action = "enter-type"
 	ExitType     Action = "exit-type"
@@ -136,6 +142,10 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "ctrl+e", Action: OpenEditor, Help: "opens the project's directory in the configured IDE"},
 
 		{Key: "/", Action: SearchTerm, Help: "searches the focused cell's history"},
+		{Key: "pgup", Action: ScrollPageUp, Help: "scrolls the focused cell's history a page at a time", Group: "pgup/pgdn history"},
+		{Key: "pgdown", Action: ScrollPageDown, Help: "scrolls a page down", Group: "pgup/pgdn history"},
+		{Key: "home", Action: ScrollTop, Help: "jumps to the top of the focused cell's history"},
+		{Key: "end", Action: ScrollBottom, Help: "jumps back to the live end of the focused cell's history"},
 		{Key: "esc", Action: Back, Help: "exits scrolling and closes whatever is open"},
 
 		{Key: "?", Action: Help, Help: "help", Footer: true, Short: "? help"},

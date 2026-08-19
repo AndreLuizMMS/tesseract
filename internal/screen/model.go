@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,10 @@ import (
 
 // linesPerScroll is how much the mouse wheel moves at a time.
 const linesPerScroll = 3
+
+// linesPerPage is how much pgup/pgdown move — a bigger jump than the wheel,
+// so paging through a long history doesn't take a hundred ticks.
+const linesPerPage = 20
 
 // spinCadence is how often the work-in-progress drawing advances a frame.
 const spinCadence = 120 * time.Millisecond
@@ -335,6 +340,22 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 		}
 	case keyboard.SkipToAlert:
 		m.jumpToCaller()
+	case keyboard.ScrollPageUp:
+		if item != nil {
+			m.send(protocol.TypeScroll, protocol.Scroll{Cell: item.ID, Delta: linesPerPage})
+		}
+	case keyboard.ScrollPageDown:
+		if item != nil {
+			m.send(protocol.TypeScroll, protocol.Scroll{Cell: item.ID, Delta: -linesPerPage})
+		}
+	case keyboard.ScrollTop:
+		if item != nil {
+			m.send(protocol.TypeScroll, protocol.Scroll{Cell: item.ID, Delta: math.MaxInt32})
+		}
+	case keyboard.ScrollBottom:
+		if item != nil {
+			m.send(protocol.TypeScroll, protocol.Scroll{Cell: item.ID, Live: true})
+		}
 	case keyboard.NextTab:
 		if item != nil {
 			m.send(protocol.TypeTab, protocol.Tab{Cell: item.ID, Step: 1})
