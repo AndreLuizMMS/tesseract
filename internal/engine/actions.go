@@ -152,9 +152,9 @@ func (e *Engine) OpenInEditor(projectID string) error {
 	fields := strings.Fields(editor)
 	environment := withDisplay(os.Environ())
 	binaryName, arguments := fields[0], append(fields[1:], path)
-	// On WSL the Linux binary of the IDE has no display to draw on and dies —
-	// what actually opens the folder is always the Windows-side install, on its
-	// PATH. It decides whether to reuse an open window or bring up a new one:
+	// With no IDE installed inside Linux, what opens the folder on WSL is the
+	// Windows-side install, on its PATH. It decides whether to reuse an open
+	// window or bring up a new one:
 	// the socket the IDE leaves behind on WSL keeps responding even after the
 	// window has already closed, so "socket alive" can't be used as proof of an
 	// open window.
@@ -200,6 +200,14 @@ const cmdExePath = "/mnt/c/Windows/System32/cmd.exe"
 // window already open). It only applies inside WSL: outside it there's no
 // Windows on the other end to ask for help.
 func openViaWindows(editorName, path string) (cmdExe string, folderURI string, ok bool) {
+	// An IDE installed inside Linux draws through WSLg and opens the folder on
+	// its own. Handing it to Windows would ask for a program that only exists
+	// in here, which is the "Windows cannot find it" dialog. The remote CLI the
+	// IDE drops under ~/.<name>-server is not that install: it only talks to a
+	// window someone else opened, so it doesn't count.
+	if binary, err := exec.LookPath(editorName); err == nil && !strings.Contains(binary, "-server/") {
+		return "", "", false
+	}
 	if _, err := os.Stat(cmdExePath); err != nil {
 		return "", "", false
 	}
