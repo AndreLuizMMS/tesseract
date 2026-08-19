@@ -8,7 +8,7 @@ Type=simple
 # The service doesn't inherit the user's shell PATH, and that's where the
 # account's installed agents (claude, cursor-agent) come from.
 Environment=PATH=%h/.local/bin:%h/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/snap/bin
-ExecStart=%h/.local/bin/ts motor
+ExecStart=%h/.local/bin/ts engine
 # Nothing restarts on its own inside Tesseract, but the service itself comes
 # back when it dies by accident — that's what makes the grid reappear after
 # a `wsl --shutdown`.
