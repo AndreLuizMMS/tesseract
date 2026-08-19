@@ -212,22 +212,16 @@ func TestSearchInTheCellHistory(t *testing.T) {
 	}
 }
 
-// TestEditorWithNoConfigurationWarns.
-func TestEditorWithNoConfigurationWarns(t *testing.T) {
-	config := testConfig()
-	config.Editor = ""
-	m := New(t.TempDir(), config)
-	if err := m.Start(); err != nil {
-		t.Fatalf("starting: %v", err)
-	}
-	defer m.Shutdown()
-
+// TestEditorWithNoIDEPickedWarns — the picker sends the id it found; a
+// request with none is a bug upstream, not something to guess around.
+func TestEditorWithNoIDEPickedWarns(t *testing.T) {
+	m := testEngine(t)
 	if _, err := m.Create(protocol.Create{Path: t.TempDir(), Type: "bash"}); err != nil {
 		t.Fatalf("creating: %v", err)
 	}
 	projectID := m.Snapshot().Projects[0].ID
-	if err := m.OpenInEditor(projectID); err == nil {
-		t.Fatal("with no editor configured, it should have warned")
+	if err := m.OpenInEditor(projectID, "", ""); err == nil {
+		t.Fatal("with no IDE picked, it should have warned")
 	}
 }
 
@@ -304,19 +298,13 @@ func TestEditorDoesNotStallOnTheWSLPrompt(t *testing.T) {
 		t.Fatalf("preparing: %v", err)
 	}
 
-	config := testConfig()
-	config.Editor = fake
-	m := New(t.TempDir(), config)
-	if err := m.Start(); err != nil {
-		t.Fatalf("starting: %v", err)
-	}
-	defer m.Shutdown()
+	m := testEngine(t)
 
 	project := t.TempDir()
 	if _, err := m.Create(protocol.Create{Path: project, Type: "bash"}); err != nil {
 		t.Fatalf("creating: %v", err)
 	}
-	if err := m.OpenInEditor(m.Snapshot().Projects[0].ID); err != nil {
+	if err := m.OpenInEditor(m.Snapshot().Projects[0].ID, fake, "wsl"); err != nil {
 		t.Fatalf("the editor should have opened: %v", err)
 	}
 	opened, err := os.ReadFile(marker)

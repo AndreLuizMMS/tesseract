@@ -135,7 +135,6 @@ defaults.
 
 ```json
 {
-  "editor": "code",
   "som": true,
   "notificar": true,
   "comandoNotificacao": "",

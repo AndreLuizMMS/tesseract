@@ -22,6 +22,7 @@ const (
 	TypeSearch    = "search"
 	TypeDocker    = "docker"
 	TypeEditor    = "editor"
+	TypeListIDEs  = "list-ides"
 	TypeGoToLine  = "go-to-line"
 	TypeStatus    = "status"
 	TypeStop      = "stop"
@@ -29,6 +30,7 @@ const (
 	TypeCompleted = "completed"
 	TypeMatches   = "matches"
 	TypeServices  = "services"
+	TypeIDEs      = "ides"
 	TypeSummary   = "summary"
 	TypeError     = "error"
 )
@@ -165,9 +167,32 @@ type Services struct {
 	Error   string    `json:"error,omitempty"`
 }
 
-// Editor opens the project's directory in the configured editor.
+// Editor opens the project's directory in the picked IDE.
 type Editor struct {
+	Project  string `json:"project"`
+	ID       string `json:"id"`
+	Location string `json:"location"`
+}
+
+// ListIDEs asks the engine which IDEs are reachable from here to open the
+// project in.
+type ListIDEs struct {
 	Project string `json:"project"`
+}
+
+// IDE is one editor tesseract found on the machine — either installed
+// inside WSL or reachable through the Windows side.
+type IDE struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Location string `json:"location"` // "wsl" or "windows"
+}
+
+// IDEs is the engine's answer to ListIDEs.
+type IDEs struct {
+	Project string `json:"project"`
+	List    []IDE  `json:"list"`
+	Error   string `json:"error,omitempty"`
 }
 
 // GoToLine moves the cell's reading to a history line, which is where the

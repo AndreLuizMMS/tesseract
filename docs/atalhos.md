@@ -39,7 +39,7 @@ The whole map comes straight from the code: no key that doesn't exist shows up h
 |---|---|
 | `p` | sends a prompt to the focused cell without entering it |
 | `d` | opens the Docker panel for the focused project |
-| `ctrl-e` | opens the project directory in the configured IDE (`cursor /path`) |
+| `ctrl-e` | opens a picker with every IDE found on the machine, then opens the project's directory in the one you choose |
 | mouse wheel | scrolls the cell's history |
 | drag with mouse | marks a section of the cell and **copies on release** |
 | `/` | searches the focused cell's history |

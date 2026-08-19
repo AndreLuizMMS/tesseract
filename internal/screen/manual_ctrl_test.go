@@ -15,16 +15,20 @@ import (
 )
 
 // TestManualCtrlEOpensIDE is the end-to-end validation of the shortcut: the
-// ctrl+e key on the real screen, a real socket, a real engine. The IDE is a
-// spy with the same anatomy as Cursor's remote install, and the test checks
-// it got the project's path and the live window's socket — exactly what
-// opens the folder in the open window.
+// ctrl+e key on the real screen, a real socket, a real engine. It opens the
+// picker, waits for the detected list, presses enter on the first IDE, and
+// checks the spy (with the same anatomy as Cursor's remote install) got the
+// project's path and the live window's socket — exactly what opens the
+// folder in the open window.
 //
 // Only runs with MANUAL=1: brings up a real engine and cell.
 //
 //	MANUAL=1 go test ./internal/screen -run TestManualCtrlEOpensIDE -v
 //
-// To target a real IDE, with a Cursor window open:
+// To target a real IDE, with a Cursor window open on the Windows side, put
+// its binary on Windows' PATH (or use a real "code"/"codium"/"cursor" that's
+// already there) and skip SOCKET_DA_JANELA to exercise the cmd.exe launch
+// instead of the reuse-the-open-window path:
 //
 //	MANUAL=1 EDITOR_DO_TESTE=cursor SOCKET_DA_JANELA=/run/user/1000/vscode-ipc-....sock ...
 func TestManualCtrlEOpensIDE(t *testing.T) {
@@ -63,9 +67,7 @@ func TestManualCtrlEOpensIDE(t *testing.T) {
 		project = t.TempDir()
 	}
 
-	config := engine.DefaultConfig()
-	config.Editor = editor
-	m := engine.New(t.TempDir(), config)
+	m := engine.New(t.TempDir(), engine.DefaultConfig())
 	if err := m.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -89,6 +91,17 @@ func TestManualCtrlEOpensIDE(t *testing.T) {
 
 	model := NewModel(client, m.Snapshot())
 	model.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	if model.idePicker == nil {
+		t.Fatal("ctrl+e should have opened the IDE picker")
+	}
+
+	// The picker's own detection only finds what's really on the machine;
+	// the spy poses as one, wired straight in, so the pick is deterministic
+	// regardless of what else happens to be installed here.
+	model.idePicker.Received(protocol.IDEs{Project: model.idePicker.Project, List: []protocol.IDE{
+		{ID: editor, Label: editor, Location: "windows"},
+	}})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// The request crosses the socket; the error, if any, comes back the same
 	// way.

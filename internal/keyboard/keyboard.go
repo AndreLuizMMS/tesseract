@@ -19,6 +19,8 @@ const (
 	Form
 	// DockerPanel: while the panel is open, the keyboard is its.
 	DockerPanel
+	// IDEPanel: while the IDE picker is open, the keyboard is its.
+	IDEPanel
 )
 
 func (m Mode) String() string {
@@ -29,6 +31,8 @@ func (m Mode) String() string {
 		return "FORM"
 	case DockerPanel:
 		return "DOCKER"
+	case IDEPanel:
+		return "OPEN IN"
 	}
 	return "BROWSE"
 }
@@ -99,6 +103,11 @@ const (
 	UpStack         Action = "up-stack"
 	StopStack       Action = "stop-stack"
 	RestartStack    Action = "restart-stack"
+
+	// IDE picker.
+	PreviousIDE Action = "previous-ide"
+	NextIDE     Action = "next-ide"
+	ChooseIDE   Action = "choose-ide"
 )
 
 // Shortcut is one line of the map: the key, what it does and the help text.
@@ -140,7 +149,7 @@ var shortcuts = map[Mode][]Shortcut{
 
 		{Key: "p", Action: Prompt, Help: "sends a prompt to the focused cell without entering it"},
 		{Key: "d", Action: OpenDocker, Help: "opens the focused project's Docker panel", Footer: true, Short: "d docker"},
-		{Key: "ctrl+e", Action: OpenEditor, Help: "opens the project's directory in the configured IDE"},
+		{Key: "ctrl+e", Action: OpenEditor, Help: "picks an IDE and opens the project's directory there"},
 
 		{Key: "/", Action: SearchTerm, Help: "searches the focused cell's history"},
 		{Key: "pgup", Action: ScrollPageUp, Help: "scrolls the focused cell's history a page at a time", Group: "pgup/pgdn history"},
@@ -179,6 +188,12 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "R", Action: RestartStack, Help: "restarts the whole stack"},
 		{Key: "esc", Action: Back, Help: "closes the panel and gives back the keyboard", Footer: true, Short: "esc closes"},
 	},
+	IDEPanel: {
+		{Key: "up", Action: PreviousIDE, Help: "picks the IDE — picking doesn't open anything", Group: "↑↓ pick IDE", Footer: true, Short: "↑↓ IDE"},
+		{Key: "down", Action: NextIDE, Help: "next IDE", Group: "↑↓ pick IDE"},
+		{Key: "enter", Action: ChooseIDE, Help: "opens the project in the picked IDE", Footer: true, Short: "↵ open"},
+		{Key: "esc", Action: Back, Help: "closes the picker and gives back the keyboard", Footer: true, Short: "esc closes"},
+	},
 }
 
 func init() {
@@ -215,7 +230,7 @@ func Shortcuts(mode Mode) []Shortcut {
 
 // Modes lists every mode that has its own keyboard.
 func Modes() []Mode {
-	return []Mode{Browse, Type, Form, DockerPanel}
+	return []Mode{Browse, Type, Form, DockerPanel, IDEPanel}
 }
 
 // Line is how a key shows up in the help: already grouped when it's part of

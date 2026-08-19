@@ -221,7 +221,20 @@ func (s *Server) handleRequest(envelope protocol.Message, respond func(string, a
 			fail(err)
 			return
 		}
-		fail(s.engine.OpenInEditor(request.Project))
+		fail(s.engine.OpenInEditor(request.Project, request.ID, request.Location))
+
+	case protocol.TypeListIDEs:
+		request, err := protocol.Unpack[protocol.ListIDEs](envelope)
+		if err != nil {
+			fail(err)
+			return
+		}
+		// Checking both sides (WSL PATH and, through cmd.exe, Windows' own
+		// PATH) is slow enough to notice — it leaves the socket queue so the
+		// picker's spinner keeps animating while it runs.
+		go func() {
+			respond(protocol.TypeIDEs, protocol.IDEs{Project: request.Project, List: s.engine.DetectIDEs()})
+		}()
 
 	case protocol.TypeGoToLine:
 		request, err := protocol.Unpack[protocol.GoToLine](envelope)

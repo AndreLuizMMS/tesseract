@@ -52,6 +52,8 @@ type resultsArrived protocol.Matches
 
 type servicesArrived protocol.Services
 
+type idesArrived protocol.IDEs
+
 type errorArrived string
 
 type engineDied struct{}
@@ -78,6 +80,7 @@ type Model struct {
 	selection *Selection
 
 	panel        *DockerPanel
+	idePicker    *IDEPicker
 	form         *Form
 	question     *Question
 	confirmation *Confirmation
@@ -153,6 +156,10 @@ func (m *Model) Listen(program *tea.Program) {
 				if services, err := protocol.Unpack[protocol.Services](envelope); err == nil {
 					program.Send(servicesArrived(services))
 				}
+			case protocol.TypeIDEs:
+				if ides, err := protocol.Unpack[protocol.IDEs](envelope); err == nil {
+					program.Send(idesArrived(ides))
+				}
 			case protocol.TypeMatches:
 				if results, err := protocol.Unpack[protocol.Matches](envelope); err == nil {
 					program.Send(resultsArrived(results))
@@ -193,6 +200,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case servicesArrived:
 		if m.panel != nil {
 			m.panel.Received(protocol.Services(msg))
+		}
+
+	case idesArrived:
+		if m.idePicker != nil {
+			m.idePicker.Received(protocol.IDEs(msg))
 		}
 
 	case resultsArrived:
@@ -238,6 +250,8 @@ func (m *Model) Mode() keyboard.Mode {
 	switch {
 	case m.panel != nil:
 		return keyboard.DockerPanel
+	case m.idePicker != nil:
+		return keyboard.IDEPanel
 	case m.form != nil || m.question != nil || m.confirmation != nil:
 		return keyboard.Form
 	case m.typing:
@@ -255,6 +269,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.panel != nil:
 		return m, m.handlePanel(key)
+	case m.idePicker != nil:
+		return m, m.handleIDEPicker(key)
 	case m.form != nil:
 		return m, m.handleForm(key, msg.Text, erased)
 	case m.question != nil:
@@ -416,7 +432,14 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 		}
 	case keyboard.OpenEditor:
 		if project != nil {
-			m.send(protocol.TypeEditor, protocol.Editor{Project: project.ID})
+			m.idePicker = NewIDEPicker(project.ID, project.Name)
+			m.send(protocol.TypeListIDEs, protocol.ListIDEs{Project: project.ID})
+			// Same as the Docker panel: the picker animates while it's
+			// open, spinning until the list arrives and pulsing the
+			// selection once it's there.
+			m.focus = Adjust(m.state, m.focus)
+			m.reportSizes()
+			return m, tickFrom(0)
 		}
 
 	case keyboard.SearchTerm:
@@ -473,17 +496,36 @@ func (m *Model) handlePanel(key string) tea.Cmd {
 	return nil
 }
 
-// spinPanel advances the drawing and, every so often, asks the engine how
-// the stack is doing.
+// handleIDEPicker hands the key to the IDE picker, which owns the keyboard
+// while it's open.
+func (m *Model) handleIDEPicker(key string) tea.Cmd {
+	request, open := m.idePicker.Key(key)
+	if !open {
+		m.idePicker = nil
+	}
+	if request != nil {
+		m.send(protocol.TypeEditor, *request)
+	}
+	return nil
+}
+
+// spinPanel advances the drawing of whichever animated dialog is open and,
+// for the Docker panel, every so often asks the engine how the stack is
+// doing.
 func (m *Model) spinPanel(tick panelTick) tea.Cmd {
-	// The tick lives as long as the panel does: the selection is animated
-	// even while nothing is running. Closing the panel ends the loop.
-	if m.panel == nil {
+	// The tick lives as long as a dialog does: the selection is animated
+	// even while nothing is running. Closing it ends the loop.
+	if m.panel == nil && m.idePicker == nil {
 		return nil
 	}
-	m.panel.Spin()
-	if m.panel.IsWorking() && tick.count%spinsPerCheck == spinsPerCheck-1 {
-		m.send(protocol.TypeDocker, protocol.Docker{Project: m.panel.Project, Action: "list"})
+	if m.panel != nil {
+		m.panel.Spin()
+		if m.panel.IsWorking() && tick.count%spinsPerCheck == spinsPerCheck-1 {
+			m.send(protocol.TypeDocker, protocol.Docker{Project: m.panel.Project, Action: "list"})
+		}
+	}
+	if m.idePicker != nil {
+		m.idePicker.Spin()
 	}
 	return tickFrom(tick.count + 1)
 }
@@ -832,6 +874,8 @@ func (m *Model) View() tea.View {
 	switch {
 	case m.panel != nil:
 		background = overlay(background, m.panel.Draw(m.width), m.width, m.height)
+	case m.idePicker != nil:
+		background = overlay(background, m.idePicker.Draw(m.width), m.width, m.height)
 	case m.form != nil:
 		background = overlay(background, m.form.Draw(m.width), m.width, m.height)
 	case m.question != nil:

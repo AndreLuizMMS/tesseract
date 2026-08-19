@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andreluiz/tesseract/internal/cell"
@@ -131,10 +132,75 @@ func (e *Engine) AdoptAgentName(cellID string) error {
 	return e.Rename(cellID, name)
 }
 
-// OpenInEditor opens the project directory in the configured IDE.
-func (e *Engine) OpenInEditor(projectID string) error {
+// ideCandidates is every IDE tesseract knows how to launch — not a scan of
+// the filesystem for anything that looks like an editor, but the small,
+// known set the picker checks for, on each of the two places it could live.
+var ideCandidates = []struct{ ID, Label string }{
+	{"code", "VS Code"},
+	{"code-insiders", "VS Code Insiders"},
+	{"codium", "VSCodium"},
+	{"cursor", "Cursor"},
+}
+
+// DetectIDEs finds which of the known IDEs are reachable from here, inside
+// WSL and on the Windows side alike. The two checks per candidate run
+// concurrently — the Windows one crosses into cmd.exe and is slow enough on
+// its own that eight of them in a row would make ctrl+e feel stuck.
+func (e *Engine) DetectIDEs() []protocol.IDE {
+	var (
+		mu   sync.Mutex
+		wg   sync.WaitGroup
+		list []protocol.IDE
+	)
+	add := func(id protocol.IDE) {
+		mu.Lock()
+		list = append(list, id)
+		mu.Unlock()
+	}
+	for _, c := range ideCandidates {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if wslInstalled(c.ID) {
+				add(protocol.IDE{ID: c.ID, Label: c.Label, Location: "wsl"})
+			}
+			if windowsInstalled(c.ID) {
+				add(protocol.IDE{ID: c.ID, Label: c.Label, Location: "windows"})
+			}
+		}()
+	}
+	wg.Wait()
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Label != list[j].Label {
+			return list[i].Label < list[j].Label
+		}
+		return list[i].Location < list[j].Location
+	})
+	return list
+}
+
+// wslInstalled says whether the id names a real Linux install on PATH. The
+// remote CLI an IDE drops under ~/.<name>-server only talks to a window
+// someone else opened — it doesn't count as an install of its own.
+func wslInstalled(id string) bool {
+	binary, err := exec.LookPath(id)
+	return err == nil && !strings.Contains(binary, "-server/")
+}
+
+// windowsInstalled asks Windows' own PATH, through cmd.exe, whether it knows
+// the id. Only makes sense inside WSL — outside it there's no Windows on the
+// other end to ask.
+func windowsInstalled(id string) bool {
+	if _, err := os.Stat(cmdExePath); err != nil {
+		return false
+	}
+	return exec.Command(cmdExePath, "/c", "where", id).Run() == nil
+}
+
+// OpenInEditor opens the project directory in the picked IDE, at the place
+// the picker said it lives.
+func (e *Engine) OpenInEditor(projectID, id, location string) error {
 	e.mu.Lock()
-	editor := e.config.Editor
 	path := ""
 	for _, p := range e.projects {
 		if p.id == projectID {
@@ -146,31 +212,30 @@ func (e *Engine) OpenInEditor(projectID string) error {
 	if path == "" {
 		return fmt.Errorf("project %s does not exist", projectID)
 	}
-	if editor == "" {
-		return fmt.Errorf("no editor configured")
+	if id == "" {
+		return fmt.Errorf("no IDE picked")
 	}
-	fields := strings.Fields(editor)
+
 	// The `code`/`codium` launcher inside WSL asks, on stderr, whether to
 	// really open the Linux install, and waits for an answer on stdin. The
 	// engine is a service and has no stdin: the read hits EOF, the answer
 	// comes out empty, and the launcher exits without opening anything. This
 	// variable is the launcher's own way out of that prompt.
 	environment := append(withDisplay(os.Environ()), "DONT_PROMPT_WSL_INSTALL=1")
-	binaryName, arguments := fields[0], append(fields[1:], path)
-	// With no IDE installed inside Linux, what opens the folder on WSL is the
-	// Windows-side install, on its PATH. It decides whether to reuse an open
-	// window or bring up a new one:
-	// the socket the IDE leaves behind on WSL keeps responding even after the
-	// window has already closed, so "socket alive" can't be used as proof of an
-	// open window.
-	if cmdExe, uri, ok := openViaWindows(fields[0], path); ok {
-		binaryName, arguments = cmdExe, []string{"/c", "start", "", fields[0], "--folder-uri", uri}
-	} else if cli, window := ideAlreadyOpen(fields[0]); cli != "" {
-		// Outside WSL (a remote host over SSH, for instance), the socket is the
-		// only signal that exists, and there it's reliable — the remote IDE
-		// doesn't leave the server hanging after the local window closes.
-		binaryName = cli
-		environment = append(environment, "VSCODE_IPC_HOOK_CLI="+window)
+	binaryName, arguments := id, []string{path}
+	if location == "windows" {
+		// A window already open for this IDE is reused through its remote
+		// CLI: the socket it leaves behind on WSL keeps responding even
+		// after the window has closed, so "socket alive" is what proves a
+		// window is still there to receive the request.
+		if cli, window := ideAlreadyOpen(id); cli != "" {
+			binaryName = cli
+			environment = append(environment, "VSCODE_IPC_HOOK_CLI="+window)
+		} else if distro := wslDistro(); distro != "" {
+			binaryName, arguments = cmdExePath, []string{"/c", "start", "", id, "--folder-uri", "vscode-remote://wsl+" + distro + path}
+		} else {
+			return fmt.Errorf("could not find the WSL distro name")
+		}
 	}
 	command := exec.Command(binaryName, arguments...)
 	command.Dir = path
@@ -178,7 +243,7 @@ func (e *Engine) OpenInEditor(projectID string) error {
 	output := &strings.Builder{}
 	command.Stdout, command.Stderr = output, output
 	if err := command.Start(); err != nil {
-		return fmt.Errorf("could not open %s: %w", editor, err)
+		return fmt.Errorf("could not open %s: %w", id, err)
 	}
 
 	// The IDE that opens a window stays alive; the one that didn't dies right
@@ -199,29 +264,6 @@ func (e *Engine) OpenInEditor(projectID string) error {
 // cmdExePath is fixed because it's where Windows always installs its own
 // command interpreter — there's no per-machine variation to discover.
 const cmdExePath = "/mnt/c/Windows/System32/cmd.exe"
-
-// openViaWindows assembles the command that brings up the IDE on the Windows
-// side when its Linux binary has no way to open any window (the case with no
-// window already open). It only applies inside WSL: outside it there's no
-// Windows on the other end to ask for help.
-func openViaWindows(editorName, path string) (cmdExe string, folderURI string, ok bool) {
-	// An IDE installed inside Linux draws through WSLg and opens the folder on
-	// its own. Handing it to Windows would ask for a program that only exists
-	// in here, which is the "Windows cannot find it" dialog. The remote CLI the
-	// IDE drops under ~/.<name>-server is not that install: it only talks to a
-	// window someone else opened, so it doesn't count.
-	if binary, err := exec.LookPath(editorName); err == nil && !strings.Contains(binary, "-server/") {
-		return "", "", false
-	}
-	if _, err := os.Stat(cmdExePath); err != nil {
-		return "", "", false
-	}
-	distro := wslDistro()
-	if distro == "" {
-		return "", "", false
-	}
-	return cmdExePath, "vscode-remote://wsl+" + distro + path, true
-}
 
 // wslDistro asks Windows for the name of the registered distro. With more
 // than one installed it's ambiguous — takes the first in the list; ponytail
