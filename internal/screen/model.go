@@ -407,6 +407,13 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 		}
 	case keyboard.OpenDocker:
 		m.openDocker()
+		if m.panel != nil {
+			// The panel animates while it's open — the selection breathes,
+			// so the picked service is visible without hunting for a caret.
+			m.focus = Adjust(m.state, m.focus)
+			m.reportSizes()
+			return m, tickFrom(0)
+		}
 	case keyboard.OpenEditor:
 		if project != nil {
 			m.send(protocol.TypeEditor, protocol.Editor{Project: project.ID})
@@ -462,7 +469,6 @@ func (m *Model) handlePanel(key string) tea.Cmd {
 	// keeps drawing itself while that happens.
 	if request.Action != "list" {
 		m.panel.Started(request.Action, request.Service)
-		return tickFrom(0)
 	}
 	return nil
 }
@@ -470,11 +476,13 @@ func (m *Model) handlePanel(key string) tea.Cmd {
 // spinPanel advances the drawing and, every so often, asks the engine how
 // the stack is doing.
 func (m *Model) spinPanel(tick panelTick) tea.Cmd {
-	if m.panel == nil || !m.panel.IsWorking() {
+	// The tick lives as long as the panel does: the selection is animated
+	// even while nothing is running. Closing the panel ends the loop.
+	if m.panel == nil {
 		return nil
 	}
 	m.panel.Spin()
-	if tick.count%spinsPerCheck == spinsPerCheck-1 {
+	if m.panel.IsWorking() && tick.count%spinsPerCheck == spinsPerCheck-1 {
 		m.send(protocol.TypeDocker, protocol.Docker{Project: m.panel.Project, Action: "list"})
 	}
 	return tickFrom(tick.count + 1)
@@ -893,7 +901,7 @@ func (m *Model) cellOrigin(id string) (int, int, bool) {
 		return indexWidth + 2, 4, true
 	}
 	if m.focus.Full {
-		return 1, 2, true
+		return 1, 3, true
 	}
 	return OriginInGrid(m.state, m.focus, m.width, m.height, id)
 }
