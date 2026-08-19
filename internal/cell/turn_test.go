@@ -179,3 +179,44 @@ func TestAgentComingUpDoesNotBecomeAReply(t *testing.T) {
 		t.Fatalf("after a request, the turn ends normally: %q", state)
 	}
 }
+
+// TestClaudeWorkBarVariantsCountAsWork is the flapping bug: in a narrow cell
+// the work bar drops the interrupt hint and shifts what comes after the
+// token counter, so a marker anchored to the end of the line stopped
+// matching mid-turn and the cell announced an answer that hadn't come.
+func TestClaudeWorkBarVariantsCountAsWork(t *testing.T) {
+	bars := []string{
+		"✻ Flambéing… (3m 10s · ↓ 7.8k tokens · thought for 3s)",
+		"✽ Flambéing… (2m 35s · ↓ 7.4k tokens)",
+		"✢ Flambéing… (2m 56s · ↓7.5k tokens · thinking with high effort)",
+		"· Beboppin'… (25s · thought for 8s)",
+		"✻ Cogitating… (12s · ↑ 1.2k tokens · esc to interrupt)",
+	}
+	for _, bar := range bars {
+		turn := NewTurn(claudeMarkers)
+		turn.Interact()
+		for range readingsToArm + readingsToEnd*2 {
+			if state := turn.Observe("editing the file\n" + bar); state != Working {
+				t.Fatalf("work bar %q read as %q", bar, state)
+			}
+		}
+	}
+}
+
+// TestClaudeIdleScreenStillEndsTheTurn — the looser markers can't hold the
+// cell working after the answer landed: nothing the finished screen shows,
+// status bar included, mentions work.
+func TestClaudeIdleScreenStillEndsTheTurn(t *testing.T) {
+	turn := NewTurn(claudeMarkers)
+	turn.Interact()
+	for range readingsToArm {
+		turn.Observe("✽ Flambéing… (2m 35s · ↓ 7.4k tokens)")
+	}
+	idle := "done, applied the fix.\n\n❯ \n  📁 ~/tesseract │ ⏳ 38% 3:00 (14:00) │ 📄 12%\n  ⏵⏵ auto mode on (shift+tab to cycle)"
+	for range readingsToEnd {
+		turn.Observe(idle)
+	}
+	if state := turn.State(); state != Replied {
+		t.Fatalf("after the answer the turn has to end, got %q", state)
+	}
+}

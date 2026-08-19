@@ -22,9 +22,12 @@ func init() {
 // claudeMarkers is what Claude Code writes on its own interface: the first
 // while the turn is in progress, the second while it waits for a yes or no.
 var claudeMarkers = Markers{
-	// The first covers the versions that announce the interrupt; the second
-	// is the token counter the work bar shows while the turn runs.
-	Working: []string{"esc to interrupt", "tokens)"},
+	// The interrupt hint only shows up on a wide cell; in a narrow one the
+	// work bar shrinks to the timer and whatever fits after it. What
+	// survives every width is the token counter and, before the first
+	// token, the time it spent thinking — and neither is always the end of
+	// the line, so the marker can't carry the closing paren.
+	Working: []string{"esc to interrupt", "tokens", "thought for"},
 	Question: []string{
 		"No, and tell Claude what to do differently",
 		"Do you want to proceed?",
