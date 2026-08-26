@@ -283,23 +283,52 @@ func TestMdScrollsThroughTheText(t *testing.T) {
 	}
 }
 
-// TestPageFillsTheCell — the markdown is drawn as a page and fills the
-// cell's whole width, with a margin on both sides. On a wide screen that
-// means less scrolling for the same document.
-func TestPageFillsTheCell(t *testing.T) {
+// TestPageKeepsAReadableMeasure — on a wide cell the text doesn't stretch
+// to the edges: it stays at book width, centered, with the leftover space
+// turned into margin. A long line the eye can't track back is the thing
+// that makes reading in the terminal worse than in the IDE.
+func TestPageKeepsAReadableMeasure(t *testing.T) {
 	text := "# Title\n\n" + strings.Repeat("word ", 200) + "\n"
 	const columns = 160
 	lines := renderPage(text, columns)
 
 	longest := 0
-	indented := 0
+	leftEdge := columns
+	for _, line := range lines {
+		clean := history.StripCodes(line)
+		if strings.TrimSpace(clean) == "" {
+			continue
+		}
+		if length := len([]rune(strings.TrimRight(clean, " "))); length > longest {
+			longest = length
+		}
+		if margin := len(clean) - len(strings.TrimLeft(clean, " ")); margin < leftEdge {
+			leftEdge = margin
+		}
+	}
+	if longest > columns {
+		t.Fatalf("the page went past the cell's width: %d columns", longest)
+	}
+	if measure := longest - leftEdge; measure > maxPageWidth {
+		t.Fatalf("the measure went past the readable width: %d columns", measure)
+	}
+	if leftEdge < (columns-maxPageWidth)/2 {
+		t.Fatalf("the page should be centered, started at column %d", leftEdge)
+	}
+}
+
+// TestNarrowPageUsesEverythingItHas — the cap only bites on a wide cell; a
+// narrow one still fills what it has, minus the margin.
+func TestNarrowPageUsesEverythingItHas(t *testing.T) {
+	text := strings.Repeat("word ", 200) + "\n"
+	const columns = 60
+	lines := renderPage(text, columns)
+
+	longest := 0
 	for _, line := range lines {
 		clean := history.StripCodes(line)
 		if length := len([]rune(strings.TrimRight(clean, " "))); length > longest {
 			longest = length
-		}
-		if strings.HasPrefix(clean, "  ") && strings.TrimSpace(clean) != "" {
-			indented++
 		}
 	}
 	if longest > columns {
@@ -307,10 +336,7 @@ func TestPageFillsTheCell(t *testing.T) {
 	}
 	// Word wrap always leaves a chunk of the last word that didn't fit.
 	if minimum := columns - 2*pageMargin - 10; longest < minimum {
-		t.Fatalf("the page should fill the cell, came out with %d of %d columns", longest, columns)
-	}
-	if indented == 0 {
-		t.Fatal("the page should have a left margin")
+		t.Fatalf("the page should fill the narrow cell, came out with %d of %d columns", longest, columns)
 	}
 }
 

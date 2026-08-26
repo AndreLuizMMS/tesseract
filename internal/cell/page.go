@@ -10,16 +10,20 @@ import (
 	"github.com/andreluiz/tesseract/internal/theme"
 )
 
-// The markdown tab draws the file as a page, not as terminal output: the
-// cell's whole width, margin on both sides, a bold title and space around
-// the blocks. Reading long documentation on a wide screen is the reason
-// Tesseract exists.
+// The markdown tab draws the file as a page, not as terminal output: a
+// centered column at book width, margin on both sides, a bold title and
+// space around the blocks. Reading long documentation on a wide screen is
+// the reason Tesseract exists.
 const (
 	// minPageWidth is the least the text needs to still wrap into legible
 	// lines.
 	minPageWidth = 20
 	// pageMargin is the breathing room between the cell's edge and the text.
 	pageMargin = 2
+	// maxPageWidth caps the measure. Text wider than this stops being
+	// readable — the eye loses the next line's start on the way back. A
+	// wide cell gets a centered column, not a full-bleed wall of words.
+	maxPageWidth = 82
 )
 
 // buildPageStyle is the theme for the rendered markdown. It depends on the
@@ -166,8 +170,8 @@ func codeHighlight() *ansi.Chroma {
 	}
 }
 
-// renderPage draws the markdown as a page: the text fills the cell's whole
-// width, with a margin on each side.
+// renderPage draws the markdown as a page: a text column at the readable
+// measure, centered in the cell.
 func renderPage(raw string, columns int) []string {
 	width := pageWidth(columns)
 	// Code wider than the page is truncated, never wrapped: a diagram or a
@@ -194,11 +198,11 @@ func renderPage(raw string, columns int) []string {
 	return lines
 }
 
-// pageWidth is the whole cell's width minus the margin on both sides. The
-// page fills whatever the screen gives it: on a wide screen, long
-// documentation fits with less scrolling.
+// pageWidth is the cell's width minus the margin on both sides, capped at
+// the readable measure. A narrow cell uses everything it has; a wide one
+// keeps the text column at book width and pushes the rest into the margins.
 func pageWidth(columns int) int {
-	return max(columns-2*pageMargin, minPageWidth)
+	return min(max(columns-2*pageMargin, minPageWidth), maxPageWidth)
 }
 
 // truncateWideCode shortens the lines inside code blocks that don't fit the
