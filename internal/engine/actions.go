@@ -135,11 +135,29 @@ func (e *Engine) AdoptAgentName(cellID string) error {
 // ideCandidates is every IDE tesseract knows how to launch — not a scan of
 // the filesystem for anything that looks like an editor, but the small,
 // known set the picker checks for, on each of the two places it could live.
-var ideCandidates = []struct{ ID, Label string }{
-	{"code", "VS Code"},
-	{"code-insiders", "VS Code Insiders"},
-	{"codium", "VSCodium"},
-	{"cursor", "Cursor"},
+// windowsExe is the install's own binary, relative to where Windows puts
+// third-party programs (a per-user install under AppData, or one of the two
+// Program Files, machine-wide). Installers don't reliably add themselves to
+// Windows' PATH — VS Code's own install on this project's dev machine
+// isn't on it — so PATH is a bonus signal, checked separately, not the only
+// way in.
+var ideCandidates = []struct{ ID, Label, WindowsExe string }{
+	{"code", "VS Code", "Microsoft VS Code/Code.exe"},
+	{"code-insiders", "VS Code Insiders", "Microsoft VS Code Insiders/Code - Insiders.exe"},
+	{"codium", "VSCodium", "VSCodium/VSCodium.exe"},
+	{"cursor", "Cursor", "cursor/Cursor.exe"},
+}
+
+// windowsExeFor looks up a candidate's Windows binary by id. Empty for an id
+// outside the known set — windowsInstalled then falls straight to the PATH
+// check.
+func windowsExeFor(id string) string {
+	for _, c := range ideCandidates {
+		if c.ID == id {
+			return c.WindowsExe
+		}
+	}
+	return ""
 }
 
 // DetectIDEs finds which of the known IDEs are reachable from here, inside
@@ -164,7 +182,7 @@ func (e *Engine) DetectIDEs() []protocol.IDE {
 			if wslInstalled(c.ID) {
 				add(protocol.IDE{ID: c.ID, Label: c.Label, Location: "wsl"})
 			}
-			if windowsInstalled(c.ID) {
+			if _, ok := windowsInstalled(c.ID, c.WindowsExe); ok {
 				add(protocol.IDE{ID: c.ID, Label: c.Label, Location: "windows"})
 			}
 		}()
@@ -187,14 +205,38 @@ func wslInstalled(id string) bool {
 	return err == nil && !strings.Contains(binary, "-server/")
 }
 
-// windowsInstalled asks Windows' own PATH, through cmd.exe, whether it knows
-// the id. Only makes sense inside WSL — outside it there's no Windows on the
+// windowsRoots is where Windows keeps programs: a per-user install and the
+// two machine-wide Program Files, 64 and 32-bit alike.
+var windowsRoots = []string{
+	"/mnt/c/Users/*/AppData/Local/Programs",
+	"/mnt/c/Program Files",
+	"/mnt/c/Program Files (x86)",
+}
+
+// windowsInstalled finds the id on the Windows side and says how to run it.
+// The install's own binary, found on disk under one of the usual program
+// roots, is the reliable signal — Windows' PATH, asked through cmd.exe, is
+// only a fallback: installers don't reliably add themselves to it. Either
+// way, only makes sense inside WSL — outside it there's no Windows on the
 // other end to ask.
-func windowsInstalled(id string) bool {
-	if _, err := os.Stat(cmdExePath); err != nil {
-		return false
+func windowsInstalled(id, windowsExe string) (target string, ok bool) {
+	if windowsExe != "" {
+		var found []string
+		for _, root := range windowsRoots {
+			matches, _ := filepath.Glob(filepath.Join(root, windowsExe))
+			found = append(found, matches...)
+		}
+		if path := newest(found); path != "" {
+			return path, true
+		}
 	}
-	return exec.Command(cmdExePath, "/c", "where", id).Run() == nil
+	if _, err := os.Stat(cmdExePath); err != nil {
+		return "", false
+	}
+	if exec.Command(cmdExePath, "/c", "where", id).Run() == nil {
+		return id, true
+	}
+	return "", false
 }
 
 // OpenInEditor opens the project directory in the picked IDE, at the place
@@ -231,10 +273,25 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 		if cli, window := ideAlreadyOpen(id); cli != "" {
 			binaryName = cli
 			environment = append(environment, "VSCODE_IPC_HOOK_CLI="+window)
-		} else if distro := wslDistro(); distro != "" {
-			binaryName, arguments = cmdExePath, []string{"/c", "start", "", id, "--folder-uri", "vscode-remote://wsl+" + distro + path}
 		} else {
-			return fmt.Errorf("could not find the WSL distro name")
+			distro := wslDistro()
+			if distro == "" {
+				return fmt.Errorf("could not find the WSL distro name")
+			}
+			target, ok := windowsInstalled(id, windowsExeFor(id))
+			if !ok {
+				return fmt.Errorf("%s is not installed on the Windows side", id)
+			}
+			uri := "vscode-remote://wsl+" + distro + path
+			if target != id {
+				// The install's own binary, found on disk: WSL can run a
+				// Windows .exe directly, no cmd.exe or PATH in the middle.
+				binaryName, arguments = target, []string{"--folder-uri", uri}
+			} else {
+				// Only found through Windows' PATH — cmd.exe is what
+				// resolves a bare name into that PATH.
+				binaryName, arguments = cmdExePath, []string{"/c", "start", "", id, "--folder-uri", uri}
+			}
 		}
 	}
 	command := exec.Command(binaryName, arguments...)
