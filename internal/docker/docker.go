@@ -365,7 +365,9 @@ func run(ctx context.Context, dir, file string, args ...string) ([]byte, error) 
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
-			return nil, fmt.Errorf("docker compose %s: %s", strings.Join(args, " "), firstLine(exitErr.Stderr))
+			// Docker's own complaint, with no command prefix: the panel has a
+			// single narrow line and the reason has to fit in it.
+			return nil, errors.New(firstLine(exitErr.Stderr))
 		}
 		return nil, fmt.Errorf("docker compose %s: %w", strings.Join(args, " "), err)
 	}
