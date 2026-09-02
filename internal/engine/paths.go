@@ -34,3 +34,19 @@ func StatePath(stateDir string) string {
 func HistoryPath(stateDir, cellID string) string {
 	return filepath.Join(stateDir, "history", cellID+".log")
 }
+
+// HistoryDir is where every cell's recording lives.
+func HistoryDir(stateDir string) string {
+	return filepath.Join(stateDir, "history")
+}
+
+// HistoryFiles is everything a cell recorded: its own file plus one per tab,
+// on a cell that has them. Killing a cell used to take only the first one,
+// and every tab's conversation stayed on disk forever.
+func HistoryFiles(stateDir, cellID string) []string {
+	found, err := filepath.Glob(filepath.Join(HistoryDir(stateDir), cellID+"*.log"))
+	if err != nil {
+		return nil
+	}
+	return found
+}

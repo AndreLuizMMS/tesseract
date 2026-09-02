@@ -8,45 +8,30 @@ import (
 	"github.com/andreluiz/tesseract/internal/protocol"
 )
 
+// visibleFolders is how many folders of the list fit under the field without
+// the box eating the screen.
+const visibleFolders = 6
+
 // field is one line of the form: a label and what's been typed so far.
 type field struct {
 	label string
 	value string
 	hint  string
-	// options filled in turns the field into a picker instead of free text.
-	options   []string
-	selected  int
-	completes bool // accepts tab to complete a path
-	dirOnly   bool
+	// completes accepts tab to complete a file path.
+	completes bool
+	// browses turns the field into a folder browser: a live list under it,
+	// walked with the arrows, that never needs a full path typed by hand.
+	browses bool
 }
 
-func (c *field) write(text string) {
-	if len(c.options) > 0 {
-		return
-	}
-	c.value += text
-}
+func (c *field) write(text string) { c.value += text }
 
 func (c *field) erase() {
-	if len(c.options) > 0 || c.value == "" {
+	if c.value == "" {
 		return
 	}
 	runes := []rune(c.value)
 	c.value = string(runes[:len(runes)-1])
-}
-
-func (c *field) move(step int) {
-	if len(c.options) == 0 {
-		return
-	}
-	c.selected = (c.selected + step + len(c.options)) % len(c.options)
-}
-
-func (c *field) chosen() string {
-	if len(c.options) == 0 {
-		return c.value
-	}
-	return c.options[c.selected]
 }
 
 // Form is the only path to creation: it starts by asking for the project and
@@ -57,39 +42,55 @@ type Form struct {
 	fields  []*field
 	current int
 	warning string
+	// recents are the directories opened most recently, which is what the
+	// folder list shows before anything is typed.
+	recents []string
+	// options is the folder list as it stands, count how many matched (which
+	// can be more than travelled), and highlight the one picked.
+	options   []string
+	count     int
+	highlight int
+	// pending is what the form still needs from the engine, drained by the
+	// screen on the next key.
+	pending *protocol.Complete
 }
 
-// NewForm opens creation with the home path pre-filled, since that's where
-// every project starts from.
-func NewForm(_ []protocol.CellType, _ string) *Form {
-	f := &Form{}
+// NewForm opens creation on the folder browser, starting from the focused
+// project's directory — the common case is another cell right there. With no
+// project focused it opens on the recent folders, and on home for whoever
+// has no history yet, so there is always something to walk without typing.
+func NewForm(recents []string, current string) *Form {
+	f := &Form{recents: recents}
+	if current == "" && len(recents) == 0 {
+		current = strings.TrimSuffix(home(), "/") + "/"
+	}
 	f.fields = []*field{
-		{label: "PROJECT", value: homeWithSlash(), hint: "tab completes · a new path creates a project", completes: true, dirOnly: true},
+		{label: "PROJECT", value: current, hint: "↑↓ picks · → enters · ← goes up · ↵ confirms", browses: true},
 		{label: "NAME", hint: "(empty → automatic name)"},
 		{label: "MD", hint: "(optional — a markdown file becomes a reading cell)", completes: true},
 		{label: "PROMPT", hint: "(optional — comes up already working)"},
 	}
+	f.refresh()
 	return f
-}
-
-// homeWithSlash is the account's home directory, ending in a slash so tab
-// completion starts from inside it.
-func homeWithSlash() string {
-	h := home()
-	if h == "" {
-		return ""
-	}
-	return strings.TrimSuffix(h, "/") + "/"
 }
 
 // Key handles a key for the form. It returns the create request when the
 // user confirms, and whether the form should stay open.
 func (f *Form) Key(action keyboard.Action, text string, erased bool) (request *protocol.Create, open bool) {
 	f.warning = ""
+	current := f.fields[f.current]
 	switch action {
 	case keyboard.Cancel:
 		return nil, false
+
 	case keyboard.Confirm:
+		if current.browses {
+			// On the folder field ↵ settles the folder and walks on: only
+			// from the other fields does it create.
+			f.accept()
+			f.current = 1
+			return nil, true
+		}
 		path := strings.TrimSpace(f.fields[0].value)
 		if path == "" {
 			f.warning = "the project needs a path"
@@ -105,45 +106,149 @@ func (f *Form) Key(action keyboard.Action, text string, erased bool) (request *p
 			Prompt: f.valueOf("PROMPT"),
 		}
 		return create, false
-	case keyboard.PreviousField:
-		f.current = (f.current - 1 + len(f.fields)) % len(f.fields)
-	case keyboard.NextField:
-		f.current = (f.current + 1) % len(f.fields)
-	case keyboard.PreviousOpt:
-		f.fields[f.current].move(-1)
-	case keyboard.NextOpt:
-		f.fields[f.current].move(1)
-	default:
-		if erased {
-			f.fields[f.current].erase()
+
+	case keyboard.Complete:
+		if current.browses {
+			f.enter()
 			return nil, true
 		}
-		f.fields[f.current].write(text)
+		if current.completes {
+			f.pending = &protocol.Complete{Path: f.completionPath()}
+		}
+
+	case keyboard.PreviousField:
+		// The arrows walk the folder list first and only leave the field
+		// once there's nowhere left to go — the list is the field.
+		if current.browses && f.highlight > 0 {
+			f.highlight--
+			return nil, true
+		}
+		f.current = (f.current - 1 + len(f.fields)) % len(f.fields)
+	case keyboard.NextField:
+		if current.browses && f.highlight < len(f.options)-1 {
+			f.highlight++
+			return nil, true
+		}
+		f.current = (f.current + 1) % len(f.fields)
+
+	case keyboard.PreviousOpt:
+		if current.browses {
+			f.up()
+		}
+	case keyboard.NextOpt:
+		if current.browses {
+			f.enter()
+		}
+
+	default:
+		if erased {
+			current.erase()
+		} else {
+			current.write(text)
+		}
+		if current.browses {
+			f.refresh()
+		}
 	}
 	return nil, true
 }
 
-// WantsComplete says whether the complete key has anything to do on the
-// current field.
-func (f *Form) WantsComplete(action keyboard.Action) (protocol.Complete, bool) {
-	if action != keyboard.Complete {
+// Pending is what the form is waiting on from the engine — the live folder
+// list, or the markdown field's completion.
+func (f *Form) Pending() (protocol.Complete, bool) {
+	if f.pending == nil {
 		return protocol.Complete{}, false
 	}
-	current := f.fields[f.current]
-	if !current.completes {
-		return protocol.Complete{}, false
+	request := *f.pending
+	f.pending = nil
+	return request, true
+}
+
+// refresh rebuilds the folder list for whatever is in the field: nothing
+// typed shows the folders opened recently, a loose fragment filters those,
+// and anything with a slash in it goes to the engine for the real folders on
+// disk.
+func (f *Form) refresh() {
+	f.highlight = 0
+	value := strings.TrimSpace(f.fields[0].value)
+	if strings.Contains(value, "/") {
+		f.pending = &protocol.Complete{Path: value, DirsOnly: true, List: true}
+		return
 	}
-	path := current.value
-	if !current.dirOnly && !strings.Contains(path, "/") {
-		// The file is looked up inside the project being created.
-		path = strings.TrimSuffix(f.fields[0].value, "/") + "/" + path
+	f.pending = nil
+	f.options = filterRecents(f.recents, value)
+	f.count = len(f.options)
+}
+
+// filterRecents keeps the recent folders whose path carries the fragment, so
+// "cor" finds the project without anyone typing where it lives.
+func filterRecents(recents []string, fragment string) []string {
+	fragment = strings.ToLower(fragment)
+	var found []string
+	for _, path := range recents {
+		if fragment == "" || strings.Contains(strings.ToLower(path), fragment) {
+			found = append(found, path)
+		}
 	}
-	return protocol.Complete{Path: path, DirsOnly: current.dirOnly}, true
+	return found
+}
+
+// accept takes the highlighted folder into the field. With nothing
+// highlighted whatever was typed stands, which is how a path nobody has
+// opened before still gets in.
+func (f *Form) accept() {
+	if f.highlight < len(f.options) {
+		f.fields[0].value = strings.TrimSuffix(f.options[f.highlight], "/")
+	}
+}
+
+// enter walks into the highlighted folder — the half of browsing that goes
+// down.
+func (f *Form) enter() {
+	if f.highlight >= len(f.options) {
+		return
+	}
+	f.fields[0].value = strings.TrimSuffix(f.options[f.highlight], "/") + "/"
+	f.refresh()
+}
+
+// up climbs one folder — the half that goes back. From the recent list,
+// where nothing is typed, it climbs from the folder under the pick: that's
+// how you get from a project to whatever sits next to it.
+func (f *Form) up() {
+	value := strings.TrimSuffix(f.fields[0].value, "/")
+	if value == "" && f.highlight < len(f.options) {
+		value = strings.TrimSuffix(f.options[f.highlight], "/")
+	}
+	switch cut := strings.LastIndex(value, "/"); {
+	case cut > 0:
+		f.fields[0].value = value[:cut+1]
+	case strings.HasPrefix(value, "/"):
+		f.fields[0].value = "/"
+	default:
+		f.fields[0].value = ""
+	}
+	f.refresh()
+}
+
+// completionPath is what the markdown field asks the engine about: a bare
+// name is looked up inside the project being created.
+func (f *Form) completionPath() string {
+	path := f.fields[f.current].value
+	if !strings.Contains(path, "/") {
+		return strings.TrimSuffix(f.fields[0].value, "/") + "/" + path
+	}
+	return path
 }
 
 // Completed receives the engine's answer about the typed path.
 func (f *Form) Completed(response protocol.Completed) {
 	current := f.fields[f.current]
+	if current.browses {
+		f.options, f.count = response.Options, response.Count
+		f.highlight = min(f.highlight, max(len(f.options)-1, 0))
+		return
+	}
 	if !current.completes {
 		return
 	}
@@ -154,10 +259,6 @@ func (f *Form) Completed(response protocol.Completed) {
 	case 1:
 		f.warning = ""
 	default:
-		if current.dirOnly {
-			f.warning = plural(response.Count, "folder matches", "folders match")
-			return
-		}
 		f.warning = plural(response.Count, "file matches", "files match")
 	}
 }
@@ -183,21 +284,12 @@ func (f *Form) Draw(width int) []string {
 		if i == f.current {
 			mark = "▸ "
 		}
-		value := c.value + "▏"
-		if len(c.options) > 0 {
-			var options []string
-			for j, option := range c.options {
-				if j == c.selected {
-					options = append(options, badgeColor.Render(" "+option+" "))
-					continue
-				}
-				options = append(options, faintColor.Render(" "+option+" "))
-			}
-			value = strings.Join(options, " ")
-		}
-		body = append(body, mark+titleColor.Render(pad(c.label, 8))+value)
+		body = append(body, mark+titleColor.Render(pad(c.label, 8))+c.value+"▏")
 		if c.hint != "" {
 			body = append(body, "  "+strings.Repeat(" ", 8)+faintColor.Render(c.hint))
+		}
+		if c.browses && i == f.current {
+			body = append(body, f.folders(inner)...)
 		}
 	}
 	if f.warning != "" {
@@ -205,6 +297,45 @@ func (f *Form) Draw(width int) []string {
 	}
 	body = append(body, "", "  "+faintColor.Render("↵ create        esc cancel"))
 	return floatingBox("NEW", body, inner)
+}
+
+// folders draws the live list under the project field: the folders opened
+// recently while nothing is typed, what's on disk once a path is.
+func (f *Form) folders(inner int) []string {
+	room := max(inner-6, 1)
+	if len(f.options) == 0 {
+		if strings.Contains(f.fields[0].value, "/") {
+			return []string{"    " + faintColor.Render("no folder in here")}
+		}
+		return []string{"    " + faintColor.Render("no recent folder — type a path")}
+	}
+
+	// The window follows the pick, keeping it in the middle whenever the list
+	// is longer than the room it has.
+	first := max(min(f.highlight-visibleFolders/2, len(f.options)-visibleFolders), 0)
+	last := min(first+visibleFolders, len(f.options))
+	var lines []string
+	for i := first; i < last; i++ {
+		label := shortenHome(f.options[i])
+		if i == f.highlight {
+			lines = append(lines, "  "+barColor.Render("▌")+selectedRowColor.Render(" "+pad(label, room)))
+			continue
+		}
+		lines = append(lines, "    "+faintColor.Render(truncate(label, room)))
+	}
+	if hidden := f.count - last; hidden > 0 {
+		lines = append(lines, "    "+faintColor.Render("… "+strconv.Itoa(hidden)+" more"))
+	}
+	return lines
+}
+
+// shortenHome writes home as ~, so the list stays readable inside the box.
+func shortenHome(path string) string {
+	h := strings.TrimSuffix(home(), "/")
+	if h == "" || !strings.HasPrefix(path, h+"/") {
+		return path
+	}
+	return "~" + strings.TrimPrefix(path, h)
 }
 
 // floatingBox draws a box with a title, at the requested size.

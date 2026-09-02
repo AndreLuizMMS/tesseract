@@ -37,6 +37,10 @@ type SavedProject struct {
 type DesiredState struct {
 	Projects []SavedProject `json:"projects"`
 	Screen   string         `json:"screen,omitempty"` // mosaico or lista
+	// Recents are the directories opened most recently, newest first. They
+	// outlive the project leaving the screen — that's the moment they're
+	// worth the most.
+	Recents []string `json:"recents,omitempty"`
 }
 
 // Save writes the desired state atomically: writes alongside and renames on
@@ -96,6 +100,7 @@ func Load(path string) (DesiredState, error) {
 	var raw struct {
 		Projects []json.RawMessage `json:"projects"`
 		Screen   string            `json:"screen"`
+		Recents  []string          `json:"recents"`
 	}
 	if err := json.Unmarshal(content, &raw); err != nil {
 		preserved, preserveErr := preserve(path)
@@ -105,7 +110,7 @@ func Load(path string) (DesiredState, error) {
 		return DesiredState{}, fmt.Errorf("unreadable state, the previous file is at %s: %w", preserved, err)
 	}
 
-	state := DesiredState{Screen: raw.Screen}
+	state := DesiredState{Screen: raw.Screen, Recents: raw.Recents}
 	lost := 0
 	for _, rawProject := range raw.Projects {
 		var project SavedProject

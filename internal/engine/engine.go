@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/andreluiz/tesseract/internal/cell"
 	"github.com/andreluiz/tesseract/internal/docker"
@@ -27,6 +28,7 @@ type Engine struct {
 	stateDir string
 	config   Config
 	projects []*project
+	recents  []string
 	screen   string
 	notice   string
 	version  atomic.Uint64
@@ -67,6 +69,9 @@ func New(stateDir string, config Config) *Engine {
 	if config.HistoryLimit <= 0 {
 		config.HistoryLimit = history.DefaultCap
 	}
+	if config.ScrollbackLines <= 0 {
+		config.ScrollbackLines = DefaultScrollback
+	}
 	if config.Agents == nil {
 		config.Agents = map[string]AgentProfile{}
 	}
@@ -91,6 +96,7 @@ func (e *Engine) Start() error {
 	if state.Screen != "" {
 		e.screen = state.Screen
 	}
+	e.recents = state.Recents
 	for _, savedProject := range state.Projects {
 		p := &project{id: savedProject.ID, path: savedProject.Path, color: savedProject.Color, compose: docker.Detect(savedProject.Path)}
 		if p.id == "" {
@@ -122,8 +128,44 @@ func (e *Engine) Start() error {
 		}
 		e.projects = append(e.projects, p)
 	}
+	// State written before recents existed still knows which directories were
+	// in use — the projects it reconstructed.
+	if len(e.recents) == 0 {
+		for _, p := range e.projects {
+			e.recents = append(e.recents, p.path)
+		}
+	}
+	// Only over a state that was read whole: sweeping what a half-read file
+	// doesn't mention would throw away live conversations.
+	if loadErr == nil {
+		e.sweepHistories()
+	}
 	e.markDirty()
 	return loadErr
+}
+
+// sweepHistories deletes the recordings of cells that no longer exist. A
+// cell used to take only its own file when it died, and every tab it had
+// open left one behind — after a few months that's hundreds of megabytes of
+// conversations nobody can reach any more. Called with the lock held.
+func (e *Engine) sweepHistories() {
+	alive := map[string]bool{}
+	for _, p := range e.projects {
+		for _, c := range p.cells {
+			alive[c.id] = true
+		}
+	}
+	found, err := filepath.Glob(filepath.Join(HistoryDir(e.stateDir), "*.log"))
+	if err != nil {
+		return
+	}
+	for _, file := range found {
+		name := strings.TrimSuffix(filepath.Base(file), ".log")
+		id, _, _ := strings.Cut(name, "-")
+		if !alive[id] {
+			_ = os.Remove(file)
+		}
+	}
 }
 
 // wake starts a reconstructed cell's process. Called with the lock held.
@@ -146,14 +188,16 @@ func (e *Engine) wake(p *project, c *liveCell) error {
 		conversations[tab] = conversation
 	}
 	return proc.Spawn(cell.Config{
-		ID:        c.id,
-		Directory: p.path,
-		Name:      c.name,
-		Target:    c.target,
-		History:   record,
-		Columns:   80,
-		Lines:     24,
-		Notify:    e.markDirty,
+		ID:         c.id,
+		Directory:  p.path,
+		Name:       c.name,
+		Target:     c.target,
+		History:    record,
+		Columns:    80,
+		Lines:      24,
+		Notify:     e.markDirty,
+		Scrollback: e.config.ScrollbackLines,
+		SleepAfter: time.Duration(e.config.SleepAfterMinutes) * time.Minute,
 
 		Tab:           c.tab,
 		Conversation:  conversations[c.kind],
@@ -253,6 +297,7 @@ func (e *Engine) Create(request protocol.Create) (string, error) {
 	if newProject {
 		e.projects = append(e.projects, p)
 	}
+	e.remember(path)
 	e.save()
 	e.markDirty()
 	return c.id, nil
@@ -290,7 +335,9 @@ func (e *Engine) Kill(cellID string) error {
 			if c.record != nil {
 				_ = c.record.Close()
 			}
-			_ = os.Remove(HistoryPath(e.stateDir, c.id))
+			for _, file := range HistoryFiles(e.stateDir, c.id) {
+				_ = os.Remove(file)
+			}
 			p.cells = append(p.cells[:iCell], p.cells[iCell+1:]...)
 			if len(p.cells) == 0 {
 				e.projects = append(e.projects[:iProject], e.projects[iProject+1:]...)
@@ -401,11 +448,22 @@ func (e *Engine) Rename(cellID, name string) error {
 }
 
 // Snapshot is the whole state, ready to draw.
+//
+// The identity of the grid is read under the lock; each cell's portrait is
+// taken outside it. Drawing waits on the same latch the process holds while
+// writing to its own screen, so doing it under the engine's lock would put
+// every key, every creation and every kill in line behind the whole grid's
+// portrait — with a dozen busy cells that was a tenth of a second per frame,
+// fifty times a second.
 func (e *Engine) Snapshot() protocol.State {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	type portrait struct {
+		project, cell int
+		proc          cell.Cell
+	}
 
-	snapshot := protocol.State{Notice: e.notice, Screen: e.screen, Types: typeCards(), Quota: ReadQuota()}
+	e.mu.Lock()
+	snapshot := protocol.State{Notice: e.notice, Screen: e.screen, Types: typeCards(), Recents: append([]string(nil), e.recents...)}
+	var pending []portrait
 	for _, p := range e.projects {
 		drawing := protocol.Project{
 			ID:         p.id,
@@ -416,29 +474,42 @@ func (e *Engine) Snapshot() protocol.State {
 			Docker:     p.docker,
 		}
 		for _, c := range p.cells {
-			cellSnapshot := protocol.Cell{
+			if c.proc != nil {
+				pending = append(pending, portrait{
+					project: len(snapshot.Projects),
+					cell:    len(drawing.Cells),
+					proc:    c.proc,
+				})
+			}
+			drawing.Cells = append(drawing.Cells, protocol.Cell{
 				ID:    c.id,
 				Type:  c.kind,
 				Name:  c.name,
 				State: string(cell.Stopped),
 				Live:  true,
-			}
-			if withTabs, ok := c.proc.(cell.WithTabs); ok {
-				cellSnapshot.Tabs = withTabs.Tabs()
-				cellSnapshot.Tab = withTabs.ActiveTab()
-			}
-			if c.proc != nil {
-				frame := c.proc.Draw()
-				cellSnapshot.State = string(c.proc.State())
-				cellSnapshot.Lines = frame.Lines
-				cellSnapshot.CursorX = frame.CursorX
-				cellSnapshot.CursorY = frame.CursorY
-				cellSnapshot.Scroll = frame.Scroll
-				cellSnapshot.Live = frame.Live
-			}
-			drawing.Cells = append(drawing.Cells, cellSnapshot)
+			})
 		}
 		snapshot.Projects = append(snapshot.Projects, drawing)
+	}
+	e.mu.Unlock()
+
+	snapshot.Quota = ReadQuota()
+	for _, next := range pending {
+		cellSnapshot := &snapshot.Projects[next.project].Cells[next.cell]
+		if withTabs, ok := next.proc.(cell.WithTabs); ok {
+			cellSnapshot.Tabs = withTabs.Tabs()
+			cellSnapshot.Tab = withTabs.ActiveTab()
+		}
+		if withSleep, ok := next.proc.(cell.WithSleep); ok {
+			cellSnapshot.Asleep = withSleep.AsleepTabs()
+		}
+		frame := next.proc.Draw()
+		cellSnapshot.State = string(next.proc.State())
+		cellSnapshot.Lines = frame.Lines
+		cellSnapshot.CursorX = frame.CursorX
+		cellSnapshot.CursorY = frame.CursorY
+		cellSnapshot.Scroll = frame.Scroll
+		cellSnapshot.Live = frame.Live
 	}
 	return snapshot
 }
@@ -541,7 +612,7 @@ func (e *Engine) Screen() string {
 
 // save writes the desired state. Always called with the lock held.
 func (e *Engine) save() {
-	state := DesiredState{Screen: e.screen}
+	state := DesiredState{Screen: e.screen, Recents: e.recents}
 	for _, p := range e.projects {
 		saved := SavedProject{ID: p.id, Path: p.path, Color: p.color}
 		for _, c := range p.cells {
@@ -556,6 +627,23 @@ func (e *Engine) save() {
 	if err := Save(StatePath(e.stateDir), state); err != nil {
 		e.notice = "could not write the state: " + err.Error()
 	}
+}
+
+// recentsCap is how many directories the form remembers. Long enough to
+// cover what someone actually rotates between, short enough to stay a list
+// and not an archive.
+const recentsCap = 12
+
+// remember puts the directory at the top of the recents, without repeating
+// it. Called with the lock held.
+func (e *Engine) remember(path string) {
+	recents := []string{path}
+	for _, previous := range e.recents {
+		if previous != path && len(recents) < recentsCap {
+			recents = append(recents, previous)
+		}
+	}
+	e.recents = recents
 }
 
 func (e *Engine) findCell(id string) *liveCell {

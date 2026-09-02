@@ -8,9 +8,15 @@ import (
 	"github.com/andreluiz/tesseract/internal/protocol"
 )
 
-// Complete resolves what the user has typed so far into a path and says how
-// many candidates match — it's what the form's `tab` uses. A single candidate
-// is completed in full; several stop at the common prefix.
+// listCap is how many candidates travel to the screen. The screen only shows
+// a window of them, and the count still reports the whole truth.
+const listCap = 200
+
+// Complete resolves what the user has typed so far into a path, says how many
+// candidates match and hands back the candidates themselves. A single
+// candidate is completed in full; several stop at the common prefix. Asking
+// for a list skips the completing altogether: the folder browser wants to see
+// what's there without having what was typed rewritten under it.
 func Complete(request protocol.Complete) protocol.Completed {
 	raw := expandHome(request.Path)
 	dir, start := filepath.Split(raw)
@@ -23,7 +29,7 @@ func Complete(request protocol.Complete) protocol.Completed {
 		return protocol.Completed{Path: request.Path}
 	}
 
-	var candidates []string
+	var candidates, options []string
 	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasPrefix(name, start) {
@@ -36,9 +42,19 @@ func Complete(request protocol.Complete) protocol.Completed {
 			continue
 		}
 		candidates = append(candidates, name)
+		if len(options) < listCap {
+			full := filepath.Join(dir, name)
+			if isDir(full) {
+				full += string(os.PathSeparator)
+			}
+			options = append(options, full)
+		}
 	}
 	if len(candidates) == 0 {
 		return protocol.Completed{Path: request.Path}
+	}
+	if request.List {
+		return protocol.Completed{Path: request.Path, Count: len(candidates), Options: options}
 	}
 
 	chosen := commonPrefix(candidates)
@@ -46,7 +62,7 @@ func Complete(request protocol.Complete) protocol.Completed {
 	if len(candidates) == 1 && isDir(complete) {
 		complete += string(os.PathSeparator)
 	}
-	return protocol.Completed{Path: complete, Count: len(candidates)}
+	return protocol.Completed{Path: complete, Count: len(candidates), Options: options}
 }
 
 // commonPrefix is as far as it can complete without choosing on its own.

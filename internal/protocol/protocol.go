@@ -105,13 +105,17 @@ type Prompt struct {
 type Complete struct {
 	Path     string `json:"path"`
 	DirsOnly bool   `json:"dirsOnly"`
+	// List asks only for the candidates, leaving what was typed alone — it's
+	// what the creation form's live folder list uses on every keystroke.
+	List bool `json:"list,omitempty"`
 }
 
-// Completed is the reply: the completed path and how many candidates
-// matched.
+// Completed is the reply: the completed path, how many candidates matched
+// and the candidates themselves, so the screen can show them.
 type Completed struct {
-	Path  string `json:"path"`
-	Count int    `json:"count"`
+	Path    string   `json:"path"`
+	Count   int      `json:"count"`
+	Options []string `json:"options,omitempty"`
 }
 
 // Screen remembers which screen the user picks across runs.
@@ -237,6 +241,11 @@ type Cell struct {
 	// The screen draws the tabs in place of the type.
 	Tabs []string `json:"tabs,omitempty"`
 	Tab  string   `json:"tab,omitempty"`
+	// Asleep are the tabs whose process was released for being silent out of
+	// view. Nothing was lost — switching to one brings the agent back where
+	// it left off — but the screen says so instead of letting a process
+	// vanish without a word.
+	Asleep []string `json:"asleep,omitempty"`
 }
 
 // Project is one column of the mosaic.
@@ -255,11 +264,14 @@ type Project struct {
 // State is the whole portrait. The engine sends this whenever anything
 // changes.
 type State struct {
-	Projects []Project  `json:"projects"`
-	Types    []CellType `json:"types"`
-	Screen   string     `json:"screen,omitempty"`
-	Quota    *Quota     `json:"quota,omitempty"`
-	Notice   string     `json:"notice"`
+	Projects []Project `json:"projects"`
+	// Recents are the directories most recently opened, newest first — what
+	// the creation form offers before anything is typed.
+	Recents []string   `json:"recents,omitempty"`
+	Types   []CellType `json:"types"`
+	Screen  string     `json:"screen,omitempty"`
+	Quota   *Quota     `json:"quota,omitempty"`
+	Notice  string     `json:"notice"`
 }
 
 // Quota is the 5-hour window usage shown in the title bar.

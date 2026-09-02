@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/andreluiz/tesseract/internal/engine/history"
 )
@@ -53,6 +54,16 @@ type Config struct {
 	Columns   int              // width of the area the screen reserved
 	Lines     int              // height of the area the screen reserved
 	Notify    func()           // called when the cell has something new to show
+
+	// Scrollback is how many lines the internal screen keeps above what is
+	// showing. It's the cell's biggest cost in memory: each line stays in
+	// there fully styled, and ten thousand of them are a hundred megabytes
+	// per cell. Zero takes the emulator's default.
+	Scrollback int
+
+	// SleepAfter is how long a tab out of view can stay silent before its
+	// process is released. Zero keeps every tab awake forever.
+	SleepAfter time.Duration
 
 	// Conversation is the conversation identity to reattach to. Empty, the
 	// agent starts a new one and reports which one through
@@ -112,6 +123,18 @@ type WithTabs interface {
 // view.
 type WithRefresh interface {
 	Refresh()
+}
+
+// WithIdle is a cell that knows how long nothing has moved inside it — no
+// byte written, no key received.
+type WithIdle interface {
+	Idle() time.Duration
+}
+
+// WithSleep is a cell that releases the process of a tab nobody is looking
+// at, and says which ones are sleeping.
+type WithSleep interface {
+	AsleepTabs() []string
 }
 
 // WithHistory is a cell that keeps more than one history inside and knows

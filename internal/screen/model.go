@@ -400,7 +400,8 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 		if project != nil {
 			path = project.Path
 		}
-		m.form = NewForm(m.state.Types, path)
+		m.form = NewForm(m.state.Recents, path)
+		m.pumpForm()
 	case keyboard.Resume:
 		if item != nil {
 			m.send(protocol.TypeResume, protocol.Resume{Cell: item.ID})
@@ -537,18 +538,27 @@ func tickFrom(count int) tea.Cmd {
 
 func (m *Model) handleForm(key, text string, erased bool) tea.Cmd {
 	action := keyboard.Lookup(keyboard.Form, key)
-	if request, wants := m.form.WantsComplete(action); wants {
-		m.send(protocol.TypeComplete, request)
-		return nil
-	}
 	create, open := m.form.Key(action, text, erased)
 	if create != nil {
 		m.send(protocol.TypeCreate, *create)
 	}
 	if !open {
 		m.form = nil
+		return nil
 	}
+	m.pumpForm()
 	return nil
+}
+
+// pumpForm asks the engine for whatever the form is waiting on: the folder
+// list under the project field, or the markdown field's completion.
+func (m *Model) pumpForm() {
+	if m.form == nil {
+		return
+	}
+	if request, waiting := m.form.Pending(); waiting {
+		m.send(protocol.TypeComplete, request)
+	}
 }
 
 func (m *Model) handleQuestion(key, text string, erased bool) tea.Cmd {

@@ -40,6 +40,11 @@ type Process struct {
 	frame       Frame
 	frameValid  bool
 	frameScroll int
+
+	// touched is the last time anything moved in here: a byte the process
+	// wrote or a key the user sent. It's what says a cell can be put to
+	// sleep without taking work along with it.
+	touched time.Time
 }
 
 // start brings the command up inside a pseudo terminal of the requested
@@ -57,7 +62,11 @@ func (p *Process) start(cfg Config, program string, args []string, environment [
 
 	p.config = cfg
 	p.emulator = vt.NewSafeEmulator(cfg.Columns, cfg.Lines)
+	if cfg.Scrollback > 0 {
+		p.emulator.SetScrollbackSize(cfg.Scrollback)
+	}
 	p.state = Working
+	p.touched = time.Now()
 
 	// The internal screen answers on its own the questions the program asks
 	// the terminal. Whoever listens for those answers needs to be up before
@@ -139,6 +148,7 @@ func (p *Process) readFromProcess(terminal *os.File, cmd *exec.Cmd) {
 	for {
 		n, err := terminal.Read(buf)
 		if n > 0 {
+			p.touch()
 			p.brush.Lock()
 			_, _ = p.emulator.Write(buf[:n])
 			p.frameValid = false
@@ -186,6 +196,25 @@ func (p *Process) respondToProcess() {
 			return
 		}
 	}
+}
+
+func (p *Process) touch() {
+	p.mu.Lock()
+	p.touched = time.Now()
+	p.mu.Unlock()
+}
+
+// Idle is how long nothing has moved in this cell. A cell that hasn't
+// written a byte or received a key in a long while is the one that can be
+// put to sleep — a state machine can be fooled by an agent that opened and
+// was never used, silence cannot.
+func (p *Process) Idle() time.Duration {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.touched.IsZero() {
+		return 0
+	}
+	return time.Since(p.touched)
 }
 
 func (p *Process) notify() {
@@ -264,6 +293,7 @@ func (p *Process) Key(tap Keystroke) error {
 	p.mu.Lock()
 	finished := p.finished
 	p.scroll = 0 // typing brings the reading back to live
+	p.touched = time.Now()
 	p.mu.Unlock()
 
 	if finished || p.emulator == nil {

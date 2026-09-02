@@ -395,10 +395,21 @@ func cellLabel(item protocol.Cell) string {
 	if len(item.Tabs) == 0 {
 		return item.Type + " · " + item.Name
 	}
+	asleep := map[string]bool{}
+	for _, tab := range item.Asleep {
+		asleep[tab] = true
+	}
 	var tabs []string
 	for _, tab := range item.Tabs {
 		if tab == item.Tab {
 			tabs = append(tabs, badgeColor.Render(" "+tab+" "))
+			continue
+		}
+		// A sleeping tab keeps its place and says it's sleeping. It's not a
+		// state of the cell — nothing there is asking for anything — so it
+		// gets a dot, not a marker.
+		if asleep[tab] {
+			tabs = append(tabs, faintColor.Render(" ·"+tab+" "))
 			continue
 		}
 		tabs = append(tabs, faintColor.Render(" "+tab+" "))

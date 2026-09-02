@@ -1,6 +1,7 @@
 package cell
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -373,5 +374,45 @@ func TestStillScreenReturnsTheSameFrame(t *testing.T) {
 	pasteAndEnter(t, c, "echo segundo")
 	if !waitFor(t, 5*time.Second, func() bool { return strings.Contains(screenOf(c), "segundo") }) {
 		t.Fatalf("the stored frame froze the cell: %s", screenOf(c))
+	}
+}
+
+// TestScrollbackRespectsTheCap — the lines a cell keeps above what's showing
+// are its biggest cost in memory: each one stays in there fully styled, and
+// the emulator's own default of ten thousand is around a hundred megabytes
+// per cell. This pins the cap down end to end, from the config to the
+// internal screen.
+func TestScrollbackRespectsTheCap(t *testing.T) {
+	dir := t.TempDir()
+	chatty := filepath.Join(dir, "chatty")
+	body := "#!/bin/sh\nfor i in $(seq 1 400); do echo linha-$i; done\nwhile true; do sleep 1; done\n"
+	if err := os.WriteFile(chatty, []byte(body), 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	record, err := history.Open(filepath.Join(dir, "hist.log"), history.DefaultCap)
+	if err != nil {
+		t.Fatalf("open history: %v", err)
+	}
+	t.Cleanup(func() { record.Close() })
+
+	agent := &Claude{}
+	cfg := Config{
+		ID: "c1", Directory: dir, Name: "cap", Columns: 40, Lines: 10,
+		History: record, Scrollback: 25,
+		Profiles: map[string]Profile{"claude": {Program: chatty}},
+	}
+	if err := agent.Spawn(cfg); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	t.Cleanup(func() { agent.Kill() })
+
+	// Wait for the output to land: four hundred lines, a cap of twenty-five.
+	if !waitFor(t, 5*time.Second, func() bool {
+		return strings.Contains(screenOf(agent), "linha-400")
+	}) {
+		t.Fatalf("the agent should have produced its output:\n%s", screenOf(agent))
+	}
+	if above := agent.emulator.ScrollbackLen(); above > 25 {
+		t.Fatalf("the internal screen kept %d lines above, the cap is 25", above)
 	}
 }

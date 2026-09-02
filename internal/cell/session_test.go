@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -215,5 +216,158 @@ func TestSessionNotifiesTheTabThatCameBackIntoView(t *testing.T) {
 		return strings.Contains(strings.Join(session.Draw().Lines, "\n"), "NOVO-DOCUMENTO.md")
 	}) {
 		t.Fatalf("the tab should have rechecked on coming back:\n%s", strings.Join(session.Draw().Lines, "\n"))
+	}
+}
+
+// sleepySession is a session whose tabs get released after a blink of
+// silence, so the sweep can be exercised without waiting minutes.
+func sleepySession(t *testing.T, after time.Duration) *Session {
+	t.Helper()
+	dir := t.TempDir()
+	fake := fakeAgent(t, dir)
+
+	session := &Session{}
+	cfg := Config{
+		ID: "c1", Directory: dir, Name: "work", Columns: 60, Lines: 12,
+		SleepAfter: after,
+		Profiles: map[string]Profile{
+			"claude": {Program: fake},
+			"cursor": {Program: fake},
+		},
+		OpenHistory: func(suffix string) (*history.History, error) {
+			return history.Open(filepath.Join(dir, "hist-"+suffix+".log"), history.DefaultCap)
+		},
+	}
+	if err := session.Spawn(cfg); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	t.Cleanup(func() { session.Kill() })
+	return session
+}
+
+func (s *Session) isOpen(tab string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, open := s.open[tab]
+	return open
+}
+
+// TestSilentTabOutOfViewIsReleased — an agent tab nobody is looking at and
+// that hasn't said anything in a while gives its process back. That's the
+// whole point: four tabs open used to mean four agent CLIs resident, each
+// one costing as much as the one being used.
+func TestSilentTabOutOfViewIsReleased(t *testing.T) {
+	session := sleepySession(t, 50*time.Millisecond)
+
+	// claude was born active; go to cursor so claude falls out of view.
+	if err := session.SwitchTab(1); err != nil {
+		t.Fatalf("switch tab: %v", err)
+	}
+	if session.ActiveTab() != "cursor" {
+		t.Fatalf("expected to be on cursor, on %s", session.ActiveTab())
+	}
+
+	if !waitFor(t, 2*time.Second, func() bool {
+		session.sleepIdleTabs()
+		return !session.isOpen("claude")
+	}) {
+		t.Fatal("the silent tab out of view should have been released")
+	}
+	if got := session.AsleepTabs(); len(got) != 1 || got[0] != "claude" {
+		t.Fatalf("the screen should say claude is sleeping, got %v", got)
+	}
+
+	// The tab in view is never released, however quiet it is.
+	if !session.isOpen("cursor") {
+		t.Fatal("the tab in view should stay up")
+	}
+
+	// Coming back brings the agent up again, and the tab stops being marked.
+	if err := session.SwitchTab(-1); err != nil {
+		t.Fatalf("switch back: %v", err)
+	}
+	if !session.isOpen("claude") {
+		t.Fatal("switching back should bring the agent up again")
+	}
+	if got := session.AsleepTabs(); len(got) != 0 {
+		t.Fatalf("nothing should be marked as sleeping, got %v", got)
+	}
+}
+
+// TestShellTabIsNeverReleased — a shell has no conversation to come back to,
+// and silence in there doesn't mean idleness: whatever is running is the
+// user's.
+func TestShellTabIsNeverReleased(t *testing.T) {
+	session := sleepySession(t, 10*time.Millisecond)
+	for session.ActiveTab() != "bash" {
+		if err := session.SwitchTab(1); err != nil {
+			t.Fatalf("switch tab: %v", err)
+		}
+	}
+	// Leave the shell out of view, silent, well past the deadline.
+	if err := session.SwitchTab(1); err != nil {
+		t.Fatalf("switch tab: %v", err)
+	}
+	time.Sleep(80 * time.Millisecond)
+	session.sleepIdleTabs()
+
+	if !session.isOpen("bash") {
+		t.Fatal("a shell out of view should never be released")
+	}
+}
+
+// TestTabOutOfViewDoesNotWakeTheMosaic — a background agent writes to its own
+// screen the whole time; letting that through would rebuild and push the
+// whole grid for something nobody is looking at.
+func TestTabOutOfViewDoesNotWakeTheMosaic(t *testing.T) {
+	dir := t.TempDir()
+	silent := fakeAgent(t, dir)
+	chatty := filepath.Join(dir, "chatty-agent")
+	body := "#!/bin/sh\nwhile true; do echo linha; sleep 0.02; done\n"
+	if err := os.WriteFile(chatty, []byte(body), 0o755); err != nil {
+		t.Fatalf("prepare agent: %v", err)
+	}
+
+	var woke atomic.Int64
+	session := &Session{}
+	cfg := Config{
+		ID: "c1", Directory: dir, Name: "work", Columns: 60, Lines: 12,
+		Notify:   func() { woke.Add(1) },
+		Profiles: map[string]Profile{"claude": {Program: silent}, "cursor": {Program: chatty}},
+		OpenHistory: func(suffix string) (*history.History, error) {
+			return history.Open(filepath.Join(dir, "hist-"+suffix+".log"), history.DefaultCap)
+		},
+	}
+	if err := session.Spawn(cfg); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	t.Cleanup(func() { session.Kill() })
+
+	// Open the chatty tab and go back: from here on it talks out of view.
+	if err := session.SwitchTab(1); err != nil {
+		t.Fatalf("switch tab: %v", err)
+	}
+	if err := session.SwitchTab(-1); err != nil {
+		t.Fatalf("switch back: %v", err)
+	}
+	if session.ActiveTab() != "claude" {
+		t.Fatalf("expected to be on claude, on %s", session.ActiveTab())
+	}
+
+	time.Sleep(400 * time.Millisecond)
+	quiet := woke.Load()
+	time.Sleep(700 * time.Millisecond)
+
+	// The tab out of view really did talk — otherwise this test would pass
+	// for the wrong reason.
+	background := session.open["cursor"]
+	if background == nil {
+		t.Fatal("the cursor tab should be up")
+	}
+	if screen := screenOf(background); !strings.Contains(screen, "linha") {
+		t.Fatalf("the tab out of view should have produced output:\n%s", screen)
+	}
+	if after := woke.Load(); after != quiet {
+		t.Fatalf("a tab out of view woke the mosaic %d time(s)", after-quiet)
 	}
 }

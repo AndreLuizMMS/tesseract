@@ -168,11 +168,11 @@ var shortcuts = map[Mode][]Shortcut{
 	Form: {
 		{Key: "enter", Action: Confirm, Help: "confirms", Footer: true, Short: "↵ confirms"},
 		{Key: "esc", Action: Cancel, Help: "cancels", Footer: true, Short: "esc cancels"},
-		{Key: "tab", Action: Complete, Help: "completes the path"},
-		{Key: "up", Action: PreviousField, Help: "moves between fields", Group: "↑↓ field"},
-		{Key: "down", Action: NextField, Help: "next field", Group: "↑↓ field"},
-		{Key: "left", Action: PreviousOpt, Help: "moves between the field's options", Group: "←→ option"},
-		{Key: "right", Action: NextOpt, Help: "next option", Group: "←→ option"},
+		{Key: "tab", Action: Complete, Help: "enters the picked folder, or completes the markdown file"},
+		{Key: "up", Action: PreviousField, Help: "picks a folder from the list, and moves between fields once the list ends", Group: "↑↓ folder · field"},
+		{Key: "down", Action: NextField, Help: "next folder, then next field", Group: "↑↓ folder · field"},
+		{Key: "left", Action: PreviousOpt, Help: "goes up one folder", Group: "←→ browse"},
+		{Key: "right", Action: NextOpt, Help: "enters the picked folder", Group: "←→ browse"},
 	},
 	DockerPanel: {
 		{Key: "up", Action: PreviousService, Help: "picks the service — picking doesn't execute anything", Group: "↑↓ pick service", Footer: true, Short: "↑↓ service"},

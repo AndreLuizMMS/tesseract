@@ -77,3 +77,22 @@ func TestCompleteHiddenOnlyWhenAskedFor(t *testing.T) {
 		t.Fatalf("asking for the dot, the hidden one matches: got %d", asked.Count)
 	}
 }
+
+// TestCompleteListsCandidatesWithoutRewriting — what the folder browser
+// asks for: the folders in there, and the typed path left alone.
+func TestCompleteListsCandidatesWithoutRewriting(t *testing.T) {
+	root := prepareFolders(t)
+	typed := root + "/cor"
+	got := Complete(protocol.Complete{Path: typed, DirsOnly: true, List: true})
+	if got.Path != typed {
+		t.Fatalf("listing must not rewrite what was typed: %q", got.Path)
+	}
+	if got.Count != 2 || len(got.Options) != 2 {
+		t.Fatalf("both folders should come back: %#v", got)
+	}
+	for _, option := range got.Options {
+		if !strings.HasSuffix(option, "/") || !strings.HasPrefix(option, root) {
+			t.Fatalf("a folder should come back as a full path ending in a slash: %q", option)
+		}
+	}
+}

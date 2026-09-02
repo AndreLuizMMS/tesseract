@@ -3,6 +3,7 @@ package cell
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/andreluiz/tesseract/internal/engine/history"
 )
@@ -36,7 +37,20 @@ type Session struct {
 	lines         int
 	conversations map[string]string
 	closing       bool
+	// asleep marks the tabs whose process was released for being silent out
+	// of view. Nothing was lost: the conversation, the history and the size
+	// are all still here, and switching back brings the agent up again where
+	// it left off.
+	asleep map[string]bool
+	// sleepAfter is how much silence a tab out of view can take before it's
+	// released. Zero keeps everyone awake.
+	sleepAfter time.Duration
+	stop       chan struct{}
 }
+
+// sleepCheckInterval is how often the session looks for a tab to release.
+// A minute is fine: what's being decided here is measured in minutes.
+const sleepCheckInterval = time.Minute
 
 func (s *Session) Spawn(cfg Config) error {
 	s.config = cfg
@@ -48,6 +62,9 @@ func (s *Session) Spawn(cfg Config) error {
 		s.conversations[tab] = conversation
 	}
 	s.columns, s.lines = max(cfg.Columns, 20), max(cfg.Lines, 5)
+	s.asleep = map[string]bool{}
+	s.sleepAfter = cfg.SleepAfter
+	s.stop = make(chan struct{})
 
 	s.active = 0
 	for i, tab := range s.tabs {
@@ -55,7 +72,111 @@ func (s *Session) Spawn(cfg Config) error {
 			s.active = i
 		}
 	}
-	return s.openTab(s.tabs[s.active])
+	if err := s.openTab(s.tabs[s.active]); err != nil {
+		return err
+	}
+	if s.sleepAfter > 0 {
+		go s.watchIdleTabs()
+	}
+	return nil
+}
+
+// watchIdleTabs releases the process of a tab that nobody is looking at and
+// that has been silent long enough. An agent that opened and was never used
+// costs the same as one that's working — a whole CLI plus everything it
+// brings with it — and that's what this gets back.
+func (s *Session) watchIdleTabs() {
+	clock := time.NewTicker(sleepCheckInterval)
+	defer clock.Stop()
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-clock.C:
+			s.sleepIdleTabs()
+		}
+	}
+}
+
+// sleepIdleTabs is one pass of the sweep. It only touches a tab that can be
+// woken up where it left off — an agent with its own conversation. A shell
+// is never released: what's running in there is the user's, not a turn, and
+// silence in a shell doesn't mean idleness.
+func (s *Session) sleepIdleTabs() {
+	s.mu.Lock()
+	if s.closing || len(s.tabs) == 0 {
+		s.mu.Unlock()
+		return
+	}
+	active := s.tabs[s.active]
+	type candidate struct {
+		tab  string
+		cell Cell
+	}
+	var candidates []candidate
+	for tab, item := range s.open {
+		if tab == active || s.asleep[tab] {
+			continue
+		}
+		candidates = append(candidates, candidate{tab: tab, cell: item})
+	}
+	after := s.sleepAfter
+	s.mu.Unlock()
+
+	for _, found := range candidates {
+		if !sleepable(found.cell, after) {
+			continue
+		}
+		s.sleepTab(found.tab, found.cell)
+	}
+}
+
+// sleepable decides whether a tab can be released right now.
+func sleepable(item Cell, after time.Duration) bool {
+	// Only what knows how to come back: an agent reattaches to its own
+	// conversation, a shell has nowhere to return to.
+	if _, resumable := item.(WithConversation); !resumable {
+		return false
+	}
+	idle, knows := item.(WithIdle)
+	if !knows || idle.Idle() < after {
+		return false
+	}
+	// A tab stuck on a question is holding a decision that only the user can
+	// make. Releasing it would throw the question away.
+	return item.State() != Approve
+}
+
+// sleepTab releases one tab's process, keeping everything that lets it come
+// back: the conversation, the recorded history and the reserved size.
+func (s *Session) sleepTab(tab string, item Cell) {
+	_ = item.Kill()
+
+	s.mu.Lock()
+	delete(s.open, tab)
+	record := s.histories[tab]
+	delete(s.histories, tab)
+	s.asleep[tab] = true
+	s.mu.Unlock()
+
+	if record != nil && record != s.config.History {
+		_ = record.Close()
+	}
+	s.notify()
+}
+
+// AsleepTabs is which tabs are sleeping, so the screen can say so instead of
+// letting a process vanish without a word.
+func (s *Session) AsleepTabs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var sleeping []string
+	for _, tab := range s.tabs {
+		if s.asleep[tab] {
+			sleeping = append(sleeping, tab)
+		}
+	}
+	return sleeping
 }
 
 // openTab brings up a tab's agent, if it isn't up already.
@@ -88,6 +209,11 @@ func (s *Session) openTab(tab string) error {
 	config.Conversation = conversation
 	config.History = record
 	config.Columns, config.Lines = columns, lines
+	// Only the tab in view wakes the mosaic. A background agent writes to
+	// its own screen the whole time, and letting that through would rebuild
+	// and push the whole grid dozens of times a second for something nobody
+	// is looking at.
+	config.Notify = func() { s.notifyFrom(tab) }
 	config.OnConversationDiscovered = func(_ string, id string) {
 		s.mu.Lock()
 		s.conversations[tab] = id
@@ -106,6 +232,7 @@ func (s *Session) openTab(tab string) error {
 
 	s.mu.Lock()
 	s.open[tab] = created
+	delete(s.asleep, tab)
 	if record != nil {
 		s.histories[tab] = record
 	}
@@ -173,6 +300,14 @@ func (s *Session) notify() {
 	}
 }
 
+// notifyFrom passes the news on only when it comes from the tab in view.
+func (s *Session) notifyFrom(tab string) {
+	if s.ActiveTab() != tab {
+		return
+	}
+	s.notify()
+}
+
 func (s *Session) Draw() Frame {
 	if current := s.current(); current != nil {
 		return current.Draw()
@@ -235,6 +370,9 @@ func (s *Session) Kill() error {
 		return nil
 	}
 	s.closing = true
+	if s.stop != nil {
+		close(s.stop)
+	}
 	opened := make([]Cell, 0, len(s.open))
 	for _, item := range s.open {
 		opened = append(opened, item)

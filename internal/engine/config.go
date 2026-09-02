@@ -31,6 +31,16 @@ type Config struct {
 	NotifyCommand string `json:"notifyCommand,omitempty"`
 	// HistoryLimit is the maximum size of each cell's history, in bytes.
 	HistoryLimit int64 `json:"historyLimit,omitempty"`
+	// ScrollbackLines is how many lines each cell keeps above what's
+	// showing. Every line stays in memory fully styled: ten thousand of
+	// them cost a hundred megabytes per cell, and a project with several
+	// tabs open pays that many times over. Scrolling further back than this
+	// is what the recorded history is for.
+	ScrollbackLines int `json:"scrollbackLines,omitempty"`
+	// SleepAfterMinutes is how long an agent tab out of view can stay
+	// silent before its process is put to sleep. The conversation isn't
+	// lost — coming back to the tab reattaches it. Zero turns it off.
+	SleepAfterMinutes int `json:"sleepAfterMinutes,omitempty"`
 	// Agents is the profile of each agent type.
 	Agents map[string]AgentProfile `json:"agents,omitempty"`
 }
@@ -39,12 +49,23 @@ type Config struct {
 // applies for every field the file doesn't bring.
 func DefaultConfig() Config {
 	return Config{
-		Sound:        true,
-		Notify:       true,
-		HistoryLimit: history.DefaultCap,
-		Agents:       map[string]AgentProfile{},
+		Sound:             true,
+		Notify:            true,
+		HistoryLimit:      history.DefaultCap,
+		ScrollbackLines:   DefaultScrollback,
+		SleepAfterMinutes: DefaultSleepAfterMinutes,
+		Agents:            map[string]AgentProfile{},
 	}
 }
+
+// DefaultScrollback is how far back a cell can be scrolled without touching
+// the recorded history. Two thousand lines is eighty screens of reading and
+// costs a quarter of what the emulator's own default costs.
+const DefaultScrollback = 2000
+
+// DefaultSleepAfterMinutes is how long an agent tab nobody is looking at can
+// stay silent before its process is released.
+const DefaultSleepAfterMinutes = 15
 
 // ConfigPath is where the file lives.
 func ConfigPath() string {
@@ -75,6 +96,9 @@ func LoadConfig(path string) (Config, error) {
 	}
 	if config.HistoryLimit <= 0 {
 		config.HistoryLimit = history.DefaultCap
+	}
+	if config.ScrollbackLines <= 0 {
+		config.ScrollbackLines = DefaultScrollback
 	}
 	if config.Agents == nil {
 		config.Agents = map[string]AgentProfile{}

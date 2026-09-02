@@ -324,3 +324,193 @@ func TestSocketServesAScreen(t *testing.T) {
 		break
 	}
 }
+
+// TestKillTakesEveryTabsHistory — a cell with tabs records one file per tab.
+// Killing it used to take only the first, and every conversation the cell
+// ever had stayed on disk forever.
+func TestKillTakesEveryTabsHistory(t *testing.T) {
+	e := testEngine(t)
+	id, err := e.Create(protocol.Create{Path: t.TempDir(), Type: "bash"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// A recording from a tab, the shape a cell with tabs leaves behind.
+	tabFile := filepath.Join(HistoryDir(e.stateDir), id+"-claude.log")
+	if err := os.WriteFile(tabFile, []byte("conversa"), 0o644); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+
+	if err := e.Kill(id); err != nil {
+		t.Fatalf("kill: %v", err)
+	}
+	if _, err := os.Stat(tabFile); !os.IsNotExist(err) {
+		t.Fatal("killing the cell should have taken its tabs' recordings along")
+	}
+	if _, err := os.Stat(HistoryPath(e.stateDir, id)); !os.IsNotExist(err) {
+		t.Fatal("killing the cell should have taken its own recording along")
+	}
+}
+
+// TestStartupSweepsUnreachableRecordings — a recording whose cell doesn't
+// exist any more can't be read by anyone. After months of cells coming and
+// going that's hundreds of megabytes parked on disk.
+func TestStartupSweepsUnreachableRecordings(t *testing.T) {
+	stateDir := t.TempDir()
+	e := New(stateDir, testConfig())
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	alive, err := e.Create(protocol.Create{Path: t.TempDir(), Type: "bash"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	e.Shutdown()
+
+	orphan := filepath.Join(HistoryDir(stateDir), "deadbeef0001-claude.log")
+	if err := os.WriteFile(orphan, []byte("conversa perdida"), 0o644); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	aliveTab := filepath.Join(HistoryDir(stateDir), alive+"-claude.log")
+	if err := os.WriteFile(aliveTab, []byte("conversa viva"), 0o644); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+
+	back := New(stateDir, testConfig())
+	if err := back.Start(); err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+	t.Cleanup(back.Shutdown)
+
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Fatal("the recording of a cell that no longer exists should have been swept")
+	}
+	if _, err := os.Stat(aliveTab); err != nil {
+		t.Fatalf("the recording of a live cell must survive: %v", err)
+	}
+}
+
+// TestBrokenStateKeepsEveryRecording — sweeping over a state that couldn't be
+// read whole would throw away conversations of cells that do exist.
+func TestBrokenStateKeepsEveryRecording(t *testing.T) {
+	stateDir := t.TempDir()
+	if err := os.MkdirAll(HistoryDir(stateDir), 0o755); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	recording := filepath.Join(HistoryDir(stateDir), "abcdef012345-claude.log")
+	if err := os.WriteFile(recording, []byte("conversa"), 0o644); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if err := os.WriteFile(StatePath(stateDir), []byte("{isso não é json"), 0o644); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+
+	e := New(stateDir, testConfig())
+	if err := e.Start(); err == nil {
+		t.Fatal("an unreadable state should be reported")
+	}
+	t.Cleanup(e.Shutdown)
+
+	if _, err := os.Stat(recording); err != nil {
+		t.Fatalf("nothing may be swept over a state that wasn't read whole: %v", err)
+	}
+}
+
+// TestSnapshotDoesNotHoldTheEngineWhileDrawing — taking the grid's portrait
+// waits on the same latch a busy cell holds while writing to its own screen.
+// Doing that under the engine's lock puts every key behind the whole grid.
+func TestSnapshotDoesNotHoldTheEngineWhileDrawing(t *testing.T) {
+	e := testEngine(t)
+	dir := t.TempDir()
+	for range 6 {
+		if _, err := e.Create(protocol.Create{Path: dir, Type: "bash"}); err != nil {
+			t.Fatalf("create: %v", err)
+		}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 200 {
+			_ = e.Snapshot()
+		}
+	}()
+
+	// While the portraits are being taken, the engine still answers.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the snapshots never finished")
+		}
+		start := time.Now()
+		e.Summary()
+		if waited := time.Since(start); waited > 500*time.Millisecond {
+			t.Fatalf("the engine stayed locked for %s while drawing", waited)
+		}
+	}
+}
+
+// TestRecentsKeepTheDirectoriesOpened — the form's recent list, newest
+// first, without repeats, and surviving the project leaving the screen.
+func TestRecentsKeepTheDirectoriesOpened(t *testing.T) {
+	e := testEngine(t)
+	first, second := t.TempDir(), t.TempDir()
+
+	id, err := e.Create(protocol.Create{Path: first, Type: "bash"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := e.Create(protocol.Create{Path: second, Type: "bash"}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := e.Create(protocol.Create{Path: second, Type: "bash"}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	recents := e.Snapshot().Recents
+	if len(recents) != 2 || recents[0] != second || recents[1] != first {
+		t.Fatalf("recents should be newest first and without repeats: %v", recents)
+	}
+
+	// The project leaves the screen with its last cell; the directory
+	// doesn't leave the history — that's exactly when it's worth the most.
+	if err := e.Kill(id); err != nil {
+		t.Fatalf("kill: %v", err)
+	}
+	snapshot := e.Snapshot()
+	if len(snapshot.Projects) != 1 {
+		t.Fatalf("the emptied project should have left the screen: %#v", snapshot.Projects)
+	}
+	if len(snapshot.Recents) != 2 || snapshot.Recents[1] != first {
+		t.Fatalf("the directory should stay in the history: %v", snapshot.Recents)
+	}
+}
+
+// TestRecentsSurviveARestart — and come back on the next run, since that's
+// the whole point of remembering them.
+func TestRecentsSurviveARestart(t *testing.T) {
+	stateDir := t.TempDir()
+	dir := t.TempDir()
+
+	first := New(stateDir, testConfig())
+	if err := first.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if _, err := first.Create(protocol.Create{Path: dir, Type: "bash"}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	first.Shutdown()
+
+	second := New(stateDir, testConfig())
+	if err := second.Start(); err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+	t.Cleanup(second.Shutdown)
+	if recents := second.Snapshot().Recents; len(recents) != 1 || recents[0] != dir {
+		t.Fatalf("the history should come back from disk: %v", recents)
+	}
+}

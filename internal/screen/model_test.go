@@ -138,7 +138,7 @@ func TestModeShowsWhoHoldsTheKeyboard(t *testing.T) {
 	if m.Mode().String() != "TYPE" {
 		t.Fatalf("typing is TYPE, got %s", m.Mode())
 	}
-	m.form = NewForm(m.state.Types, "")
+	m.form = NewForm(m.state.Recents, "")
 	if m.Mode().String() != "FORM" {
 		t.Fatalf("with a form open the keyboard is its, got %s", m.Mode())
 	}

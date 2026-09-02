@@ -12,6 +12,14 @@ func testForm() *Form {
 	return NewForm(nil, "")
 }
 
+// browsing is a form already showing a folder list, as it looks after the
+// engine answered.
+func browsing(options ...string) *Form {
+	f := testForm()
+	f.options, f.count = options, len(options)
+	return f
+}
+
 func typeText(f *Form, text string) {
 	for _, letter := range text {
 		f.Key(keyboard.None, string(letter), false)
@@ -26,16 +34,118 @@ func labels(f *Form) []string {
 	return list
 }
 
-// TestFormStartsAtHome — the path already points at home, since that's
-// where every project starts from.
-func TestFormStartsAtHome(t *testing.T) {
+// TestFormStartsAtHomeWithoutHistory — with nothing opened before there is
+// still somewhere to walk from.
+func TestFormStartsAtHomeWithoutHistory(t *testing.T) {
 	f := testForm()
 	value := f.fields[0].value
-	if value != homeWithSlash() {
-		t.Fatalf("the field should start at home, got %q", value)
+	if !strings.HasPrefix(value, home()) || !strings.HasSuffix(value, "/") {
+		t.Fatalf("the field should start inside home, got %q", value)
 	}
-	if !strings.HasSuffix(value, "/") {
-		t.Fatalf("the path should end in a slash for tab completion from inside it: %q", value)
+	request, waiting := f.Pending()
+	if !waiting || !request.List || !request.DirsOnly {
+		t.Fatalf("opening should already ask for the folder list: %#v", request)
+	}
+}
+
+// TestFormOpensOnTheRecentFolders — with history, the list is what was
+// opened before and nothing is asked of the engine.
+func TestFormOpensOnTheRecentFolders(t *testing.T) {
+	recents := []string{"/home/dev/cortz-web", "/home/dev/doxar"}
+	f := NewForm(recents, "")
+	if f.fields[0].value != "" {
+		t.Fatalf("nothing is typed for the user: %q", f.fields[0].value)
+	}
+	if strings.Join(f.options, " ") != strings.Join(recents, " ") {
+		t.Fatalf("the list should be the recent folders, got %v", f.options)
+	}
+	if _, waiting := f.Pending(); waiting {
+		t.Fatal("the recent folders don't need the engine")
+	}
+}
+
+// TestFormFiltersRecentsByFragment — a loose fragment, no slash in it,
+// searches the history instead of the disk.
+func TestFormFiltersRecentsByFragment(t *testing.T) {
+	f := NewForm([]string{"/home/dev/cortz-web", "/home/dev/doxar"}, "")
+	typeText(f, "dox")
+	if len(f.options) != 1 || f.options[0] != "/home/dev/doxar" {
+		t.Fatalf("the fragment should filter the history, got %v", f.options)
+	}
+	if _, waiting := f.Pending(); waiting {
+		t.Fatal("filtering the history is nobody else's job")
+	}
+}
+
+// TestFormEntersFolderWithoutTyping — the whole point: the arrow picks and
+// walks in, and walking in asks for what's in there.
+func TestFormEntersFolderWithoutTyping(t *testing.T) {
+	f := browsing("/home/dev/cortz-web/", "/home/dev/doxar/")
+	f.Key(keyboard.NextField, "", false) // picks the second one
+	f.Key(keyboard.NextOpt, "", false)   // walks in
+
+	if f.fields[0].value != "/home/dev/doxar/" {
+		t.Fatalf("the field should have walked into the folder, got %q", f.fields[0].value)
+	}
+	request, waiting := f.Pending()
+	if !waiting || request.Path != "/home/dev/doxar/" || !request.List {
+		t.Fatalf("walking in should ask what's inside: %#v", request)
+	}
+}
+
+// TestFormClimbsOutOfFolder — and the other arrow goes back up.
+func TestFormClimbsOutOfFolder(t *testing.T) {
+	f := testForm()
+	f.fields[0].value = "/home/dev/doxar/"
+	f.Key(keyboard.PreviousOpt, "", false)
+	if f.fields[0].value != "/home/dev/" {
+		t.Fatalf("← should climb one folder, got %q", f.fields[0].value)
+	}
+	f.Key(keyboard.PreviousOpt, "", false)
+	f.Key(keyboard.PreviousOpt, "", false)
+	if f.fields[0].value != "/" {
+		t.Fatalf("climbing stops at the root, got %q", f.fields[0].value)
+	}
+}
+
+// TestFormClimbsFromTheRecentPick — from the history, where nothing is
+// typed, climbing starts at the picked folder.
+func TestFormClimbsFromTheRecentPick(t *testing.T) {
+	f := NewForm([]string{"/home/dev/cortz-web"}, "")
+	f.Key(keyboard.PreviousOpt, "", false)
+	if f.fields[0].value != "/home/dev/" {
+		t.Fatalf("← should climb out of the picked folder, got %q", f.fields[0].value)
+	}
+}
+
+// TestFormConfirmTakesThePickedFolder — on the folder field ↵ settles the
+// folder and walks on, it doesn't create.
+func TestFormConfirmTakesThePickedFolder(t *testing.T) {
+	f := browsing("/home/dev/cortz-web/", "/home/dev/doxar/")
+	f.Key(keyboard.NextField, "", false)
+	request, open := f.Key(keyboard.Confirm, "", false)
+	if request != nil || !open {
+		t.Fatal("↵ on the folder field settles the folder, it doesn't create")
+	}
+	if f.fields[0].value != "/home/dev/doxar" {
+		t.Fatalf("the picked folder should be in the field, got %q", f.fields[0].value)
+	}
+	if f.current != 1 {
+		t.Fatalf("after the folder it walks to the name, it's at %d", f.current)
+	}
+}
+
+// TestFormArrowsWalkTheListBeforeTheFields — the list is the field: only
+// once it runs out does the arrow leave.
+func TestFormArrowsWalkTheListBeforeTheFields(t *testing.T) {
+	f := browsing("/a/", "/b/")
+	f.Key(keyboard.NextField, "", false)
+	if f.current != 0 || f.highlight != 1 {
+		t.Fatalf("↓ should walk the list first: field %d, pick %d", f.current, f.highlight)
+	}
+	f.Key(keyboard.NextField, "", false)
+	if f.current != 1 {
+		t.Fatalf("with the list over, ↓ moves on to the next field, it's at %d", f.current)
 	}
 }
 
@@ -96,26 +206,28 @@ func TestFormSendsMarkdownAsTarget(t *testing.T) {
 	}
 }
 
-// TestFormCompletesFolderPath — on the project field, tab only looks at
-// folders.
-func TestFormCompletesFolderPath(t *testing.T) {
+// TestFormListsWhatWasTypedWithoutRewritingIt — typing a path asks the
+// engine for the folders in there, and the answer fills the list without
+// touching what's being typed.
+func TestFormListsWhatWasTypedWithoutRewritingIt(t *testing.T) {
 	f := testForm()
-	typeText(f, "dev/cor")
+	f.fields[0].value = ""
+	typeText(f, "/home/dev/cor")
 
-	request, wants := f.WantsComplete(keyboard.Complete)
-	if !wants {
-		t.Fatal("the project field accepts completion")
+	request, waiting := f.Pending()
+	if !waiting {
+		t.Fatal("typing a path should ask for the folder list")
 	}
-	if !request.DirsOnly || !strings.HasSuffix(request.Path, "dev/cor") {
-		t.Fatalf("the completion request came out wrong: %#v", request)
+	if !request.DirsOnly || !request.List || request.Path != "/home/dev/cor" {
+		t.Fatalf("the list request came out wrong: %#v", request)
 	}
 
-	f.Completed(protocol.Completed{Path: "/home/andreluiz/dev/cortz-", Count: 3})
-	if f.fields[0].value != "/home/andreluiz/dev/cortz-" {
-		t.Fatalf("the field didn't get the completion: %q", f.fields[0].value)
+	f.Completed(protocol.Completed{Path: request.Path, Count: 2, Options: []string{"/home/dev/cortz-api/", "/home/dev/cortz-web/"}})
+	if f.fields[0].value != "/home/dev/cor" {
+		t.Fatalf("the list must not rewrite what is being typed: %q", f.fields[0].value)
 	}
-	if !strings.Contains(f.warning, "3 folders match") {
-		t.Fatalf("the warning should count how many match, got %q", f.warning)
+	if len(f.options) != 2 {
+		t.Fatalf("the list should be showing both folders, got %v", f.options)
 	}
 }
 
@@ -127,11 +239,12 @@ func TestFormCompletesFileInsideTheProject(t *testing.T) {
 	f.current = 2
 	typeText(f, "READ")
 
-	request, wants := f.WantsComplete(keyboard.Complete)
-	if !wants {
+	f.Key(keyboard.Complete, "", false)
+	request, waiting := f.Pending()
+	if !waiting {
 		t.Fatal("the markdown field accepts completion")
 	}
-	if request.DirsOnly {
+	if request.List || request.DirsOnly {
 		t.Fatal("here what matters is a file, not a folder")
 	}
 	if request.Path != "/home/dev/cortz/READ" {
@@ -149,6 +262,7 @@ func TestFormCompletesFileInsideTheProject(t *testing.T) {
 func TestFormRejectsEmptyProject(t *testing.T) {
 	f := testForm()
 	f.fields[0].value = ""
+	f.current = 1
 	request, open := f.Key(keyboard.Confirm, "", false)
 	if request != nil {
 		t.Fatal("nothing gets created without a path")

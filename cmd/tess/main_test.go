@@ -602,8 +602,10 @@ func TestTabSwitchesTabInSession(t *testing.T) {
 	_ = waitExit(cmd, 5*time.Second)
 }
 
-// TestFormStartsAtUserHome — the path field already points to home.
-func TestFormStartsAtUserHome(t *testing.T) {
+// TestFormBrowsesFoldersWithoutTyping — the path field starts at home, and
+// the list under it is live: typing a directory shows what's inside it, with
+// no completion key pressed.
+func TestFormBrowsesFoldersWithoutTyping(t *testing.T) {
 	home := testHome(t)
 	project := filepath.Join(home, "project")
 	if err := os.MkdirAll(project, 0o755); err != nil {
@@ -636,6 +638,12 @@ func TestFormStartsAtUserHome(t *testing.T) {
 	if !strings.Contains(render, "MD") {
 		t.Errorf("the form should offer the markdown field:\n%s", render)
 	}
+
+	// Clearing home and typing another directory: the folders inside it show
+	// up on their own, which is what makes picking one a matter of arrows.
+	_, _ = terminal.Write([]byte(strings.Repeat("\x7f", len(os.Getenv("HOME"))+1)))
+	_, _ = terminal.Write([]byte(home + "/"))
+	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "/project/") })
 
 	_, _ = terminal.Write([]byte{0x1b})
 	_, _ = terminal.Write([]byte("q"))

@@ -74,6 +74,19 @@ And **no false alarms**: a blinking spinner and a moving cursor don't count as a
 The engine requires consecutive reads of work before arming the alert, and consecutive
 reads of silence before declaring the turn over.
 
+### Picking the folder
+
+Creation opens on a **folder browser**, not on an empty path. With nothing typed the list
+is the **directories opened most recently** — they stay on the list after the project
+leaves the screen, which is exactly when they're worth the most — and `↑↓` picks one. A
+fragment with no slash in it filters that history: `dox` finds the project without anyone
+remembering where it lives.
+
+Anything with a slash in it goes to disk instead, and the list refreshes **as you type**,
+with no completion key. `→` walks into the picked folder, `←` climbs back out, and `↵`
+settles the folder and moves on to the name. Nothing here requires a full path typed by
+hand — a whole project can be picked with the arrows alone.
+
 ### Docker panel
 
 Belongs to the **project**, not the cell. The compose file is looked for at the root and in
@@ -135,19 +148,33 @@ defaults.
 
 ```json
 {
-  "som": true,
-  "notificar": true,
-  "comandoNotificacao": "",
-  "tetoHistorico": 5242880,
-  "agentes": {
+  "sound": true,
+  "notify": true,
+  "notifyCommand": "",
+  "historyLimit": 5242880,
+  "scrollbackLines": 2000,
+  "sleepAfterMinutes": 15,
+  "agents": {
     "claude": {
-      "programa": "claude",
+      "program": "claude",
       "args": ["--model", "opus"],
-      "comandoRenomear": "/rename"
+      "renameCommand": "/rename"
     }
   }
 }
 ```
+
+`scrollbackLines` is how far back a cell can be scrolled without touching the recorded
+history. Every one of those lines stays in memory fully styled: ten thousand of them cost
+around a hundred megabytes **per cell**, and a project with several tabs open pays that
+many times over. Two thousand is eighty screens of reading — searching further back is
+what the recording on disk is for.
+
+`sleepAfterMinutes` is how long an agent tab **out of view** can stay silent before its
+process is released. Nothing is lost: coming back to the tab brings the agent up again on
+the same conversation. A tab holding a question is never released, and neither is a shell —
+what's running in there is yours, and silence in a shell doesn't mean idleness. Zero turns
+it off and keeps every tab you ever opened resident.
 
 The **usage badge** for the 5-hour window shows up in the title bar when your Claude Code
 statusline writes `~/.claude/tesseract-quota.json` (or the old `squad-quota.json`) in the
