@@ -1,0 +1,65 @@
+{
+  "name": "tesseract-skin",
+  "version": "0.1.0",
+  "description": "Identidade Tesseract Neon dentro da sessão: spinner, fim de turno, linhas de ferramenta, prompt e faixa ⧉ com estado e quota.",
+  "author": {
+    "name": "André"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "outside_tesseract": {
+      "type": "boolean",
+      "title": "Usar fora do Tesseract",
+      "description": "Aplica a identidade mesmo sem TESSERACT=1 no ambiente. Aqui a linha de approve é a barra invertida, por ser a única da tela.",
+      "default": false
+    },
+    "band": {
+      "type": "boolean",
+      "title": "Faixa acima do prompt",
+      "description": "Linha ⧉ projeto/célula, desfecho do último turno e quota. O desfecho sai quando a pessoa volta ao prompt; a faixa some enquanto o diálogo de permissão está aberto.",
+      "default": true
+    },
+    "blink": {
+      "type": "boolean",
+      "title": "Piscar a barra APPROVE",
+      "description": "Fora do Tesseract, escurece a barra por 200 ms a cada 2 s. TESSERACT_NO_BLINK e NO_COLOR também desligam. Dentro de uma célula a linha de approve nunca pisca: a barra é a do mosaico.",
+      "default": true
+    },
+    "spinner": {
+      "type": "boolean",
+      "title": "Spinner",
+      "description": "Troca a linha animada por ▸ WORKING, fase e tempo decorrido; com o diálogo aberto diz que está bloqueado esperando a pessoa, e o tempo de espera não conta.",
+      "default": true
+    },
+    "turn_end": {
+      "type": "boolean",
+      "title": "Fim de turno",
+      "description": "Troca a linha de duração pelo desfecho do turno (⬤ RESPONDED, ○ INTERRUPTED ou ✖ FAILED) e o tempo.",
+      "default": true
+    },
+    "tools": {
+      "type": "boolean",
+      "title": "Linhas de ferramenta",
+      "description": "Redesenha a chamada e o grupo de ferramentas com glifo de estado e rótulo em ciano; a chamada que espera a pessoa vira a linha ⏵ APPROVE.",
+      "default": true
+    },
+    "user_message": {
+      "type": "boolean",
+      "title": "Mensagem do usuário",
+      "description": "Desenha o prompt enviado, digitado ou mandado do mosaico, como linha › sobre fundo elevado.",
+      "default": true
+    },
+    "prompt_hint": {
+      "type": "boolean",
+      "title": "Dica do prompt",
+      "description": "Reescreve a dica sob o prompt no tom seco da marca, mantendo o que outros mods acrescentaram.",
+      "default": true
+    },
+    "session_mode": {
+      "type": "boolean",
+      "title": "Indicador de modo",
+      "description": "Desenha os modos da sessão em caixa alta, cor de estrutura.",
+      "default": true
+    }
+  }
+}
