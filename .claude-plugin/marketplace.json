@@ -1,0 +1,39 @@
+{
+  "name": "tesseract",
+  "description": "Mods do Tesseract para o Claude Code: ligação com o engine, identidade visual e ferramentas de projeto.",
+  "owner": {
+    "name": "André"
+  },
+  "plugins": [
+    {
+      "name": "tesseract-docker",
+      "source": "./mods/tesseract-docker",
+      "description": "Painel do Docker Compose do projeto, cauda de log, tool para o Claude e guarda contra comando destrutivo"
+    },
+    {
+      "name": "tesseract-ide",
+      "source": "./mods/tesseract-ide",
+      "description": "Abre o projeto, ou o último arquivo que o Claude editou na linha, no IDE detectado (WSL e Windows)"
+    },
+    {
+      "name": "tesseract-link",
+      "source": "./mods/tesseract-link",
+      "description": "Liga a sessão do Claude Code ao engine do Tesseract: estado do turno, id da conversa, quota e prompts enviados do mosaico. Só age dentro de uma célula."
+    },
+    {
+      "name": "tesseract-md",
+      "source": "./mods/tesseract-md",
+      "description": "Leitor de markdown do projeto: lista com filtro, leitura que recarrega e links entre docs"
+    },
+    {
+      "name": "tesseract-roster",
+      "source": "./mods/tesseract-roster",
+      "description": "Mostra quantas outras sessões estão chamando, busca nas mensagens da sessão e dá as dicas dos comandos Tesseract"
+    },
+    {
+      "name": "tesseract-skin",
+      "source": "./mods/tesseract-skin",
+      "description": "Identidade Tesseract Neon dentro da sessão: spinner, fim de turno, linhas de ferramenta, prompt e faixa ⧉ com estado e quota."
+    }
+  ]
+}
