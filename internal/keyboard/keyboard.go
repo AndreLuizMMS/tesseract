@@ -12,7 +12,7 @@ const (
 	// Browse: every key belongs to the application.
 	Browse Mode = iota
 	// Type: every key belongs to the cell, with no exception besides
-	// ctrl-l.
+	// ctrl+l.
 	Type
 	// Form: the keyboard belongs to the focused field; only command keys
 	// get out.
@@ -134,12 +134,12 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "up", Action: CellUp, Help: "cell in the row above", Group: "↑↓←→ cell"},
 		{Key: "down", Action: CellDown, Help: "cell in the row below", Group: "↑↓←→ cell"},
 		{Key: "space", Action: SkipToAlert, Help: "jumps to the next cell asking for attention, crossing projects"},
-		{Key: "tab", Action: NextTab, Help: "switches the cell's tab: claude, cursor, shell", Group: "tab ⇥ tab", Footer: true, Short: "tab tab"},
-		{Key: "shift+tab", Action: PreviousTab, Help: "previous tab", Group: "tab ⇥ tab"},
+		{Key: "tab", Action: NextTab, Help: "switches the cell's tab: claude, cursor, bash, md", Group: "tab · shift+tab", Footer: true, Short: "tab next tab"},
+		{Key: "shift+tab", Action: PreviousTab, Help: "previous tab", Group: "tab · shift+tab"},
 
 		{Key: "enter", Action: EnterType, Help: "enters TYPE on the focused cell", Footer: true, Short: "↵ type"},
 		{Key: "o", Action: Fullscreen, Help: "focused cell in fullscreen (toggles)"},
-		{Key: "v", Action: SwitchScreen, Help: "switches between grid and list", Footer: true, Short: "v list"},
+		{Key: "v", Action: SwitchScreen, Help: "switches between grid and list", Footer: true, Short: "v grid/list"},
 
 		{Key: "n", Action: Create, Help: "create — asks for the project, then the cell", Footer: true, Short: "n create"},
 		{Key: "r", Action: Resume, Help: "resumes a stopped cell, or brings a dead cell back up"},
@@ -163,15 +163,15 @@ var shortcuts = map[Mode][]Shortcut{
 	},
 	Type: {
 		// The one reserved key. Everything else goes to the cell.
-		{Key: "ctrl+l", Action: ExitType, Help: "gives back the keyboard to the application", Footer: true, Short: "ctrl-l gives back the keyboard"},
+		{Key: "ctrl+l", Action: ExitType, Help: "gives back the keyboard to the application", Footer: true, Short: "ctrl+l gives back the keyboard"},
 	},
 	Form: {
-		{Key: "enter", Action: Confirm, Help: "confirms", Footer: true, Short: "↵ confirms"},
-		{Key: "esc", Action: Cancel, Help: "cancels", Footer: true, Short: "esc cancels"},
+		{Key: "enter", Action: Confirm, Help: "confirms", Footer: true, Short: "↵ confirm"},
+		{Key: "esc", Action: Cancel, Help: "cancels", Footer: true, Short: "esc cancel"},
 		{Key: "tab", Action: Complete, Help: "enters the picked folder, or completes the markdown file"},
 		{Key: "up", Action: PreviousField, Help: "picks a folder from the list, and moves between fields once the list ends", Group: "↑↓ folder · field"},
 		{Key: "down", Action: NextField, Help: "next folder, then next field", Group: "↑↓ folder · field"},
-		{Key: "left", Action: PreviousOpt, Help: "goes up one folder", Group: "←→ browse"},
+		{Key: "left", Action: PreviousOpt, Help: "← goes up one folder, → enters the picked one", Group: "←→ browse"},
 		{Key: "right", Action: NextOpt, Help: "enters the picked folder", Group: "←→ browse"},
 	},
 	DockerPanel: {
@@ -186,13 +186,13 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "U", Action: UpStack, Help: "brings up the whole stack"},
 		{Key: "S", Action: StopStack, Help: "stops the whole stack"},
 		{Key: "R", Action: RestartStack, Help: "restarts the whole stack"},
-		{Key: "esc", Action: Back, Help: "closes the panel and gives back the keyboard", Footer: true, Short: "esc closes"},
+		{Key: "esc", Action: Back, Help: "closes the panel and gives back the keyboard", Footer: true, Short: "esc close"},
 	},
 	IDEPanel: {
 		{Key: "up", Action: PreviousIDE, Help: "picks the IDE — picking doesn't open anything", Group: "↑↓ pick IDE", Footer: true, Short: "↑↓ IDE"},
 		{Key: "down", Action: NextIDE, Help: "next IDE", Group: "↑↓ pick IDE"},
 		{Key: "enter", Action: ChooseIDE, Help: "opens the project in the picked IDE", Footer: true, Short: "↵ open"},
-		{Key: "esc", Action: Back, Help: "closes the picker and gives back the keyboard", Footer: true, Short: "esc closes"},
+		{Key: "esc", Action: Back, Help: "closes the picker and gives back the keyboard", Footer: true, Short: "esc close"},
 	},
 }
 

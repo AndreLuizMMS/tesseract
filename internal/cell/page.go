@@ -42,20 +42,22 @@ func buildPageStyle(width int) ansi.StyleConfig {
 	style.Document.BlockSuffix = "\n"
 	style.Document.Color = text(theme.FgDefault)
 
-	// Title: a solid bar spanning the line, like a book chapter. The bar is
-	// cyan because a title is document structure, not state.
-	style.H1.Prefix = "  "
-	style.H1.Suffix = "  "
-	style.H1.Color = text(theme.Flux)
-	style.H1.BackgroundColor = text(theme.FluxDeep)
+	// Title: the way the brand writes a heading — uppercase, at the top of
+	// the text hierarchy, after the two slashes that number every section.
+	// No filled bar: a solid area means "this blocks the work", and inside
+	// the terminal that's the approve bar's alone.
+	style.H1.Prefix = "// "
+	style.H1.Suffix = ""
+	style.H1.Color = text(theme.FgBright)
+	style.H1.BackgroundColor = nil
 	style.H1.Bold = yes()
 	style.H1.Upper = yes()
 	style.H1.BlockPrefix = "\n"
 	style.H1.BlockSuffix = "\n"
 
-	// Sections: a bar on the left instead of markdown's hashes. The
-	// hierarchy descends through brightness, not hue — strong cyan, faint
-	// cyan, gray.
+	// Sections: a bar on the left instead of markdown's hashes, in the cyan
+	// of everything that is structure. The hierarchy descends through
+	// brightness, not hue — strong cyan, faint cyan, gray.
 	style.H2.Prefix = "▌ "
 	style.H2.Color = text(theme.Flux)
 	style.H2.Bold = yes()
@@ -82,7 +84,7 @@ func buildPageStyle(width int) ansi.StyleConfig {
 	style.BlockQuote.Italic = yes()
 
 	// Rule: one whole line, not eight dashes.
-	style.HorizontalRule.Color = text(theme.LineDim)
+	style.HorizontalRule.Color = text(theme.LineActive)
 	style.HorizontalRule.Format = "\n" + strings.Repeat("─", max(width-4, 1)) + "\n"
 
 	// Lists with a round marker and room to breathe.
@@ -119,11 +121,13 @@ func buildPageStyle(width int) ansi.StyleConfig {
 	return style
 }
 
-// codeHighlight is the syntax highlighting inside the code block, in
-// Tesseract's palette. It follows the same reading as the editor's theme:
-// string in dark green, function in blue, keyword in purple, type in
-// yellow, number in orange. Phosphor green stays out — a code block would
-// repeat the keyboard-ownership color dozens of times.
+// codeHighlight is the syntax highlighting inside the code block, in the
+// only two families the palette has for something that isn't a state: text
+// and structure. Keywords and tags are the code's skeleton, so they're cyan;
+// names and values climb and descend the text's own brightness; comments
+// fade. No state color in here — a violet keyword next to an orphaned cell
+// would be saying "anomaly" about a for loop — and no green, which would
+// repeat the keyboard-ownership color dozens of times per block.
 func codeHighlight() *ansi.Chroma {
 	color := func(c string) ansi.StylePrimitive { return ansi.StylePrimitive{Color: &c} }
 	bold := func(c string) ansi.StylePrimitive {
@@ -137,36 +141,38 @@ func codeHighlight() *ansi.Chroma {
 	background := func(c string) ansi.StylePrimitive { return ansi.StylePrimitive{BackgroundColor: &c} }
 	return &ansi.Chroma{
 		Text:                color(theme.FgDefault),
-		Error:               color(theme.StateDead),
+		Error:               color(theme.FgDefault),
 		Comment:             italic(theme.FgFaint),
-		CommentPreproc:      color(theme.Flux),
-		Keyword:             color(theme.StateOrphan),
-		KeywordReserved:     color(theme.StateOrphan),
-		KeywordNamespace:    color(theme.StateOrphan),
-		KeywordType:         color(theme.AnsiYellow),
+		CommentPreproc:      color(theme.FluxCore),
+		Keyword:             color(theme.Flux),
+		KeywordReserved:     color(theme.Flux),
+		KeywordNamespace:    color(theme.Flux),
+		KeywordType:         color(theme.FluxCore),
 		Operator:            color(theme.FgMuted),
 		Punctuation:         color(theme.FgMuted),
 		Name:                color(theme.FgDefault),
-		NameBuiltin:         color(theme.AnsiMagenta),
-		NameTag:             color(theme.StateOrphan),
-		NameAttribute:       color(theme.Flux),
-		NameClass:           bold(theme.AnsiYellow),
-		NameConstant:        color(theme.StateBlock),
-		NameDecorator:       color(theme.Flux),
-		NameException:       color(theme.StateDead),
-		NameFunction:        color(theme.StateRead),
+		NameBuiltin:         color(theme.FluxCore),
+		NameTag:             color(theme.Flux),
+		NameAttribute:       color(theme.FluxCore),
+		NameClass:           bold(theme.FgBright),
+		NameConstant:        color(theme.FgBright),
+		NameDecorator:       color(theme.FluxCore),
+		NameException:       color(theme.FgBright),
+		NameFunction:        color(theme.FgBright),
 		NameOther:           color(theme.FgDefault),
-		Literal:             color(theme.StateBlock),
-		LiteralNumber:       color(theme.StateBlock),
-		LiteralDate:         color(theme.StateBlock),
-		LiteralString:       color(theme.BrandCore),
-		LiteralStringEscape: color(theme.Flux),
-		GenericDeleted:      color(theme.StateDead),
+		Literal:             color(theme.FgMuted),
+		LiteralNumber:       color(theme.FgBright),
+		LiteralDate:         color(theme.FgBright),
+		LiteralString:       color(theme.FgMuted),
+		LiteralStringEscape: color(theme.FluxCore),
+		GenericDeleted:      color(theme.FgMuted),
 		GenericEmph:         italic(theme.FgDefault),
-		GenericInserted:     color(theme.BrandCore),
+		GenericInserted:     color(theme.FgBright),
 		GenericStrong:       bold(theme.FgBright),
 		GenericSubheading:   color(theme.FluxCore),
-		Background:          background(theme.BgSurface),
+		// The page sits on the cell's surface: the code box is a well cut
+		// into it, down to the default background.
+		Background: background(theme.BgBase),
 	}
 }
 
@@ -180,6 +186,12 @@ func renderPage(raw string, columns int) []string {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStyles(buildPageStyle(width)),
 		glamour.WithWordWrap(width),
+		// The code box is highlighted in the palette's exact tokens. Left to
+		// its default, the highlighter rounds each one to the nearest of 256
+		// colors — close, and no longer the palette. A terminal that can't
+		// show 24 bits gets them downgraded by the screen, like everything
+		// else it draws.
+		glamour.WithChromaFormatter("terminal16m"),
 		glamour.WithEmoji(),
 	)
 	if err != nil {

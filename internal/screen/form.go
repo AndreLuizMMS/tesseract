@@ -6,6 +6,7 @@ import (
 
 	"github.com/andreluiz/tesseract/internal/keyboard"
 	"github.com/andreluiz/tesseract/internal/protocol"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 // visibleFolders is how many folders of the list fit under the field without
@@ -67,7 +68,7 @@ func NewForm(recents []string, current string) *Form {
 	f.fields = []*field{
 		{label: "PROJECT", value: current, hint: "↑↓ picks · → enters · ← goes up · ↵ confirms", browses: true},
 		{label: "NAME", hint: "(empty → automatic name)"},
-		{label: "MD", hint: "(optional — a markdown file becomes a reading cell)", completes: true},
+		{label: "MD", hint: "(optional — opens a markdown file to read)", completes: true},
 		{label: "PROMPT", hint: "(optional — comes up already working)"},
 	}
 	f.refresh()
@@ -93,7 +94,7 @@ func (f *Form) Key(action keyboard.Action, text string, erased bool) (request *p
 		}
 		path := strings.TrimSpace(f.fields[0].value)
 		if path == "" {
-			f.warning = "the project needs a path"
+			f.warning = "Project needs a path. Type one or pick a folder."
 			return nil, true
 		}
 		// The type isn't asked: the engine decides that, from what was
@@ -255,11 +256,11 @@ func (f *Form) Completed(response protocol.Completed) {
 	current.value = response.Path
 	switch response.Count {
 	case 0:
-		f.warning = "nothing matches that"
+		f.warning = "No file matches that path. Erase a letter and tab again."
 	case 1:
 		f.warning = ""
 	default:
-		f.warning = plural(response.Count, "file matches", "files match")
+		f.warning = plural(response.Count, "file matches", "files match") + ". Keep typing to narrow it."
 	}
 }
 
@@ -280,22 +281,21 @@ func (f *Form) Draw(width int) []string {
 	inner := min(width-8, 60)
 	var body []string
 	for i, c := range f.fields {
-		mark := "  "
+		// One field has the keyboard at a time, and only that one shows a
+		// caret: four carets on screen would be four owners.
+		mark, cursor := "  ", ""
 		if i == f.current {
-			mark = "▸ "
+			mark, cursor = selectedBar+" ", caret
 		}
-		body = append(body, mark+titleColor.Render(pad(c.label, 8))+c.value+"▏")
-		if c.hint != "" {
-			body = append(body, "  "+strings.Repeat(" ", 8)+faintColor.Render(c.hint))
-		}
+		body = append(body, mark+borderColor.Render(pad(c.label, 8))+c.value+cursor)
+		body = append(body, hintLines(c.hint, inner)...)
 		if c.browses && i == f.current {
 			body = append(body, f.folders(inner)...)
 		}
 	}
 	if f.warning != "" {
-		body = append(body, "", "  "+scrollColor.Render(f.warning))
+		body = append(body, "", "  "+warnColor.Render(f.warning))
 	}
-	body = append(body, "", "  "+faintColor.Render("↵ create        esc cancel"))
 	return floatingBox("NEW", body, inner)
 }
 
@@ -305,9 +305,9 @@ func (f *Form) folders(inner int) []string {
 	room := max(inner-6, 1)
 	if len(f.options) == 0 {
 		if strings.Contains(f.fields[0].value, "/") {
-			return []string{"    " + faintColor.Render("no folder in here")}
+			return []string{"    " + mutedColor.Render("No folders in here. ") + hint("← goes up.")}
 		}
-		return []string{"    " + faintColor.Render("no recent folder — type a path")}
+		return []string{"    " + mutedColor.Render("No recent folders. Type a path.")}
 	}
 
 	// The window follows the pick, keeping it in the middle whenever the list
@@ -318,10 +318,10 @@ func (f *Form) folders(inner int) []string {
 	for i := first; i < last; i++ {
 		label := shortenHome(f.options[i])
 		if i == f.highlight {
-			lines = append(lines, "  "+barColor.Render("▌")+selectedRowColor.Render(" "+pad(label, room)))
+			lines = append(lines, "  "+selectedBar+selectedRowColor.Render(" "+pad(label, room)))
 			continue
 		}
-		lines = append(lines, "    "+faintColor.Render(truncate(label, room)))
+		lines = append(lines, "    "+mutedColor.Render(truncate(label, room)))
 	}
 	if hidden := f.count - last; hidden > 0 {
 		lines = append(lines, "    "+faintColor.Render("… "+strconv.Itoa(hidden)+" more"))
@@ -338,14 +338,33 @@ func shortenHome(path string) string {
 	return "~" + strings.TrimPrefix(path, h)
 }
 
-// floatingBox draws a box with a title, at the requested size.
+// caret is the cursor of the field being written. Phosphor, like every
+// cursor the brand draws: it's where the keyboard is.
+var caret = typingColor.Render("▏")
+
+// The dialog's header is a raised band, like a cell's.
+var (
+	boxTitleColor = theme.WithBackground(titleColor, theme.BgRaised)
+	boxRuleColor  = theme.WithBackground(focusedBorderColor, theme.BgRaised)
+)
+
+// floatingBox draws a box with a title, at the requested size. A dialog
+// holds the keyboard while it's open, so its line is the live green; its
+// body sits on the surface, like a cell's.
 func floatingBox(title string, body []string, width int) []string {
-	lines := []string{focusedBorderColor.Render("┌ ") + titleColor.Render(title) + focusedBorderColor.Render(" "+strings.Repeat("─", max(width-len([]rune(title))-4, 0))+"┐")}
-	lines = append(lines, focusedBorderColor.Render("│")+pad("", width-2)+focusedBorderColor.Render("│"))
-	for _, line := range body {
-		lines = append(lines, focusedBorderColor.Render("│")+pad(line, width-2)+focusedBorderColor.Render("│"))
+	side := focusedBorderColor.Render("│")
+	row := func(line string) string {
+		return side + surfaceInk.Under(pad(line, width-2)) + side
 	}
-	lines = append(lines, focusedBorderColor.Render("│")+pad("", width-2)+focusedBorderColor.Render("│"))
+	lines := []string{focusedBorderColor.Render("┌") +
+		boxTitleColor.Render(" "+title+" ") +
+		boxRuleColor.Render(strings.Repeat("─", max(width-len([]rune(title))-4, 0))) +
+		focusedBorderColor.Render("┐")}
+	lines = append(lines, row(""))
+	for _, line := range body {
+		lines = append(lines, row(line))
+	}
+	lines = append(lines, row(""))
 	lines = append(lines, focusedBorderColor.Render("└"+strings.Repeat("─", width-2)+"┘"))
 	return lines
 }

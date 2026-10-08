@@ -1,15 +1,15 @@
 ───────────────────────────────────────────────── ⧉  T E S S E R A C T ─────────────────────────────────────────────────
  ⬤ 1   ⏵ 1                                                                                                       BROWSE
 ┌──────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────┐
-│ DOXAR-API …/dev/doxar-api    │ session · testes                                                                      │
+│ 1 DOXAR-API …/dev/doxar-api  │ session · testes                                                                      │
 │  ⬤ session refatora auth     │                                                                                       │
-│▸ ▸ session testes            │$ go test ./...                                                                        │
-│  ● docker  4/5               │ok                                                                                     │
+│▌ ▸ session testes            │$ go test ./...                                                                        │
+│    docker  4/5               │ok                                                                                     │
 │                              │                                                                                       │
-│ CORTZ-WEB …/dev/cortz-web    │                                                                                       │
+│ 2 CORTZ-WEB …/dev/cortz-web  │                                                                                       │
 │  ⏵ session fix nav           │                                                                                       │
 │                              │                                                                                       │
-│ API-LEGADO …/dev/api-legado  │                                                                                       │
+│ 3 API-LEGADO …/api-legado    │                                                                                       │
 │  ○ md      spec-m7.md        │                                                                                       │
 │                              │                                                                                       │
 │                              │                                                                                       │
@@ -21,4 +21,4 @@
 │                              │                                                                                       │
 │                              │                                                                                       │
 └──────────────────────────────┴───────────────────────────────────────────────────────────────────────────────────────┘
- ↑↓←→ cell   tab tab   ↵ type   v list   n create   d docker   ? help
+ ↑↓←→ cell   tab next tab   ↵ type   v grid/list   n create   d docker   ? help

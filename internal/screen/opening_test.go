@@ -31,7 +31,7 @@ func symbol(a *Opening, tip *[2]int) []string {
 // it draws itself. The first frame has nothing, the last has the canonical
 // symbol.
 func TestOpeningStartsEmptyAndEndsWhole(t *testing.T) {
-	a := NewOpening(io.Discard, false)
+	a := NewOpening(io.Discard, false, 0)
 
 	for i, line := range symbol(a, nil) {
 		if strings.TrimSpace(line) != "" {
@@ -50,7 +50,7 @@ func TestOpeningStartsEmptyAndEndsWhole(t *testing.T) {
 // TestStrokePathCoversTheWholeSymbol — the pen's path can't leave a hole in
 // the drawing or run through where there's no stroke.
 func TestStrokePathCoversTheWholeSymbol(t *testing.T) {
-	a := NewOpening(io.Discard, false)
+	a := NewOpening(io.Discard, false, 0)
 	for _, point := range strokePath {
 		if _, has := theme.SymbolColor(point[0], point[1]); !has {
 			t.Fatalf("the stroke passes through %v, where there's no drawing", point)
@@ -75,7 +75,7 @@ func TestPenTipOnlyLightsWhereItIs(t *testing.T) {
 	theme.Current = theme.FullColor
 	defer func() { theme.Current = previous }()
 
-	a := NewOpening(io.Discard, false)
+	a := NewOpening(io.Discard, false, 0)
 	a.lightAll()
 
 	tip := [2]int{0, 0}
@@ -86,5 +86,50 @@ func TestPenTipOnlyLightsWhereItIs(t *testing.T) {
 	}
 	if noStyle(withTip) != noStyle(withoutTip) {
 		t.Fatal("the tip is only color: the drawing can't change")
+	}
+}
+
+// TestNarrowBannerStacksInsteadOfWrapping — below the width the block needs,
+// the signature goes under the symbol and no line is wider than the
+// terminal: a wrapped line is what used to lay the tagline over the drawing.
+func TestNarrowBannerStacksInsteadOfWrapping(t *testing.T) {
+	for _, width := range []int{RequiredWidth() - 1, 30, 12} {
+		a := NewOpening(io.Discard, false, width)
+		a.lightAll()
+		a.tally = "8 cells recovered // 3 projects // 41ms"
+		lines := a.blockLines(nil)
+		for i, line := range lines {
+			if got := len([]rune(noStyle(line))); got > width {
+				t.Fatalf("at %d columns line %d is %d wide: %q", width, i, got, noStyle(line))
+			}
+		}
+		for i, drawn := range lines[:len(theme.Symbol)] {
+			drawn = strings.TrimSpace(noStyle(drawn))
+			if expected := strings.TrimSpace(theme.Symbol[i]); drawn != expected {
+				t.Fatalf("at %d columns the symbol's line %d is %q, should be %q", width, i, drawn, expected)
+			}
+		}
+	}
+}
+
+// TestStaticBannerIsWrittenOnce — with no animation the block goes out once,
+// whole, with no cursor movement: rewriting in place is what duplicated the
+// symbol on a terminal that wraps.
+func TestStaticBannerIsWrittenOnce(t *testing.T) {
+	var out strings.Builder
+	a := NewOpening(&out, false, 30)
+	a.Build()
+	if out.Len() != 0 {
+		t.Fatalf("the static banner waits for the tally: %q", out.String())
+	}
+	a.Tally("8 cells recovered // 3 projects // 41ms")
+	if strings.Contains(out.String(), "\x1b[") {
+		t.Fatalf("the static banner on a plain writer carries no escape code: %q", out.String())
+	}
+	if count := strings.Count(out.String(), "┌────┐"); count != 1 {
+		t.Fatalf("the symbol's first line shows up %d times: %q", count, out.String())
+	}
+	if !strings.Contains(out.String(), theme.Tagline) {
+		t.Fatalf("the tagline was cut at 30 columns: %q", out.String())
 	}
 }

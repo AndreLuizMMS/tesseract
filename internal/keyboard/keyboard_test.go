@@ -28,7 +28,7 @@ func TestTypeOnlyReservesCtrlL(t *testing.T) {
 		t.Fatalf("TYPE reserves %d keys, and it can only reserve one: %#v", len(shortcutList), shortcutList)
 	}
 	if shortcutList[0].Key != "ctrl+l" || shortcutList[0].Action != ExitType {
-		t.Fatalf("the one key reserved in TYPE must be ctrl-l: %#v", shortcutList[0])
+		t.Fatalf("the one key reserved in TYPE must be ctrl+l: %#v", shortcutList[0])
 	}
 	for _, key := range []string{"q", "D", "tab", "esc", "enter", "up", "down", "left", "right", "/", "?"} {
 		if action := Lookup(Type, key); action != None {

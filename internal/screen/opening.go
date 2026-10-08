@@ -2,9 +2,12 @@ package screen
 
 import (
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/andreluiz/tesseract/internal/theme"
 )
@@ -32,34 +35,35 @@ const (
 )
 
 // strokePath is the order in which the drawing is born: the whole back
-// square, then the front one on top. Each pair is a row and column inside
-// the 7×5 symbol. Each square's path is that of a pen that never lifts: top
-// left to right, down the right side, back along the bottom, up the left
-// side.
+// square — the one that starts at the top left — then the front one on top.
+// Each pair is a row and column inside the 7×5 symbol. Each square's path is
+// that of a pen that never lifts: top left to right, down the right side,
+// back along the bottom, up the left side.
 var strokePath = [][2]int{
 	// back square
-	{1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6},
-	{2, 6}, {3, 6},
-	{4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1},
-	{3, 1}, {2, 1},
-	// front square
 	{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5},
 	{1, 5}, {2, 5},
 	{3, 5}, {3, 4}, {3, 3}, {3, 2}, {3, 1}, {3, 0},
 	{2, 0}, {1, 0},
+	// front square
+	{1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6},
+	{2, 6}, {3, 6},
+	{4, 6}, {4, 5}, {4, 4}, {4, 3}, {4, 2}, {4, 1},
+	{3, 1}, {2, 1},
 }
 
 // tesseraPosition is where the brand lights up.
 var tesseraPosition = [2]int{2, 3}
 
 // openingHeight is the whole block: the symbol's five lines, one blank line
-// and the three lines of the tally.
-const openingHeight = 9
+// and the tally.
+const openingHeight = 7
 
 // RequiredWidth is the width, in columns, of the longest line the opening
 // ever draws. Below that the terminal wraps the line, the animation's fixed
 // cursor-up miscounts, and the screen is left with leftover garbage — so
-// whoever decides to animate needs to check against this first.
+// whoever decides to animate needs to check against this first, and the
+// static banner stacks the signature under the symbol instead.
 func RequiredWidth() int {
 	signature := []string{"", theme.Name, theme.Tagline, "", theme.Version}
 	biggest := 0
@@ -80,6 +84,8 @@ func RequiredWidth() int {
 type Opening struct {
 	output  io.Writer
 	animate bool
+	// width is the terminal's, in columns. Zero when nobody knows it.
+	width int
 	// lit tracks which positions of the symbol have already been drawn.
 	lit map[[2]int]bool
 	// name is how much of the wordmark has opened, in letters.
@@ -88,8 +94,8 @@ type Opening struct {
 	signed bool
 	// burst paints the whole symbol in phosphor for one frame.
 	burst bool
-	// tally is the engine's lines, which arrive after the connection.
-	tally []string
+	// tally is the engine's line, which arrives after the connection.
+	tally string
 	// drawn says whether the block already occupies the screen and can be
 	// rewritten in place.
 	drawn bool
@@ -97,17 +103,29 @@ type Opening struct {
 
 // NewOpening prepares the animation. With animate false it becomes the usual
 // static banner — what happens without a real terminal, or with
-// TESSERACT_SEM_ABERTURA set in the environment.
-func NewOpening(output io.Writer, animate bool) *Opening {
-	return &Opening{output: output, animate: animate, lit: map[[2]int]bool{}}
+// TESSERACT_NO_OPENING set in the environment. The width is the terminal's,
+// zero when it isn't known.
+//
+// The banner is written straight to the terminal, outside the screen's
+// program, so nothing downgrades its colors on the way: the writer here does
+// what the program does for the grid, and a terminal that can't take 24 bits
+// gets the nearest color it has.
+func NewOpening(output io.Writer, animate bool, width int) *Opening {
+	return &Opening{
+		output:  colorprofile.NewWriter(output, os.Environ()),
+		animate: animate,
+		width:   width,
+		lit:     map[[2]int]bool{},
+	}
 }
 
 // Build draws the brand assembling itself and the name opening. Returns as
 // soon as the whole block is on screen.
 func (a *Opening) Build() {
 	if !a.animate {
+		// The static banner is written once, whole, when the tally arrives:
+		// rewriting in place needs a terminal, and a width the block fits.
 		a.lightAll()
-		a.paint()
 		return
 	}
 
@@ -147,17 +165,11 @@ func (a *Opening) Build() {
 	time.Sleep(namePause)
 }
 
-// Tally closes the opening with what the engine returned, one line at a
-// time.
-func (a *Opening) Tally(lines []string) {
-	if !a.animate {
-		a.tally = lines
-		a.paint()
-		return
-	}
-	for _, line := range lines {
-		a.tally = append(a.tally, line)
-		a.paint()
+// Tally closes the opening with what the engine returned.
+func (a *Opening) Tally(line string) {
+	a.tally = line
+	a.paint()
+	if a.animate {
 		time.Sleep(countStep)
 	}
 }
@@ -193,26 +205,53 @@ func (a *Opening) paintWithTip(tip *[2]int) {
 	_, _ = io.WriteString(a.output, frame.String())
 }
 
-// blockLines builds the current frame's nine lines.
+// blockLines builds the current frame: the brand sheet's boot banner
+// (// 07) — the symbol with the signature beside it, and the tally under
+// both.
 func (a *Opening) blockLines(tip *[2]int) []string {
-	signature := []string{"", a.wordmark(), a.tagline(), "", a.version()}
-	lines := make([]string, 0, openingHeight)
-
-	for i := range theme.Symbol {
-		side := ""
-		if i < len(signature) {
-			side = signature[i]
-		}
-		lines = append(lines, strings.TrimRight("   "+a.symbolLine(i, tip)+"    "+side, " "))
+	if a.width > 0 && a.width < RequiredWidth() {
+		return a.stackedLines(tip)
 	}
 
-	lines = append(lines, "")
-	for i := range 3 {
-		if i < len(a.tally) {
-			lines = append(lines, "   "+a.tally[i])
-			continue
-		}
+	signature := []string{"", a.wordmark(), a.tagline(), "", a.version()}
+	lines := make([]string, 0, openingHeight)
+	for i := range theme.Symbol {
+		lines = append(lines, strings.TrimRight("   "+a.symbolLine(i, tip)+"    "+signature[i], " "))
+	}
+	tally := ""
+	if a.tally != "" {
+		tally = "   " + theme.Paint(theme.FgMuted, "").Render(a.tally)
+	}
+	return append(lines, "", tally)
+}
+
+// tallySeparator is what sits between the tally's figures, the way the brand
+// writes them on one line.
+const tallySeparator = " // "
+
+// stackedLines is the banner in a terminal too narrow for the signature to
+// sit beside the symbol: it goes underneath, the tally breaks into one
+// figure per line, and nothing wraps over the drawing.
+func (a *Opening) stackedLines(tip *[2]int) []string {
+	// The indent is the first thing to go: the tagline is the longest line
+	// and it's the brand's sentence, not something to cut a letter from.
+	indent := "   "
+	if a.width < len(indent)+len([]rune(theme.Tagline)) {
+		indent = ""
+	}
+	var lines []string
+	for i := range theme.Symbol {
+		lines = append(lines, indent+a.symbolLine(i, tip))
+	}
+	lines = append(lines, "", indent+a.wordmark(), indent+a.tagline(), indent+a.version())
+	if a.tally != "" {
 		lines = append(lines, "")
+		for _, figure := range strings.Split(a.tally, tallySeparator) {
+			lines = append(lines, indent+theme.Paint(theme.FgMuted, "").Render(figure))
+		}
+	}
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(truncate(line, a.width), " ")
 	}
 	return lines
 }
@@ -269,11 +308,5 @@ func (a *Opening) version() string {
 	if !a.signed {
 		return ""
 	}
-	return theme.Paint(theme.FgFaint, "").Render(theme.Version)
-}
-
-// EngineLine formats one line of the tally: the arrow in cyan, because it's
-// structure, and the text in the usual tone.
-func EngineLine(text string) string {
-	return theme.Paint(theme.FluxCore, "").Render(">") + " " + theme.Paint(theme.FgMuted, "").Render(text)
+	return theme.Paint(theme.FgMuted, "").Render(theme.Version)
 }

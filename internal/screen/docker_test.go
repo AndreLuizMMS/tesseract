@@ -122,12 +122,26 @@ func TestPanelDrawsTheStackState(t *testing.T) {
 	}
 }
 
+// TestServiceMarkerSpeaksTheCellAlphabet — the panel and the Docker mod
+// inside a cell name a service's state with the same glyphs as a cell's.
+func TestServiceMarkerSpeaksTheCellAlphabet(t *testing.T) {
+	for state, want := range map[string]string{
+		"up": "working", "up (healthy)": "working",
+		"exited (1)": "down", "exited (3)": "down", "dead": "down",
+		"exited (0)": "stopped", "exited (137)": "stopped", "exited (143)": "stopped", "created": "stopped",
+	} {
+		if got := serviceMarker(state).symbol; got != markerFor(want).symbol {
+			t.Errorf("%q drew %q, want the %s glyph %q", state, got, want, markerFor(want).symbol)
+		}
+	}
+}
+
 // TestPanelWithNoStackDoesNotBreak.
 func TestPanelWithNoStackDoesNotBreak(t *testing.T) {
 	panel := NewDockerPanel("p1", "novo")
 	panel.Received(protocol.Services{Project: "p1"})
 	drawing := noStyle(strings.Join(panel.Draw(90), "\n"))
-	if !strings.Contains(drawing, "never come up") {
+	if !strings.Contains(drawing, "Stack never started in this project. U brings it up.") {
 		t.Errorf("an empty stack needs to say so:\n%s", drawing)
 	}
 	request, _ := panel.Key("l")

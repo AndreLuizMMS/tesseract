@@ -10,10 +10,20 @@ import (
 	"github.com/andreluiz/tesseract/internal/theme"
 )
 
-// selectionColor is the marked stretch in reverse video. The color the agent
-// wrote fades out while the stretch is marked — what matters there is where
-// the mark starts and ends.
-var selectionColor = theme.Paint(theme.BgVoid, theme.FgDefault)
+// selectionColor is the marked stretch: the palette's selection, bright text
+// on the raised background. The color the agent wrote fades out while the
+// stretch is marked — what matters there is where the mark starts and ends.
+//
+// It is never reverse video: an inverted block is a filled area, and the
+// filled area is the approve bar's alone. Where the terminal can't show the
+// raised background — no color, or only sixteen — the stretch is underlined
+// instead.
+var selectionColor = func() lipgloss.Style {
+	if theme.Current != theme.FullColor {
+		return lipgloss.NewStyle().Bold(true).Underline(true)
+	}
+	return theme.Paint(theme.FgBright, theme.BgRaised)
+}()
 
 // Selection is the stretch marked with the mouse inside a cell, from the
 // anchor (where the button went down) to the current point. The coordinates

@@ -64,9 +64,13 @@ const (
 	StateWorking = "#6C8076" // ▸ working
 	StateRead    = "#7DB7E8" // ⬤ answered
 	StateBlock   = "#FFB454" // ⏵ approve
-	StateDead    = "#FF3B47" // ✖ down
-	StateOff     = "#3E534E" // ○ stopped
-	StateOrphan  = "#C77DFF" // ⚠ orphan
+	// StateBlockDim is the approve bar's dim frame: StateBlock at half
+	// strength over BgBase, which is what the brand sheet's blink does
+	// (opacity .5). Still a filled bar — only the intensity drops.
+	StateBlockDim = "#835F30"
+	StateDead     = "#FF3B47" // ✖ down
+	StateOff      = "#3E534E" // ○ stopped
+	StateOrphan   = "#C77DFF" // ⚠ orphan
 )
 
 // The four ANSI 16 colors that have no role of their own in the palette.
@@ -84,9 +88,9 @@ const (
 // character: prompt, window title, bar.
 const Glyph = "⧉"
 
-// Symbol is the brand mark in characters, 7×5 — the version that lives
-// inside the product. Two squares offset on the diagonal and a lit tessera
-// in the middle of the overlap.
+// Symbol is the brand mark in characters, 7×5 — the canonical version, the
+// one that lives inside the product. Two squares offset on the diagonal and
+// a lit tessera in the middle of the overlap.
 // Every line has the same width, with trailing space where the drawing ends
 // early — otherwise whoever centers line by line skews the symbol.
 var Symbol = []string{
@@ -97,21 +101,23 @@ var Symbol = []string{
 	" └────┘",
 }
 
-// symbolMask says who owns each character of the drawing: v is the front
-// square, c is the back one, f is the tessera, space paints nothing. Where
-// the two squares cross, the front one wins — that's what "being in front"
-// means.
+// symbolMask says who owns each character of the drawing: c is the back
+// square, in cyan, v is the front one, in green, f is the tessera, space
+// paints nothing. It is the brand sheet's character version copied stroke by
+// stroke (style/tesseract-brand-identity.html, // 02): the back square is
+// the one that starts at the top left, and the overlap is where the two
+// colors cross.
 var symbolMask = []string{
-	"vvvvvv ",
-	"vccccvc",
-	"vc f vc",
-	"vvvvvvc",
-	" cccccc",
+	"cccccc ",
+	"cvvvvcv",
+	"cv f vc",
+	"cvvvvcv",
+	" vvvvvv",
 }
 
 // SymbolColor is the style of the symbol's character at that position: the
 // back square in flux, the front one in brand.core, the tessera in
-// brand.phosphor. The second return says whether there's a drawing there —
+// brand.phosphor — on a 16-color terminal, color14, color2 and color10. The second return says whether there's a drawing there —
 // an empty position doesn't get painted.
 func SymbolColor(row, col int) (lipgloss.Style, bool) {
 	if row < 0 || row >= len(symbolMask) {
@@ -181,16 +187,23 @@ const (
 // ansi16 is the destination of each token when the terminal only has 16
 // colors.
 //
-// Two pairs collide on purpose, because ANSI 16 has no in-between shade:
+// It follows the brand sheet's ANSI 16 table (// 10) index by index. Two
+// pairs collide on purpose, because ANSI 16 has no in-between shade:
 // StateWorking and StateOff both land on 8. That's why the glyph (▸ against
 // ○) is mandatory: the state alphabet has to read fine with no color at all.
 var ansi16 = map[string]string{
-	BgVoid:     "0",
-	BgBase:     "0",
-	BgSurface:  "0",
-	BgRaised:   "8",
-	LineDim:    "8",
-	LineActive: "2",
+	BgVoid:    "0",
+	BgBase:    "0",
+	BgSurface: "0",
+	// ANSI 16 has no shade between black and the gray that faint text
+	// already uses: a raised background on 8 would swallow every faint
+	// letter written on top of it. Raised falls flat there, and what marks a
+	// header or a selection is the glyph and the weight.
+	BgRaised: "0",
+	LineDim:  "8",
+	// The grid's line is structure, so it lands on cyan. On green it would
+	// say "keyboard ownership" on every cell that doesn't have the keyboard.
+	LineActive: "6",
 	FgFaint:    "8",
 	FgMuted:    "8",
 	FgDefault:  "7",
@@ -205,10 +218,13 @@ var ansi16 = map[string]string{
 	FluxCore: "6",
 	Flux:     "14",
 
-	StateRead:   "12",
-	StateBlock:  "11",
-	StateDead:   "9",
-	StateOrphan: "13",
+	StateRead:  "12",
+	StateBlock: "11",
+	// ANSI 3 is the plain yellow under the bright one: the bar stays filled
+	// in both frames of the blink.
+	StateBlockDim: "3",
+	StateDead:     "9",
+	StateOrphan:   "13",
 
 	AnsiRed:     "1",
 	AnsiYellow:  "3",
@@ -263,6 +279,63 @@ func (t Ink) Render(text string) string {
 	return t.before + text + t.after
 }
 
+// Under lays the ink beneath a line that already brings its own color codes
+// — what an agent wrote, or a row assembled out of painted pieces. Every
+// time the line resets its color the ink comes back, so a background put
+// here runs unbroken to the end of the line instead of stopping at the first
+// reset. A background the line sets for itself still wins: only the reset
+// hands the ground back.
+func (t Ink) Under(text string) string {
+	if t.before == "" {
+		return text
+	}
+	var out strings.Builder
+	out.Grow(len(text) + 4*len(t.before))
+	out.WriteString(t.before)
+	for {
+		start := strings.Index(text, "\x1b[")
+		if start < 0 {
+			break
+		}
+		end := start + 2
+		for end < len(text) && (text[end] < 0x40 || text[end] > 0x7e) {
+			end++
+		}
+		if end >= len(text) {
+			break
+		}
+		out.WriteString(text[:end+1])
+		if text[end] == 'm' && resetsBackground(text[start+2:end]) {
+			out.WriteString(t.before)
+		}
+		text = text[end+1:]
+	}
+	out.WriteString(text)
+	out.WriteString(t.after)
+	return out.String()
+}
+
+// resetsBackground says whether a color code's parameters put the default
+// background back: a full reset (empty or 0) or the background's own reset
+// (49). The numbers that follow 38, 48 and 58 are a color, not a command —
+// a 0 in there is just black.
+func resetsBackground(params string) bool {
+	parts := strings.Split(params, ";")
+	for i := 0; i < len(parts); i++ {
+		switch parts[i] {
+		case "", "0", "00", "49":
+			return true
+		case "38", "48", "58":
+			if i+1 < len(parts) && parts[i+1] == "5" {
+				i += 2
+			} else if i+1 < len(parts) && parts[i+1] == "2" {
+				i += 4
+			}
+		}
+	}
+	return false
+}
+
 // Paint returns the style with foreground and background already resolved
 // for the current profile. An empty background means "don't paint a
 // background".
@@ -290,22 +363,36 @@ func Paint(fg, bg string) lipgloss.Style {
 }
 
 // ScreenBackground and ScreenForeground are the background and text the
-// application imposes on the terminal while it's open. The background is
-// BgVoid — the deepest color in the palette — because the grid only reads
-// well when the black behind it is really black. With NO_COLOR nothing is
-// imposed: they return nil, and the terminal stays as it was.
-func ScreenBackground() color.Color {
-	if Current == NoColor {
+// application imposes on the terminal while it's open. The background
+// follows the mode: BgBase while the application has the keyboard, BgVoid
+// once a cell takes it — the whole screen sinking is the first sign that the
+// application went silent. CursorColor is the cursor of the cell that holds
+// the keyboard: phosphor, like every cursor the brand draws.
+//
+// Only a 24-bit terminal has them imposed. With NO_COLOR nothing is, and on
+// 16 colors the brand defines indexes, not shades: black and white there are
+// whatever the terminal's own palette says, and forcing a hex over it would
+// contradict the palette the rest of the screen is drawn with. They return
+// nil, and the terminal stays as it was.
+func ScreenBackground(m Mode) color.Color {
+	if Current != FullColor {
 		return nil
 	}
-	return resolve(BgVoid)
+	return lipgloss.Color(m.Background())
 }
 
 func ScreenForeground() color.Color {
-	if Current == NoColor {
+	if Current != FullColor {
 		return nil
 	}
-	return resolve(FgDefault)
+	return lipgloss.Color(FgDefault)
+}
+
+func CursorColor() color.Color {
+	if Current != FullColor {
+		return nil
+	}
+	return lipgloss.Color(BrandPhosphor)
 }
 
 // WithBackground adds a background to a style that's already painted. With
@@ -357,11 +444,11 @@ type Marker struct {
 // structure.
 var stateMarkers = map[State]Marker{
 	Working:  {Glyph: "▸", Label: "WORKING", Color: StateWorking},
-	Answered: {Glyph: "⬤", Label: "ANSWERED", Color: StateRead},
+	Answered: {Glyph: "⬤", Label: "RESPONDED", Color: StateRead},
 	Approve:  {Glyph: "⏵", Label: "APPROVE", Color: StateBlock, Inverted: true},
-	Down:     {Glyph: "✖", Label: "DOWN", Color: StateDead},
+	Down:     {Glyph: "✖", Label: "CRASHED", Color: StateDead},
 	Stopped:  {Glyph: "○", Label: "STOPPED", Color: StateOff, Dim: true},
-	Orphan:   {Glyph: "⚠", Label: "ORPHAN", Color: StateOrphan},
+	Orphan:   {Glyph: "⚠", Label: "ORPHANED", Color: StateOrphan},
 }
 
 // <<< state-map
@@ -392,10 +479,10 @@ func BlinkOn() bool {
 }
 
 // Style is how the marker paints itself. Inverted becomes a solid bar:
-// background in the state's color, text in the deepest background. With no
+// background in the state's color, text in the default background. With no
 // color, it truly inverts — the terminal's reverse doesn't need a palette.
 //
-// In the dim frame the bar swaps background, but it's still a bar: the
+// In the dim frame the bar drops to half strength, but it's still a bar: the
 // filled area is what says "this blocks the work", and it never disappears.
 // What blinks is the intensity, not the presence.
 func (m Marker) Style() lipgloss.Style {
@@ -404,9 +491,9 @@ func (m Marker) Style() lipgloss.Style {
 			return lipgloss.NewStyle().Reverse(true).Bold(true)
 		}
 		if Dimmed {
-			return Paint(m.Color, BgRaised).Bold(true)
+			return Paint(BgBase, StateBlockDim).Bold(true)
 		}
-		return Paint(BgVoid, m.Color).Bold(true)
+		return Paint(BgBase, m.Color).Bold(true)
 	}
 	e := Paint(m.Color, "")
 	if m.Dim {
@@ -444,12 +531,15 @@ const (
 // TypeBadge is the inverted badge that only shows up in TYPE mode.
 const TypeBadge = "▓ TYPE ▓"
 
-// Border is the mode's border. No rounded corner anywhere.
-func (m Mode) Border() lipgloss.Border {
+// Frame is the mode's line: single while you command the application, double
+// once the cell commands the keyboard. No rounded corner anywhere. The six
+// strokes come in drawing order — the four corners from the top left, then
+// the horizontal and the vertical.
+func (m Mode) Frame() [6]string {
 	if m == Type {
-		return lipgloss.DoubleBorder()
+		return [6]string{"╔", "╗", "╚", "╝", "═", "║"}
 	}
-	return lipgloss.NormalBorder()
+	return [6]string{"┌", "┐", "└", "┘", "─", "│"}
 }
 
 // Background is the mode's background. TYPE mode darkens the whole screen:
@@ -462,59 +552,21 @@ func (m Mode) Background() string {
 }
 
 // Badge returns the mode's badge already painted. In BROWSE there's no
-// badge.
+// badge. With no color it is not inverted: the blocks on either side of the
+// word already make it a badge, and the approve bar has to remain the only
+// solid area on the screen.
 func (m Mode) Badge() string {
 	if m != Type {
 		return ""
 	}
 	if Current == NoColor {
-		return lipgloss.NewStyle().Reverse(true).Bold(true).Render(" " + TypeBadge + " ")
+		return lipgloss.NewStyle().Bold(true).Render(" " + TypeBadge + " ")
 	}
 	return Paint(BgVoid, BrandPhosphor).Bold(true).Render(" " + TypeBadge + " ")
 }
 
-// Cell returns the cell's border style. The phosphor green comes out of
-// here and only here: it's the cell that holds the keyboard, and there's
-// one per screen.
-func Cell(m Mode, focused bool) lipgloss.Style {
-	e := lipgloss.NewStyle().Border(m.Border())
-	if Current == NoColor {
-		// With no color, mode and focus stay legible: double border against
-		// simple border, and bold on the cell that holds the keyboard.
-		return e.Bold(focused)
-	}
-	switch {
-	case focused && m == Type:
-		return e.BorderForeground(resolve(BrandPhosphor)).Bold(true)
-	case focused:
-		return e.BorderForeground(resolve(BrandLive))
-	default:
-		return e.BorderForeground(resolve(LineDim))
-	}
-}
-
-// Grid returns the project line's style: deep green when it's the focused
-// project, dim otherwise.
-func Grid(focused bool) lipgloss.Style {
-	if focused {
-		return Paint(LineActive, "")
-	}
-	return Paint(LineDim, "")
-}
-
-// Structure is everything that's frame and numbering: cyan, always.
+// Structure is everything that's frame and label: cyan, always.
 func Structure() lipgloss.Style { return Paint(FluxCore, "") }
 
 // Numbering is the grid's second dimension — project index, cell counter.
 func Numbering() lipgloss.Style { return Paint(Flux, "") }
-
-// resolve resolves a token for the current profile, for places that need a
-// bare color instead of a full style — the border, for instance. Must not
-// be called with the NoColor profile: the caller decides beforehand
-// whether it paints at all.
-func resolve(token string) color.Color {
-	if Current == Color16 {
-		return lipgloss.Color(ansi16[token])
-	}
-	return lipgloss.Color(token)
-}

@@ -1,9 +1,8 @@
 package screen
 
 import (
+	"fmt"
 	"strings"
-
-	"charm.land/lipgloss/v2"
 
 	"github.com/andreluiz/tesseract/internal/keyboard"
 	"github.com/andreluiz/tesseract/internal/protocol"
@@ -11,7 +10,7 @@ import (
 )
 
 // spinnerFrames is the drawing for work in progress. Without it, bringing up
-// a stack looks like nothing happened until everything suddenly turns green.
+// a stack looks like nothing happened until everything suddenly comes up.
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // DockerPanel is the focused project's Docker panel, opened on top of the
@@ -140,7 +139,7 @@ func (p *DockerPanel) request(action, service string) *protocol.Docker {
 
 // Draw builds the panel's box.
 func (p *DockerPanel) Draw(width int) []string {
-	inner := min(width-8, 76)
+	inner := min(width-8, 92)
 	// The name column follows the longest service name: a real stack name
 	// overflows the original design's 14 and would get cut off.
 	nameColumn := 14
@@ -150,46 +149,43 @@ func (p *DockerPanel) Draw(width int) []string {
 		}
 	}
 	body := []string{
-		"  " + faintColor.Render(pad("SERVICE", nameColumn)+pad("STATE", 16)+pad("PORT", 9)+pad("HEALTH", 12)+"UPTIME"),
+		"  " + borderColor.Render(pad("SERVICE", nameColumn)+pad("STATE", 16)+pad("PORT", 9)+pad("HEALTH", 12)+"UPTIME"),
 	}
 	switch {
 	case p.Working != "":
 		body = append(body,
-			"  "+scrollColor.Render(spinnerFrames[p.frame]+" "+p.Working+"…"),
-			"  "+faintColor.Render(truncate("Docker takes its own time: pulling images, creating containers, waiting for health", inner-6)))
+			"  "+barColor.Render(spinnerFrames[p.frame]+" "+p.Working+"…"),
+			"  "+mutedColor.Render(truncate("Docker takes its own time: pulling images, creating containers, waiting for health.", inner-6)))
 	case p.Loading:
-		body = append(body, "  "+faintColor.Render("reading the stack…"))
+		body = append(body, "  "+mutedColor.Render("reading the stack…"))
 	case p.Error != "":
-		body = append(body, "  "+errorColor.Render(truncate(p.Error, inner-6)))
+		body = append(body, "  "+errorColor.Render(truncate(theme.Do(theme.Down).Glyph+" "+p.Error, inner-6)))
 	case len(p.List) == 0:
-		body = append(body, "  "+faintColor.Render("the stack has never come up in this project"))
+		body = append(body, "  "+mutedColor.Render("Stack never started in this project. ")+hint("U brings it up."))
 	}
 
 	for i, service := range p.List {
-		dot, paint := "○", faintColor
-		if strings.HasPrefix(service.State, "up") {
-			dot, paint = "●", markerFor("answered").color()
-		}
+		found := serviceMarker(service.State)
+		dot, paint := found.symbol, found.tone()
 		if i == p.Selected {
-			// The picked line is a lit bar, not a caret: a whole painted row
-			// pulsing on the left is found by the eye without reading.
+			// The picked line is a raised row with a bar on its left, not a
+			// caret: a whole painted row is found by the eye without reading.
 			row := pad(service.Name, nameColumn) + pad(dot+" "+service.State, 16) +
 				pad(orDash(service.Port), 9) + pad(orDash(service.Health), 12) + orDash(service.Uptime)
-			body = append(body, pulseColor(p.frame).Render("▌")+
-				selectedRowColor.Render(" "+pad(row, max(inner-5, 1))))
+			body = append(body, selectedBar+selectedRowColor.Render(" "+pad(row, max(inner-5, 1))))
 			continue
 		}
 		body = append(body, "  "+
 			barColor.Render(pad(service.Name, nameColumn))+
 			paint.Render(pad(dot+" "+service.State, 16))+
-			faintColor.Render(pad(orDash(service.Port), 9))+
-			faintColor.Render(pad(orDash(service.Health), 12))+
-			faintColor.Render(orDash(service.Uptime)))
+			mutedColor.Render(pad(orDash(service.Port), 9))+
+			mutedColor.Render(pad(orDash(service.Health), 12))+
+			mutedColor.Render(orDash(service.Uptime)))
 	}
 
 	body = append(body, "")
 	for _, line := range keyboard.HelpLines(keyboard.DockerPanel) {
-		body = append(body, "  "+barColor.Render(pad(line.Keys, 22))+faintColor.Render(line.Help))
+		body = append(body, "  "+keyColor.Render(pad(line.Keys, 22))+mutedColor.Render(line.Help))
 	}
 	title := "DOCKER · " + p.Name
 	if p.File != "" {
@@ -198,20 +194,24 @@ func (p *DockerPanel) Draw(width int) []string {
 	return floatingBox(title, body, inner)
 }
 
-// pulseShades is the breathing of the picked line: the bar goes from the
-// project's green to the phosphor and back, one step per frame.
-var pulseShades = []lipgloss.Style{
-	theme.Paint(theme.BrandCore, ""),
-	theme.Paint(theme.BrandLive, ""),
-	theme.Paint(theme.BrandPhosphor, ""),
-	theme.Paint(theme.BrandLive, ""),
-}
-
-// selectedRowColor is the picked line's body: raised background, bright text.
-var selectedRowColor = theme.Paint(theme.FgBright, theme.BgRaised)
-
-func pulseColor(frame int) lipgloss.Style {
-	return pulseShades[(frame/2)%len(pulseShades)]
+// serviceMarker reads a service with the same alphabet as the cells, and as
+// the Docker mod inside a cell: up is a live process producing, one that
+// exited on an error is a dead process, anything else is stopped. No glyph
+// of its own, no color of its own.
+func serviceMarker(state string) marker {
+	if strings.HasPrefix(state, "up") {
+		return markerFor("working")
+	}
+	var exit int
+	if _, err := fmt.Sscanf(state, "exited (%d)", &exit); err == nil {
+		// 137 and 143 are SIGKILL and SIGTERM: what a stop leaves behind.
+		if exit != 0 && exit != 137 && exit != 143 {
+			return markerFor("down")
+		}
+	} else if state == "dead" {
+		return markerFor("down")
+	}
+	return markerFor("stopped")
 }
 
 func orDash(text string) string {

@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 
+	"github.com/andreluiz/tesseract/internal/engine/history"
 	"github.com/andreluiz/tesseract/internal/theme"
 )
 
@@ -167,7 +168,7 @@ func TestNewOnMissingPathFails(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("expected exit code 1, got %d: %s", code, out)
 	}
-	if !strings.Contains(out, "does not exist") {
+	if !strings.Contains(out, "No directory at") {
 		t.Fatalf("unclear message: %q", out)
 	}
 }
@@ -283,7 +284,9 @@ func TestScreenOpensDrawsAndCloses(t *testing.T) {
 	if !strings.Contains(render, "BROWSE") {
 		t.Fatalf("the screen should open in BROWSE:\n%s", render)
 	}
-	if !strings.Contains(render, "n create") {
+	// The key and what it does are painted apart, so the codes are stripped
+	// before looking for the two together.
+	if !strings.Contains(history.StripCodes(render), "n create") {
 		t.Fatalf("the footer should be lit:\n%s", render)
 	}
 
@@ -310,7 +313,7 @@ func TestScreenOpensDrawsAndCloses(t *testing.T) {
 		lastScreen = term.Render()
 		return strings.Contains(term.Render(), "tesseract-alive")
 	})
-	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 
 	// Closes the screen — and the engine keeps running.
@@ -535,7 +538,7 @@ func TestSearchInHistoryFromScreen(t *testing.T) {
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "TYPE") })
 	_, _ = terminal.Write([]byte("echo needle-in-the-haystack\r"))
 	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "needle-in-the-haystack") })
-	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 
 	// Search.
@@ -584,7 +587,7 @@ func TestTabSwitchesTabInSession(t *testing.T) {
 	})
 
 	// The footer tells us the key exists.
-	if !strings.Contains(term.Render(), "tab tab") {
+	if !strings.Contains(history.StripCodes(term.Render()), "tab next tab") {
 		t.Errorf("the footer should show the tab key:\n%s", term.Render())
 	}
 
@@ -596,7 +599,7 @@ func TestTabSwitchesTabInSession(t *testing.T) {
 	_, _ = terminal.Write([]byte("echo im-on-the-shell-tab\r"))
 	waitUntil(t, 6*time.Second, func() bool { return strings.Contains(term.Render(), "im-on-the-shell-tab") })
 
-	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 	_, _ = terminal.Write([]byte("q"))
 	_ = waitExit(cmd, 5*time.Second)
@@ -724,7 +727,7 @@ func TestMarkdownTabListsSearchesAndOpens(t *testing.T) {
 		return strings.Contains(term.Render(), "search:")
 	})
 
-	_, _ = terminal.Write([]byte{0x0c}) // ctrl-l
+	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
 	_, _ = terminal.Write([]byte("q"))
 	_ = waitExit(cmd, 5*time.Second)

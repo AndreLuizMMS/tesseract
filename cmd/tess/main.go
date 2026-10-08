@@ -35,6 +35,10 @@ const usage = `⧉ ts — terminal agent mosaic
   ts stop            shuts down the engine and every cell
   ts reset           clears the saved state and tears everything down, keeping the configuration
   ts engine          runs the engine in the foreground (what systemd calls)
+
+  what the mods inside a Claude Code cell call, not you:
+  ts report <json>   tells the engine the cell's turn state, session or usage
+  ts link            holds the line the engine sends prompts to the cell through
 `
 
 func main() {
@@ -57,6 +61,10 @@ func main() {
 		err = stopEngine()
 	case "reset":
 		err = clearState()
+	case "report":
+		err = sendReport(os.Args[2:])
+	case "link":
+		err = holdLink()
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -74,7 +82,8 @@ func openScreen() error {
 	// The opening runs while the engine is being looked for, on one thread,
 	// and the connection runs on the other. The animation's time is time
 	// that was going to pass anyway — no wait is invented just to show it.
-	opening := screen.NewOpening(os.Stderr, animateOpening())
+	width, _, _ := term.GetSize(os.Stderr.Fd())
+	opening := screen.NewOpening(os.Stderr, animateOpening(width), width)
 
 	type arrival struct {
 		client  *screen.Client
@@ -130,8 +139,14 @@ func openScreen() error {
 	model := screen.NewModel(client, initial)
 	program := tea.NewProgram(model)
 	model.Listen(program)
-	_, err := program.Run()
-	return err
+	if _, err := program.Run(); err != nil {
+		return err
+	}
+	if model.EngineGone {
+		// Closing with nothing said, and exit 0, read as the user's own q.
+		return errors.New("the engine stopped under the screen. ts starts it again, cells in the same position")
+	}
+	return nil
 }
 
 // animateOpening says whether the opening runs as an animation. With no real
@@ -140,8 +155,8 @@ func openScreen() error {
 // panel too narrow for the block's widest line, the animation also
 // disappears: the terminal would wrap the line, the fixed cursor-up would
 // miscount and leftover garbage would pile up frame after frame — better
-// the usual static banner.
-func animateOpening() bool {
+// the usual static banner. A width of zero is a terminal that didn't say.
+func animateOpening(width int) bool {
 	if _, off := os.LookupEnv("TESSERACT_NO_OPENING"); off {
 		return false
 	}
@@ -149,25 +164,27 @@ func animateOpening() bool {
 	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
 		return false
 	}
-	width, _, err := term.GetSize(os.Stderr.Fd())
-	return err != nil || width >= screen.RequiredWidth()
+	return width == 0 || width >= screen.RequiredWidth()
 }
 
 // engineCount is what the engine returned: proof that the grid came back
-// whole, put in numbers. It disappears together with the opening once full
-// screen opens.
-func engineCount(state protocol.State, took time.Duration) []string {
+// whole, put in numbers, the way the brand's boot banner writes it. It
+// disappears together with the opening once full screen opens. The
+// stopwatch counts only the engine assembling the grid.
+func engineCount(state protocol.State, took time.Duration) string {
 	cells := 0
 	for _, project := range state.Projects {
 		cells += len(project.Cells)
 	}
-	return []string{
-		screen.EngineLine("session engine: alive"),
-		screen.EngineLine(fmt.Sprintf("%s · %s · same position",
-			count(cells, "cell recovered", "cells recovered"),
-			count(len(state.Projects), "project", "projects"))),
-		screen.EngineLine(fmt.Sprintf("grid assembled in %dms", took.Milliseconds())),
+	if cells == 0 {
+		// Nothing came back because nothing was there: a first run, or a
+		// grid the user emptied. Zero "recovered" would read as a loss.
+		return fmt.Sprintf("no cells to recover // the first one opens here // %dms", took.Milliseconds())
 	}
+	return fmt.Sprintf("%s // %s // %dms",
+		count(cells, "cell recovered", "cells recovered"),
+		count(len(state.Projects), "project", "projects"),
+		took.Milliseconds())
 }
 
 // count writes the number next to the noun in the right form. One cell isn't

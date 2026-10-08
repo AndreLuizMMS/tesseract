@@ -5,8 +5,12 @@
 #
 #   1. no green or cyan from the palette may appear in the state map
 #      — green belongs to keyboard ownership, cyan belongs to structure;
-#   2. no hand-written hex outside the theme file;
+#   2. no hand-written color outside the theme file — neither a hex nor a
+#      color escape code typed by hand;
 #   3. the whole palette gets printed as ANSI blocks, for a visual check.
+#
+# The palette printed here is the brand sheet's, token by token:
+# style/tesseract-brand-identity.html, sections // 04 and // 10.
 #
 # Exits 1 if any rule breaks.
 
@@ -85,6 +89,7 @@ soltos="$(
 		-not -path "./$ARQ_TEMA" \
 		-not -path './internal/theme/*' \
 		-not -path './vendor/*' \
+		-not -path './.claude/*' \
 		-print0 |
 		xargs -0 grep -nE '"#[0-9A-Fa-f]{6}"' 2>/dev/null
 )"
@@ -94,6 +99,25 @@ if [ -n "$soltos" ]; then
 	printf '%s\n' "$soltos" | sed 's/^/         /' >&2
 else
 	ok "no hex outside $ARQ_TEMA"
+fi
+
+# A color escape typed by hand is the same leak with another spelling: an
+# indexed or a 24-bit color that the theme never heard of. Tests are left
+# out — they write escapes to feed the screen what an agent would.
+escapes="$(
+	find . -name '*.go' -not -name '*_test.go' \
+		-not -path './internal/theme/*' \
+		-not -path './vendor/*' \
+		-not -path './.claude/*' \
+		-print0 |
+		xargs -0 grep -nE '\\x1b\[[0-9;]*[34]8;[25];' 2>/dev/null
+)"
+
+if [ -n "$escapes" ]; then
+	erro "color escape written by hand outside $ARQ_TEMA:"
+	printf '%s\n' "$escapes" | sed 's/^/         /' >&2
+else
+	ok "no hand-written color escape outside $ARQ_TEMA"
 fi
 
 # ---------------------------------------------------------------------------
@@ -128,8 +152,8 @@ bloco '#030507' 'BgVoid' 'TYPE mode background'
 bloco '#070B0C' 'BgBase' 'default background'
 bloco '#0C1315' 'BgSurface' 'cell body'
 bloco '#121C1F' 'BgRaised' 'header, selection'
-bloco '#16282A' 'LineDim' 'unfocused grid'
-bloco '#205047' 'LineActive' 'grid of the focused project'
+bloco '#16282A' 'LineDim' 'unfocused grid, everything in TYPE'
+bloco '#205047' 'LineActive' 'cell lines'
 bloco '#3E534E' 'FgFaint' 'off, shortcuts'
 bloco '#6C8076' 'FgMuted' 'secondary text'
 bloco '#BFD1C6' 'FgDefault' 'primary text'
@@ -137,7 +161,7 @@ bloco '#E8F4EC' 'FgBright' 'titles'
 
 titulo 'NEON GREEN — keyboard ownership'
 bloco '#0B3322' 'BrandDeep' 'background green'
-bloco '#1F7A4C' 'BrandCore' 'grid of the active project, logo'
+bloco '#1F7A4C' 'BrandCore' 'active project grid, front square'
 bloco '#35C27A' 'BrandLive' 'focused cell'
 bloco '#55FFA6' 'BrandPhosphor' 'keyboard owner — 1 per screen'
 
@@ -148,11 +172,12 @@ bloco '#22E0D0' 'Flux' 'glyph, numbering'
 
 titulo 'STATES — no green, no cyan'
 bloco '#6C8076' 'StateWorking' '▸ working'
-bloco '#7DB7E8' 'StateRead' '⬤ replied'
+bloco '#7DB7E8' 'StateRead' '⬤ responded'
 bloco '#FFB454' 'StateBlock' '⏵ approve'
-bloco '#FF3B47' 'StateDead' '✖ down'
+bloco '#835F30' 'StateBlockDim' '⏵ approve, dim frame of the blink'
+bloco '#FF3B47' 'StateDead' '✖ crashed'
 bloco '#3E534E' 'StateOff' '○ stopped'
-bloco '#C77DFF' 'StateOrphan' '⚠ orphan'
+bloco '#C77DFF' 'StateOrphan' '⚠ orphaned'
 
 titulo 'ANSI 16'
 bloco '#070B0C' '0  black' ''
@@ -172,13 +197,20 @@ bloco '#C77DFF' '13 magenta+' ''
 bloco '#22E0D0' '14 cyan+' ''
 bloco '#E8F4EC' '15 white+' ''
 
+titulo 'TERMINAL'
+bloco '#070B0C' 'background' ''
+bloco '#BFD1C6' 'foreground' ''
+bloco '#55FFA6' 'cursor' ''
+bloco '#030507' 'cursor_text' ''
+bloco '#121C1F' 'selection' ''
+
 titulo 'STATE ALPHABET — the no-color test'
 printf '  Cover the color with your hand: the glyph and shape have to be enough.\n\n'
-printf '    ▸ WORKING   ⬤ REPLIED   ✖ DOWN   ○ STOPPED   ⚠ ORPHAN\n'
+printf '    ▸ WORKING   ⬤ RESPONDED   ✖ CRASHED   ○ STOPPED   ⚠ ORPHANED\n'
 if [ -n "${NO_COLOR:-}" ]; then
 	printf '    %s\n' "$(printf '\033[7m⏵ APPROVE — solid bar, whole line\033[0m')"
 else
-	printf '    \033[48;2;255;180;84m\033[38;2;3;5;7m\033[1m ⏵ APPROVE — solid bar, occupies the whole line            \033[0m\n'
+	printf '    \033[48;2;255;180;84m\033[38;2;7;11;12m\033[1m ⏵ APPROVE — solid bar, occupies the whole line            \033[0m\n'
 fi
 
 printf '\n'

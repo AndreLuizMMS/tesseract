@@ -284,18 +284,24 @@ func TestTabsShowUpInsteadOfType(t *testing.T) {
 }
 
 // TestGridInTypeDimsTheRest — three redundant signals: dim bar, badge, and
-// thick green border.
+// double green border.
 func TestGridInTypeDimsTheRest(t *testing.T) {
 	state := testGrid()
 	drawing := noStyle(Draw(state, Focus{Project: 0, Cell: 1}, keyboard.Type, 120, 30, ""))
 	if !strings.Contains(drawing, "▓ TYPE ▓") {
 		t.Error("the TYPE badge is missing from the bar")
 	}
-	if !strings.Contains(drawing, "┏") || !strings.Contains(drawing, "┃") {
-		t.Error("the focused cell's border should thicken")
+	if !strings.Contains(drawing, "╔") || !strings.Contains(drawing, "║") {
+		t.Error("the focused cell's border should become double")
 	}
-	if !strings.Contains(drawing, "ctrl-l gives back the keyboard") {
-		t.Error("the footer should shrink to the ctrl-l line")
+	if !strings.Contains(drawing, "ctrl+l gives back the keyboard") {
+		t.Error("the footer should shrink to the ctrl+l line")
+	}
+	// Narrow, the line drops words instead of being cut mid-word.
+	for width, want := range map[int]string{40: "ctrl+l gives back the keyboard", 30: "ctrl+l gives back", 12: "ctrl+l"} {
+		if got := strings.TrimSpace(noStyle(footer(keyboard.Type, width, ""))); got != want {
+			t.Errorf("at %d columns the TYPE footer reads %q, want %q", width, got, want)
+		}
 	}
 	if strings.Contains(drawing, "BROWSE") {
 		t.Error("the bar can't say BROWSE in TYPE mode")
@@ -316,11 +322,198 @@ func TestCellTurnsGreenWhileTyping(t *testing.T) {
 		!strings.Contains(withKeyboard, prefix) {
 		t.Error("the focused cell should turn green in TYPE")
 	}
-	if strings.Contains(withoutKeyboard, "┏") {
-		t.Error("outside TYPE the border doesn't thicken")
+	if strings.Contains(withoutKeyboard, "╔") {
+		t.Error("outside TYPE the line stays single")
 	}
-	if !strings.Contains(withKeyboard, "┏") {
-		t.Error("in TYPE the focused cell's border thickens")
+	if !strings.Contains(withKeyboard, "╔") {
+		t.Error("in TYPE the focused cell's line becomes double")
+	}
+	if strings.Count(noStyle(withKeyboard), "╔") != 1 {
+		t.Error("the keyboard has one owner: a single double line per screen")
+	}
+}
+
+// inFullColor pins the palette for the tests that read the color codes: the
+// styles frozen when the package loaded already are whatever the environment
+// decided, so those tests only say something when the environment had color.
+func inFullColor(t *testing.T) {
+	t.Helper()
+	if theme.Current != theme.FullColor {
+		t.Skip("the environment has no color")
+	}
+}
+
+// codeOf returns the escape code a token turns into, as a foreground (38) or
+// a background (48), so the tests never write a number by hand.
+func codeOf(token string, background bool) string {
+	style := theme.Paint(token, "")
+	if background {
+		style = theme.Paint("", token)
+	}
+	return strings.TrimSuffix(strings.SplitN(style.Render("x"), "x", 2)[0], "m")[2:]
+}
+
+// TestOnlyOneInvertedBadgePerScreen — the brand allows a single inverted
+// badge at a time, and it's the mode's. A tab, a counter or a heading that
+// took a filled background would compete with it — and a state color used as
+// a background anywhere but the approve bar would be amber as decoration.
+func TestOnlyOneInvertedBadgePerScreen(t *testing.T) {
+	inFullColor(t)
+	state := testGrid()
+	// No cell blocked: with none, nothing on the screen may be filled in
+	// amber.
+	state.Projects[1].Cells[0].State = "working"
+	amber := codeOf(theme.StateBlock, true)
+	phosphor := codeOf(theme.BrandPhosphor, true)
+
+	browse := Draw(state, Focus{}, keyboard.Browse, 120, 30, "")
+	if strings.Contains(browse, amber) {
+		t.Error("with no cell blocked, nothing may be filled in the approve color")
+	}
+	if strings.Contains(browse, phosphor) {
+		t.Error("in BROWSE no cell holds the keyboard: there's no phosphor badge")
+	}
+	typing := Draw(state, Focus{}, keyboard.Type, 120, 30, "")
+	if got := strings.Count(typing, phosphor); got != 1 {
+		t.Errorf("in TYPE the mode's badge is the one inverted badge, and there are %d", got)
+	}
+	help := strings.Join(helpBox(120, 60, 0), "\n")
+	if strings.Contains(help, amber) || strings.Contains(help, phosphor) {
+		t.Error("the help's headings are labels, not inverted badges")
+	}
+}
+
+// TestApproveIsTheOnlySolidBar — urgency is filled area: the blocked cell's
+// header is the one line filled in a state color, whatever the mode.
+func TestApproveIsTheOnlySolidBar(t *testing.T) {
+	inFullColor(t)
+	before := theme.Dimmed
+	theme.Dimmed = false
+	defer func() { theme.Dimmed = before }()
+
+	amber := codeOf(theme.StateBlock, true)
+	for _, mode := range []keyboard.Mode{keyboard.Browse, keyboard.Type} {
+		lines := strings.Split(Draw(testGrid(), Focus{}, mode, 120, 30, ""), "\n")
+		filled := 0
+		for _, line := range lines {
+			if strings.Contains(line, amber) {
+				filled++
+				if !strings.Contains(noStyle(line), "fix nav") {
+					t.Errorf("%s: a line other than the blocked cell's header is filled: %q", mode, noStyle(line))
+				}
+			}
+		}
+		if filled != 1 {
+			t.Errorf("%s: the approve bar should fill exactly one line, and it fills %d", mode, filled)
+		}
+	}
+	for _, other := range []string{theme.StateRead, theme.StateDead, theme.StateOrphan} {
+		if strings.Contains(Draw(testGrid(), Focus{}, keyboard.Browse, 120, 30, ""), codeOf(other, true)) {
+			t.Errorf("only approve fills area, and %s became a background", other)
+		}
+	}
+}
+
+// TestCellSitsOnTheSurfaceUnderARaisedHeader — the palette's two cell
+// backgrounds: bg.raised on the header, bg.surface on the body, unbroken to
+// the right border even when the agent resets its own colors mid-line.
+func TestCellSitsOnTheSurfaceUnderARaisedHeader(t *testing.T) {
+	inFullColor(t)
+	item := protocol.Cell{
+		ID: "c1", Type: "bash", Name: "um", State: "working",
+		Live: true, Lines: []string{"\x1b[31mred\x1b[0m plain"},
+	}
+	surface, raised := codeOf(theme.BgSurface, true), codeOf(theme.BgRaised, true)
+	for _, focused := range []bool{true, false} {
+		box := cellBox(item, keyboard.Browse, focused, 30, 4)
+		if !strings.Contains(box[0], raised) {
+			t.Errorf("focused=%v: the header should be raised: %q", focused, box[0])
+		}
+		for _, line := range box[1:3] {
+			if !strings.Contains(line, surface) {
+				t.Errorf("focused=%v: the body should sit on the surface: %q", focused, line)
+			}
+		}
+	}
+	// After the agent's own reset the surface has to come back, or the rest
+	// of the line would fall through to the screen's background.
+	focused := cellBox(item, keyboard.Browse, true, 30, 4)[1]
+	if after := focused[strings.Index(focused, "red")+len("red"):]; !strings.Contains(after, surface) {
+		t.Errorf("the surface didn't come back after the content's reset: %q", focused)
+	}
+	// The cells that don't hold the keyboard sink while one of them does.
+	silent := strings.Join(cellBox(item, keyboard.Type, false, 30, 4), "")
+	if strings.Contains(silent, surface) || strings.Contains(silent, raised) {
+		t.Error("in TYPE the cells without the keyboard lose their background")
+	}
+}
+
+// TestGreenAndCyanNeverSwapRoles — cyan is structure and green is whoever
+// the keys act on. An unfocused cell has no green in it; the focused one has
+// no cyan in its line.
+func TestGreenAndCyanNeverSwapRoles(t *testing.T) {
+	inFullColor(t)
+	item := protocol.Cell{ID: "c1", Type: "bash", Name: "um", State: "working", Live: true}
+	greens := []string{theme.BrandCore, theme.BrandLive, theme.BrandPhosphor}
+
+	unfocused := strings.Join(cellBox(item, keyboard.Browse, false, 30, 4), "")
+	for _, green := range greens {
+		if strings.Contains(unfocused, codeOf(green, false)) {
+			t.Errorf("an unfocused cell is painted in %s, and green is keyboard ownership", green)
+		}
+	}
+	if !strings.Contains(unfocused, codeOf(theme.FluxCore, false)) {
+		t.Error("the corners of the grid are structure: cyan")
+	}
+
+	focused := cellBox(item, keyboard.Browse, true, 30, 4)
+	if !strings.Contains(focused[len(focused)-1], codeOf(theme.BrandLive, false)) {
+		t.Error("the focused cell's line is the live green")
+	}
+	if strings.Contains(strings.Join(focused, ""), codeOf(theme.BrandPhosphor, false)) {
+		t.Error("phosphor is the cell that holds the keyboard, and in BROWSE none does")
+	}
+}
+
+// TestStateLabelsAreTheBrandsWords — the six words of the alphabet, as the
+// brand sheet writes them.
+func TestStateLabelsAreTheBrandsWords(t *testing.T) {
+	words := map[string]string{
+		"working": "▸ WORKING", "answered": "⬤ RESPONDED", "approve": "⏵ APPROVE",
+		"down": "✖ CRASHED", "stopped": "○ STOPPED", "orphan": "⚠ ORPHANED",
+	}
+	for state, word := range words {
+		item := protocol.Cell{ID: "c1", Type: "bash", Name: "um", State: state, Live: true}
+		if header := noStyle(cellBox(item, keyboard.Browse, false, 60, 4)[0]); !strings.Contains(header, word) {
+			t.Errorf("state %q should read %q on the header: %q", state, word, header)
+		}
+	}
+}
+
+// TestNarrowGridKeepsTheSignals — on a narrow screen the header shrinks to
+// the glyph and the divider drops what it must, but nothing overflows and the
+// state's shape survives.
+func TestNarrowGridKeepsTheSignals(t *testing.T) {
+	state := testGrid()
+	for _, width := range []int{40, 52, 60, 72} {
+		for _, mode := range []keyboard.Mode{keyboard.Browse, keyboard.Type} {
+			drawing := Draw(state, Focus{}, mode, width, 24, "")
+			for _, line := range strings.Split(drawing, "\n") {
+				if visible := lipgloss.Width(noStyle(line)); visible > width {
+					t.Fatalf("%d columns, %s: line with %d columns: %q", width, mode, visible, noStyle(line))
+				}
+			}
+			clean := noStyle(drawing)
+			for _, glyph := range []string{"⬤", "▸", "⏵", "○"} {
+				// A cell that fell off screen is counted, not drawn.
+				if !strings.Contains(clean, glyph) && !strings.Contains(clean, "off screen") {
+					t.Errorf("%d columns, %s: the glyph %s vanished:\n%s", width, mode, glyph, clean)
+				}
+			}
+			if mode == keyboard.Type && !strings.Contains(clean, "▓ TYPE ▓") {
+				t.Errorf("%d columns: the mode's badge can't be dropped", width)
+			}
+		}
 	}
 }
 
@@ -562,5 +755,88 @@ func TestFullScreenCursorOriginLandsOnTheFirstContentLine(t *testing.T) {
 	}
 	if got := string([]rune(lines[y])[x:]); !strings.HasPrefix(got, "Moved the token check") {
 		t.Fatalf("the origin doesn't sit on the first content line: %q", got)
+	}
+}
+
+// TestStatusLineNeverDropsTheMode — between the width where the quota still
+// fits and the one where the line has room to spare, the right half used to
+// be pushed off the edge and cut, mode and all. The quota gives way first;
+// who owns the keyboard is on the line at any width.
+func TestStatusLineNeverDropsTheMode(t *testing.T) {
+	quota := &protocol.Quota{Percent: 43, Rollover: "2:41"}
+	calls := map[string]int{"approve": 1}
+	for width := 12; width <= 120; width++ {
+		painted := statusLine(keyboard.Browse, width, calls, quota)
+		line := noStyle(painted)
+		if !strings.Contains(line, "BROWSE") {
+			t.Fatalf("at %d columns the mode is gone: %q", width, line)
+		}
+		if got := lipgloss.Width(painted); got != width {
+			t.Fatalf("at %d columns the line is %d wide: %q", width, got, line)
+		}
+	}
+	if line := noStyle(statusLine(keyboard.Browse, 40, calls, quota)); !strings.Contains(line, "quota 43%") {
+		t.Fatalf("at 40 columns the quota still fits beside the mode: %q", line)
+	}
+}
+
+// TestFooterKeepsTheWayOut — on a narrow screen the footer drops shortcuts
+// from the end, but never the last one: it's the mode's way out, and help is
+// what tells you everything that was dropped.
+func TestFooterKeepsTheWayOut(t *testing.T) {
+	for mode, last := range map[keyboard.Mode]string{
+		keyboard.Browse: "? help", keyboard.DockerPanel: "esc close", keyboard.Form: "esc cancel",
+	} {
+		for _, width := range []int{120, 60, 40, 24} {
+			if line := noStyle(footer(mode, width, "")); !strings.Contains(line, last) {
+				t.Errorf("%s at %d columns lost %q: %q", mode, width, last, line)
+			}
+		}
+	}
+}
+
+// TestHelpScrollsToItsLastLine — the help is longer than most screens. Every
+// line of it has to be reachable, down to the last key of the last mode, on
+// a tall screen and on one that shows two lines at a time.
+func TestHelpScrollsToItsLastLine(t *testing.T) {
+	all := helpLines()
+	last := noStyle(all[len(all)-1])
+	for _, height := range []int{50, 24, 8} {
+		seen := map[string]bool{}
+		for scroll := 0; scroll <= helpLastScroll(height); scroll++ {
+			box := helpBox(200, height, scroll)
+			if len(box) > height {
+				t.Fatalf("at height %d the help box is %d lines tall", height, len(box))
+			}
+			for _, line := range box {
+				seen[strings.TrimSpace(strings.Trim(noStyle(line), "│"))] = true
+			}
+		}
+		for _, line := range all {
+			if text := strings.TrimSpace(noStyle(line)); text != "" && !seen[text] {
+				t.Fatalf("at height %d the help never shows %q", height, text)
+			}
+		}
+		if !seen[strings.TrimSpace(last)] {
+			t.Fatalf("at height %d the last line is out of reach", height)
+		}
+	}
+}
+
+// TestOverlayKeepsWhatIsBesideTheBox — a dialog replaces its own rectangle,
+// not the whole stripe of lines: the cells on either side stay drawn.
+func TestOverlayKeepsWhatIsBesideTheBox(t *testing.T) {
+	background := strings.Join([]string{
+		strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40),
+	}, "\n")
+	lines := strings.Split(overlay(background, []string{"[box]"}, 40, 3), "\n")
+	if lines[0] != strings.Repeat("a", 40) || lines[2] != strings.Repeat("c", 40) {
+		t.Fatal("the lines outside the box were touched")
+	}
+	middle := noStyle(lines[1])
+	left := (40 - 5) / 2
+	want := strings.Repeat("b", left) + "[box]" + strings.Repeat("b", 40-left-5)
+	if middle != want {
+		t.Fatalf("the box's line should keep both sides:\n got %q\nwant %q", middle, want)
 	}
 }

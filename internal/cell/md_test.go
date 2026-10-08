@@ -368,20 +368,74 @@ func TestPageDoesNotWrapWideCode(t *testing.T) {
 	}
 }
 
-// TestPageDrawsTheTitleAsAChapter — the H1 becomes a bar, not a "#".
-func TestPageDrawsTheTitleAsAChapter(t *testing.T) {
+// TestPageDrawsTheTitleAsAHeading — the H1 becomes a heading the way the
+// brand writes one, not a "#" — and not a filled bar: inside the terminal the
+// only solid area is the approve bar.
+func TestPageDrawsTheTitleAsAHeading(t *testing.T) {
 	lines := renderPage("# Module 7\n\ntext\n", 100)
 	joined := strings.Join(lines, "\n")
 	if strings.Contains(history.StripCodes(joined), "# Module") {
 		t.Fatalf("the hash can't survive onto the page:\n%s", joined)
 	}
-	if !strings.Contains(history.StripCodes(joined), "MODULE 7") {
-		t.Fatalf("the title should become an uppercase bar:\n%s", joined)
+	if !strings.Contains(history.StripCodes(joined), "// MODULE 7") {
+		t.Fatalf("the title should become an uppercase heading:\n%s", joined)
 	}
 	// "48;" covers the background in 256 colors and in 24-bit: what matters
-	// is that the bar has a background, not at which depth the terminal
-	// writes it.
-	if !strings.Contains(joined, "48;") {
-		t.Fatalf("the title bar should have its own background:\n%q", joined)
+	// is that no heading paints one, at whatever depth the terminal writes.
+	for _, line := range lines {
+		if strings.Contains(history.StripCodes(line), "MODULE 7") && strings.Contains(line, "48;") {
+			t.Fatalf("the title can't be a filled bar:\n%q", line)
+		}
+	}
+}
+
+// TestCodeBlockIsHighlightedInThePalette — syntax highlighting writes the
+// palette's own tokens, not the nearest of 256 colors.
+func TestCodeBlockIsHighlightedInThePalette(t *testing.T) {
+	joined := strings.Join(renderPage("```go\nfunc main() { fmt.Println(\"hi\") }\n```\n", 100), "\n")
+	if strings.Contains(joined, "38;5;") || strings.Contains(joined, "48;5;") {
+		t.Fatalf("the code box wrote an indexed color instead of a token:\n%q", joined)
+	}
+	// 34;224;208 is flux, the keyword's token, written out in full.
+	if !strings.Contains(joined, "38;2;34;224;208") {
+		t.Fatalf("the keyword should come out in its 24-bit token:\n%q", joined)
+	}
+	// Text and structure only: no state color tints the code, and no green.
+	for name, token := range map[string]string{
+		"state.orphan": "199;125;255", "state.read": "125;183;232", "state.block": "255;180;84",
+		"state.dead": "255;59;71", "brand.core": "31;122;76", "brand.phosphor": "85;255;166",
+	} {
+		if strings.Contains(joined, "38;2;"+token) {
+			t.Fatalf("the code box used %s, which isn't text nor structure:\n%q", name, joined)
+		}
+	}
+}
+
+// TestSearchCaretIsTheRealCursor — the list's search field has no drawn
+// caret: the cursor is the terminal's, right after what was typed, and only
+// the cell that holds the keyboard shows it.
+func TestSearchCaretIsTheRealCursor(t *testing.T) {
+	item := markdownTab(t, projectWithDocuments(t))
+	frame := item.Draw()
+	if strings.Contains(frame.Lines[0], "▏") {
+		t.Fatalf("the search field drew a caret of its own: %q", frame.Lines[0])
+	}
+	if frame.CursorY != 0 || frame.CursorX != len([]rune(history.StripCodes(frame.Lines[0]))) {
+		t.Fatalf("the cursor should sit at the end of the search field, got %d,%d for %q",
+			frame.CursorX, frame.CursorY, history.StripCodes(frame.Lines[0]))
+	}
+}
+
+// TestMdListUsesOnlyThePalette — the list is drawn by the cell, outside the
+// screen, and it still can't pick a color of its own: no indexed color, and
+// the picked row is the palette's selection.
+func TestMdListUsesOnlyThePalette(t *testing.T) {
+	item := markdownTab(t, projectWithDocuments(t))
+	drawing := strings.Join(item.Draw().Lines, "\n")
+	if strings.Contains(drawing, "38;5;") || strings.Contains(drawing, "48;5;") {
+		t.Fatalf("the list wrote an indexed color instead of a token:\n%q", drawing)
+	}
+	if !strings.Contains(history.StripCodes(drawing), "▌ README.md") {
+		t.Fatalf("the picked document should be a row with a bar on its left:\n%s", history.StripCodes(drawing))
 	}
 }

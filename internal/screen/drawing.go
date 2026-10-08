@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/andreluiz/tesseract/internal/keyboard"
 	"github.com/andreluiz/tesseract/internal/protocol"
@@ -14,46 +15,62 @@ import (
 )
 
 // No color is chosen here: all of them come from internal/theme, the only
-// place in the project where a hex code exists. In TYPE the app goes silent
-// and shows that it is silent: the bar and stripes dim, the badge appears,
-// and the focused cell's border thickens.
+// place in the project where a hex code exists. What this file decides is
+// which role each piece of the screen plays — and the roles are the brand's:
+// green is whoever holds the keyboard, cyan is structure, and a state color
+// only ever paints a state.
 var (
 	faintColor = theme.Paint(theme.FgFaint, "")
+	mutedColor = theme.Paint(theme.FgMuted, "")
 	barColor   = theme.Paint(theme.FgDefault, "")
-	badgeColor = theme.Paint(theme.BgVoid, theme.StateBlock).Bold(true)
 	titleColor = theme.Paint(theme.FgBright, "").Bold(true)
-	// The cell grid is cyan: structure. It's the second square of the symbol
-	// drawn across the whole screen, and it's half the identity — in gray it
-	// vanishes and the Tesseract becomes just another dark panel.
-	borderColor        = theme.Paint(theme.FluxCore, "")
-	focusedBorderColor = theme.Paint(theme.BrandLive, "").Bold(true)
-	scrollColor        = theme.Paint(theme.StateBlock, "")
-	// In TYPE the cell holding the keyboard turns phosphor green: it's the
-	// mode's fourth signal, and the only one lit on the screen. It's the only
-	// place in the app that uses this color — once per screen, always.
-	typingColor    = theme.Paint(theme.BrandPhosphor, "")
-	errorColor     = theme.Paint(theme.StateDead, "")
-	quotaColor     = theme.Paint(theme.FgMuted, "")
-	quotaHighColor = theme.Paint(theme.StateBlock, "")
+	// Cyan is structure: the rule at the top, the corners of every box, the
+	// labels. It's the second square of the symbol drawn across the whole
+	// screen, and it's half the identity — in gray it vanishes and the
+	// Tesseract becomes just another dark panel.
+	borderColor = theme.Structure()
+	// keyColor is the brighter cyan: the glyph, the numbering and the keys.
+	keyColor = theme.Numbering()
+	// The lines between the corners are darkness with a hint of color: the
+	// grid is there to be found, not to be looked at.
+	lineColor    = theme.Paint(theme.LineActive, "")
+	dimLineColor = theme.Paint(theme.LineDim, "")
 	// activeGridColor is the stripe of the project that has focus.
-	activeGridColor = theme.Paint(theme.LineActive, "")
-	// faintTint is the gray of unfocused cells' content, frozen into a
-	// terminal code: it's the app's most repeated paint job, once per line
-	// of every cell that doesn't hold the keyboard.
-	faintTint = theme.Tint(faintColor)
+	activeGridColor = theme.Paint(theme.BrandCore, "")
+	// Green is keyboard ownership. The focused cell — the one the keys act
+	// on — gets the live green; a dialog, which holds the keyboard while it's
+	// open, borrows the same line.
+	focusedBorderColor = theme.Paint(theme.BrandLive, "").Bold(true)
+	// In TYPE the cell holding the keyboard turns phosphor green. It's the
+	// only place in the app that uses this color besides the mode's own
+	// badge and the caret of the field being written — one owner per screen,
+	// always.
+	typingColor = theme.Paint(theme.BrandPhosphor, "")
+	errorColor  = theme.Paint(theme.StateDead, "")
+	// warnColor is the amber of whatever stops the work until you answer: a
+	// form that can't be confirmed yet, a kill that takes the project along,
+	// a quota about to run out. Never a decoration.
+	warnColor = theme.Paint(theme.StateBlock, "")
+	// selectedRowColor is the picked line of a list: raised background,
+	// bright text. The bar on its left is what marks it with no color.
+	selectedRowColor = theme.Paint(theme.FgBright, theme.BgRaised).Bold(true)
+	selectedBar      = focusedBorderColor.Render("▌")
+	// surfaceInk is the cell's body: the background that tells a cell apart
+	// from the screen behind it.
+	surfaceInk = theme.Tint(theme.Paint("", theme.BgSurface))
+	// mutedInk is the content of a cell that doesn't hold the focus: the
+	// agent's colors go quiet, the text stays readable. Frozen into a
+	// terminal code because it's the app's most repeated paint job, once per
+	// line of every cell that isn't the focused one.
+	mutedInk = theme.Tint(theme.Paint(theme.FgMuted, theme.BgSurface))
+	// faintInk is the same content once a cell takes the keyboard: the rest
+	// of the screen sinks into the dark, background and all.
+	faintInk = theme.Tint(faintColor)
 )
-
-// projectColor is the project's name on the stripe: uppercase in fg.bright,
-// the top of the text hierarchy. One color per project turned into a rainbow
-// and fought the one signal that needs to shout — the cell holding the
-// keyboard. What tells one project from another is the stripe, the name and
-// the position, not the hue.
-func projectColor(int) lipgloss.Style {
-	return theme.Paint(theme.FgBright, "")
-}
 
 type marker struct {
 	symbol string
+	label  string
 	state  theme.State
 	// blocks marks the state that won't move without you. It doesn't change
 	// hue to draw attention — it changes area, becoming a solid inverted
@@ -75,7 +92,7 @@ var markers = map[string]marker{
 
 func fromTheme(state theme.State) marker {
 	m := theme.Do(state)
-	return marker{symbol: m.Glyph, state: state, blocks: m.Inverted}
+	return marker{symbol: m.Glyph, label: m.Label, state: state, blocks: m.Inverted}
 }
 
 // color asks the theme every frame, instead of caching the finished style:
@@ -99,6 +116,10 @@ func (m marker) badge() lipgloss.Style {
 	return chip(m.color())
 }
 
+// tone is the state's color with no filled area: what a counter uses, where
+// the state is being tallied and not announced. The bar stays with the cell.
+func (m marker) tone() lipgloss.Style { return theme.Paint(theme.Do(m.state).Color, "") }
+
 func markerFor(state string) marker {
 	if found, exists := markers[state]; exists {
 		return found
@@ -112,7 +133,26 @@ func markColor(mode keyboard.Mode) lipgloss.Style {
 	if mode == keyboard.Type {
 		return faintColor
 	}
-	return theme.Paint(theme.Flux, "")
+	return keyColor
+}
+
+// hint writes a shortcut the way the brand does: the key in cyan, what it
+// does in the secondary tone.
+func hint(short string) string {
+	key, does, _ := strings.Cut(short, " ")
+	if does == "" {
+		return keyColor.Render(key)
+	}
+	return keyColor.Render(key) + " " + mutedColor.Render(does)
+}
+
+// hints lines up several shortcuts, with room between them.
+func hints(shorts ...string) string {
+	painted := make([]string, len(shorts))
+	for i, short := range shorts {
+		painted[i] = hint(short)
+	}
+	return strings.Join(painted, "   ")
 }
 
 // FullCellInner is the usable space of a cell taking up the whole screen:
@@ -124,8 +164,12 @@ func FullCellInner(width, height int) Dims {
 // DrawFull puts one cell on the whole screen. It's like copying a block of
 // text without grabbing its neighbors, and it's what the full-screen key
 // does.
-func DrawFull(project protocol.Project, cell protocol.Cell, mode keyboard.Mode, width, height int, err string) string {
-	lines := titleBar(mode, width, countProjectCalls(project), nil)
+//
+// The header doesn't shrink with the view: who's calling is counted across
+// the whole grid and the quota stays, since the cells left out of the
+// drawing are exactly the ones this line has to speak for.
+func DrawFull(state protocol.State, cell protocol.Cell, mode keyboard.Mode, width, height int, err string) string {
+	lines := titleBar(mode, width, countCalls(state), state.Quota)
 	lines = append(lines, cellBox(cell, mode, true, width, height-barHeight-1)...)
 	lines = append(lines, footer(mode, width, err))
 	return strings.Join(lines, "\n")
@@ -151,18 +195,18 @@ func titleBar(mode keyboard.Mode, width int, calls map[string]int, quota *protoc
 // letter-spaced — that's how the brand writes itself, and on a terminal the
 // space between letters is all the typography there is.
 func brandStripe(mode keyboard.Mode, width int) string {
-	// The rule is cyan, like the whole grid: it's the frame at the top of the
-	// screen, and using the focused project's green here would say "keyboard
-	// ownership" where there's no keyboard at all.
-	name := "T E S S E R A C T"
+	// The rule is cyan, like every frame: it's the top of the screen, and
+	// using the focused project's green here would say "keyboard ownership"
+	// where there's no keyboard at all.
 	paintName, paintRule := titleColor, borderColor
 	dash := "─"
 	if mode == keyboard.Type {
 		// In TYPE the app is silent, and the stripe dims along with the rest.
-		name, paintName, paintRule = "t e s s e r a c t", faintColor, faintColor
+		// The wordmark itself doesn't change: the brand is written one way.
+		paintName, paintRule = faintColor, dimLineColor
 	}
 
-	middle := " " + markColor(mode).Render(theme.Glyph) + "  " + paintName.Render(name) + " "
+	middle := " " + markColor(mode).Render(theme.Glyph) + "  " + paintName.Render(theme.Name) + " "
 	leftover := width - lipgloss.Width(middle)
 	if leftover < 4 {
 		return pad(centerIn(middle, width), width)
@@ -175,69 +219,95 @@ func brandStripe(mode keyboard.Mode, width int) string {
 // statusLine is the header's second line: who's calling on one side, the
 // window's state on the other.
 func statusLine(mode keyboard.Mode, width int, calls map[string]int, quota *protocol.Quota) string {
-	paintSignals := barColor
-	if mode == keyboard.Type {
-		paintSignals = faintColor
-	}
-
 	// On the left, who's calling you — the only piece of the bar that asks
-	// for action.
+	// for action. Each count wears its state's color, never its bar: the
+	// filled area belongs to the cell that is blocked, and one tally can't
+	// compete with it.
 	var signals []string
 	for _, state := range []string{"answered", "approve"} {
-		if calls[state] > 0 {
-			signals = append(signals, markerFor(state).symbol+" "+strconv.Itoa(calls[state]))
+		if calls[state] == 0 {
+			continue
 		}
+		found := markerFor(state)
+		paint := found.tone()
+		if mode == keyboard.Type {
+			paint = faintColor
+		}
+		signals = append(signals, paint.Render(found.symbol+" "+strconv.Itoa(calls[state])))
 	}
 	left := ""
 	if len(signals) > 0 {
-		left = " " + paintSignals.Render(strings.Join(signals, "   "))
+		left = " " + strings.Join(signals, "   ")
 	}
 
 	// On the right, the window's state: quota and who owns the keyboard. The
 	// top-right corner is where the eye looks for this, and that's where the
 	// one inverted badge that can be visible at a time lives.
-	right := paintSignals.Render(mode.String())
+	right := borderColor.Render(mode.String())
 	if mode == keyboard.Type {
-		right = badgeColor.Render(" ▓ TYPE ▓ ")
+		right = theme.Type.Badge()
 	} else if quota != nil {
-		paint := quotaColor
+		paint := mutedColor
 		if quota.Percent >= 80 {
-			paint = quotaHighColor
+			paint = warnColor
 		}
-		right = paint.Render("⏳ "+strconv.Itoa(quota.Percent)+"% "+quota.Rollover) + "   " + right
+		withQuota := paint.Render("quota "+strconv.Itoa(quota.Percent)+"% · "+quota.Rollover) + "   " + right
+		// On a narrow screen the quota gives way: who owns the keyboard is
+		// the one thing this line can't drop.
+		if lipgloss.Width(left)+lipgloss.Width(withQuota)+2 <= width {
+			right = withQuota
+		}
 	}
-	return threeParts(left, "", right, width)
+	return spread(left, right, width)
 }
 
 // footer shows what you can do right now. In TYPE it shrinks to a single
 // line, the mode's third redundant signal.
 func footer(mode keyboard.Mode, width int, err string) string {
 	if err != "" {
-		return pad(errorColor.Render(" "+truncate(err, width-1)), width)
+		// The glyph is the dead state's: with no color, it's what tells an
+		// error apart from a line of shortcuts.
+		return pad(errorColor.Render(" "+truncate(theme.Do(theme.Down).Glyph+" "+err, width-1)), width)
 	}
 	if mode == keyboard.Type {
-		return pad(faintColor.Render(" ctrl-l gives back the keyboard"), width)
-	}
-	var hints []string
-	for _, shortcut := range keyboard.Shortcuts(mode) {
-		if !shortcut.Footer {
-			continue
+		// The way out is the one thing this line says, so a narrow screen
+		// gets fewer words, never a sentence cut in half.
+		line := "ctrl+l gives back the keyboard"
+		for _, shorter := range []string{"ctrl+l gives back", "ctrl+l"} {
+			if widthOf(line)+1 <= width {
+				break
+			}
+			line = shorter
 		}
-		hints = append(hints, barColor.Render(shortcut.Short))
+		return pad(faintColor.Render(" "+line), width)
 	}
-	return pad(" "+strings.Join(hints, "   "), width)
+	var shorts []string
+	for _, shortcut := range keyboard.Shortcuts(mode) {
+		if shortcut.Footer {
+			shorts = append(shorts, shortcut.Short)
+		}
+	}
+	// The last shortcut of every mode is the way out of it — help, close,
+	// cancel — so on a narrow screen it's the last to go: the ones before it
+	// drop first, from the end.
+	for len(shorts) > 2 && lipgloss.Width(" "+hints(shorts...)) > width {
+		shorts = append(shorts[:len(shorts)-2], shorts[len(shorts)-1])
+	}
+	return pad(" "+hints(shorts...), width)
 }
 
 // emptyScreen is what shows up when the grid has no cell at all.
-func emptyScreen(mode keyboard.Mode, width, height int, err, warning string) string {
-	lines := titleBar(mode, width, nil, nil)
-	message := "no cell on screen — n creates the first one"
+func emptyScreen(state protocol.State, mode keyboard.Mode, width, height int, err string) string {
+	warning := state.Notice
+	lines := titleBar(mode, width, nil, state.Quota)
+	// Every empty state ends in a key.
+	message := mutedColor.Render("No cells yet. ") + hint("n creates the first one.")
 	if warning != "" {
-		message = warning
+		message = mutedColor.Render(warning)
 	}
 	// The empty grid is the only moment the brand fits whole on the screen
-	// without stealing workspace. Every empty state ends in a key.
-	middle := append(theme.PaintedSymbol(), "", faintColor.Render(message))
+	// without stealing workspace.
+	middle := append(theme.PaintedSymbol(), "", message)
 
 	body := max(height-barHeight-1, 1)
 	top := max((body-len(middle))/2, 0)
@@ -271,22 +341,13 @@ func countProjectCalls(project protocol.Project) map[string]int {
 	return counts
 }
 
-// threeParts spreads left, middle and right across a single line.
-func threeParts(left, middle, right string, width int) string {
-	le, lm, ld := lipgloss.Width(left), lipgloss.Width(middle), lipgloss.Width(right)
-	if le+lm+ld+2 > width {
-		return pad(left+" "+middle, width)
-	}
-	before := (width-lm)/2 - le
-	after := width - le - before - lm - ld - 1
-	if before < 1 {
-		before = 1
-	}
-	if after < 1 {
-		after = 1
-	}
-	line := left + strings.Repeat(" ", before) + middle + strings.Repeat(" ", after) + right
-	return pad(line, width)
+// spread puts one piece at each end of a line. When the two don't fit, the
+// right one stays whole and the left one is cut: on the status line the
+// right is who owns the keyboard, the one thing that line can't drop.
+func spread(left, right string, width int) string {
+	// One column of margin on the right, to match the one the left opens with.
+	room := max(width-lipgloss.Width(right)-2, 0)
+	return pad(pad(left, room)+" "+right, width)
 }
 
 // widthOf measures the line on screen. Terminal output is almost all ASCII,
@@ -312,7 +373,9 @@ func pad(text string, width int) string {
 	case current < width:
 		return text + strings.Repeat(" ", width-current)
 	}
-	return truncate(text, width)
+	cut := truncate(text, width)
+	// A double-wide letter left out at the edge leaves a column to fill.
+	return cut + strings.Repeat(" ", max(width-lipgloss.Width(cut), 0))
 }
 
 // centerIn puts the text in the middle of the width.
@@ -325,41 +388,32 @@ func centerIn(text string, width int) string {
 }
 
 // truncate cuts the text at the visible width, without breaking color codes
-// in the middle or leaking color into the rest of the line.
+// in the middle or leaking color into the rest of the line. The width is
+// the one the terminal draws: an emoji or a CJK letter takes two columns,
+// and one that would straddle the cut is left out whole — so the result can
+// come out a column short, and whoever needs the exact width pads it.
 func truncate(text string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	var out strings.Builder
-	visible, hadColor := 0, false
-	inCode := false
-	for _, r := range text {
-		if r == 0x1b {
-			inCode, hadColor = true, true
-		}
-		if inCode {
-			out.WriteRune(r)
-			if r >= 0x40 && r <= 0x7e && r != '[' {
-				inCode = false
-			}
-			continue
-		}
-		if visible >= width {
-			if hadColor {
-				out.WriteString("\x1b[0m")
-			}
-			return out.String()
-		}
-		out.WriteRune(r)
-		visible++
+	if widthOf(text) <= width {
+		return text
 	}
-	return out.String()
+	cut := ansi.Truncate(text, width, "")
+	if strings.Contains(text, "\x1b") {
+		cut += "\x1b[0m"
+	}
+	return cut
 }
 
-// dim strips the color from the content and returns the whole line in gray.
-// It's what makes only the focused cell stay lit: with many sections on
-// screen, color turns into noise if everything shouts at once.
-func dim(text string) string {
+// plain strips the color codes from the content and leaves the letters. It's
+// the first half of what makes only the focused cell stay lit: with many
+// sections on screen, color turns into noise if everything shouts at once.
+// Whoever calls it paints the result in a single tone.
+func plain(text string) string {
+	if !strings.Contains(text, "\x1b") {
+		return text
+	}
 	var out strings.Builder
 	inCode := false
 	for _, r := range text {
@@ -375,7 +429,7 @@ func dim(text string) string {
 		}
 		out.WriteRune(r)
 	}
-	return faintTint.Render(out.String())
+	return out.String()
 }
 
 // userHome is the account's home directory, read only once.
@@ -390,29 +444,34 @@ var userHome = sync.OnceValue(func() string {
 func home() string { return userHome() }
 
 // cellLabel is what shows on the top border: the type and the name. When the
-// cell has tabs, the tabs become the label — the active one highlighted.
-func cellLabel(item protocol.Cell) string {
+// cell has tabs, the tabs become the label — the active one in the label's
+// cyan and in bold, which is what still tells it apart with no color. No tab
+// is ever an inverted badge: the screen has room for one, and it's the
+// mode's. Whoever calls it brings the three paints, already on the header's
+// background, so the label comes out as one unbroken band.
+func cellLabel(item protocol.Cell, name, tabOn, tabOff lipgloss.Style) string {
 	if len(item.Tabs) == 0 {
-		return item.Type + " · " + item.Name
+		return tabOff.Render(" "+item.Type+" · ") + name.Render(item.Name+" ")
 	}
 	asleep := map[string]bool{}
 	for _, tab := range item.Asleep {
 		asleep[tab] = true
 	}
-	var tabs []string
+	var label strings.Builder
+	label.WriteString(tabOff.Render(" "))
 	for _, tab := range item.Tabs {
-		if tab == item.Tab {
-			tabs = append(tabs, badgeColor.Render(" "+tab+" "))
-			continue
-		}
+		switch {
+		case tab == item.Tab:
+			label.WriteString(tabOn.Render(" " + tab + " "))
 		// A sleeping tab keeps its place and says it's sleeping. It's not a
 		// state of the cell — nothing there is asking for anything — so it
 		// gets a dot, not a marker.
-		if asleep[tab] {
-			tabs = append(tabs, faintColor.Render(" ·"+tab+" "))
-			continue
+		case asleep[tab]:
+			label.WriteString(tabOff.Render(" ·" + tab + " "))
+		default:
+			label.WriteString(tabOff.Render(" " + tab + " "))
 		}
-		tabs = append(tabs, faintColor.Render(" "+tab+" "))
 	}
-	return strings.Join(tabs, "") + " " + item.Name
+	label.WriteString(name.Render(" " + item.Name + " "))
+	return label.String()
 }

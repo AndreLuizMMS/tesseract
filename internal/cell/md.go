@@ -11,6 +11,8 @@ import (
 
 	"github.com/charmbracelet/x/vt"
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 func init() {
@@ -266,7 +268,7 @@ func (m *Md) reload() {
 	if err != nil {
 		m.mu.Lock()
 		m.state = Crashed
-		m.content = []string{"", "  couldn't read " + path, "", "  " + readableError(err)}
+		m.content = []string{"", "  Could not read " + path + ".", "", "  " + readableError(err)}
 		m.scroll = 0
 		m.mu.Unlock()
 		return
@@ -284,10 +286,10 @@ func (m *Md) reload() {
 
 func readableError(err error) string {
 	if os.IsNotExist(err) {
-		return "the file is gone from disk"
+		return "The file is gone from disk. esc goes back to the list."
 	}
 	if os.IsPermission(err) {
-		return "no read permission"
+		return "No read permission. esc goes back to the list."
 	}
 	return err.Error()
 }
@@ -299,6 +301,10 @@ func (m *Md) Draw() Frame {
 	frame := Frame{CursorX: -1, CursorY: -1, Scroll: m.scroll, Live: m.scroll == 0}
 	if m.open == "" {
 		frame.Lines = m.drawList()
+		// The search field's caret is the terminal's own cursor, so it only
+		// exists while this cell holds the keyboard — and it's the same
+		// phosphor cursor every other cell gets.
+		frame.CursorX, frame.CursorY = len([]rune(searchLabel+m.filter)), 0
 		return frame
 	}
 
@@ -320,23 +326,28 @@ func (m *Md) pageHeader() string {
 	from := m.scroll + 1
 	to := min(m.scroll+max(m.lines-1, 1), len(m.content))
 	position := strconv.Itoa(from) + "–" + strconv.Itoa(to) + " of " + strconv.Itoa(len(m.content))
-	back := "esc back to list"
 
 	left := " " + file + " "
-	right := " " + position + " · " + back + " "
+	right := " " + position + " · esc back to list "
 	filler := max(m.columns-len([]rune(left))-len([]rune(right)), 1)
-	return pathColor + left + mdDimColor + strings.Repeat("─", filler) + right + colorReset
+	return titleInk.Render(left) + ruleInk.Render(strings.Repeat("─", filler)) +
+		numberInk.Render(" "+position) + noteInk.Render(" · ") + keyInk.Render("esc") + noteInk.Render(" back to list ")
 }
 
 // drawList assembles the search box on top and the files below. Called with
 // the lock held.
 func (m *Md) drawList() []string {
 	matched := m.filtered()
+	documents := " documents · "
+	if len(m.files) == 1 {
+		documents = " document · "
+	}
 	lines := []string{
-		searchColor + " search: " + colorReset + m.filter + "▏",
-		mdDimColor + " " + strings.Repeat("─", max(m.columns-2, 1)) + colorReset,
-		mdDimColor + " " + strconv.Itoa(len(matched)) + " of " + strconv.Itoa(len(m.files)) +
-			" documents · ↑↓ pick · ↵ open" + colorReset,
+		labelInk.Render(searchLabel) + m.filter,
+		ruleInk.Render(" " + strings.Repeat("─", max(m.columns-2, 1))),
+		numberInk.Render(" "+strconv.Itoa(len(matched))+" of "+strconv.Itoa(len(m.files))) +
+			noteInk.Render(documents) + keyInk.Render("↑↓") + noteInk.Render(" pick · ") +
+			keyInk.Render("↵") + noteInk.Render(" open"),
 		"",
 	}
 
@@ -346,31 +357,45 @@ func (m *Md) drawList() []string {
 		lines = append(lines, m.listLine(matched[i], i == m.selected))
 	}
 	if len(matched) == 0 {
-		lines = append(lines, mdDimColor+"  no document matches the search"+colorReset)
+		empty := "  No markdown file in this project."
+		if strings.TrimSpace(m.filter) != "" {
+			empty = "  No document matches. esc clears the search."
+		}
+		lines = append(lines, noteInk.Render(empty))
 	}
 	return lines
 }
 
-// listLine writes a file: the dimmed folder, the highlighted name.
+// searchLabel opens the list's first line, before whatever was typed.
+const searchLabel = " search: "
+
+// listLine writes a file: the dimmed folder, the highlighted name. The
+// picked one is a raised row with a bar on its left — the same selection
+// the dialogs draw, and the bar is what's left of it with no color.
 func (m *Md) listLine(file string, selected bool) string {
 	folder, name := filepath.Split(file)
-	mark, nameColor := "   ", mdWhiteColor
 	if selected {
-		mark, nameColor = " ▸ ", selectedColor
+		width := max(m.columns-2, len([]rune(file))+1)
+		return " " + barInk.Render("▌") + pickedInk.Render(" "+file+strings.Repeat(" ", width-len([]rune(file))-1))
 	}
-	return mark + mdDimColor + folder + nameColor + name + colorReset
+	return "   " + noteInk.Render(folder) + nameInk.Render(name)
 }
 
-// Colors for the markdown tab. Written here instead of in the screen
-// because the cell draws its own content — the screen only receives lines
-// already made.
-const (
-	searchColor   = "\x1b[1;38;5;252m"
-	mdWhiteColor  = "\x1b[38;5;252m"
-	selectedColor = "\x1b[1;38;5;42m"
-	pathColor     = "\x1b[38;5;39m"
-	mdDimColor    = "\x1b[38;5;240m"
-	colorReset    = "\x1b[0m"
+// Inks for the markdown tab. Kept here instead of in the screen because the
+// cell draws its own content — the screen only receives lines already made —
+// but every color still comes from the theme, token by token: cyan for what
+// is structure (the label, the keys, the count), green only on the bar of
+// the row the keys act on.
+var (
+	labelInk  = theme.Tint(theme.Structure().Bold(true))
+	keyInk    = theme.Tint(theme.Numbering())
+	numberInk = theme.Tint(theme.Structure())
+	ruleInk   = theme.Tint(theme.Paint(theme.LineActive, ""))
+	noteInk   = theme.Tint(theme.Paint(theme.FgMuted, ""))
+	nameInk   = theme.Tint(theme.Paint(theme.FgDefault, ""))
+	titleInk  = theme.Tint(theme.Paint(theme.FgBright, "").Bold(true))
+	barInk    = theme.Tint(theme.Paint(theme.BrandLive, "").Bold(true))
+	pickedInk = theme.Tint(theme.Paint(theme.FgBright, theme.BgRaised).Bold(true))
 )
 
 func relativeTo(root, path string) string {

@@ -116,6 +116,20 @@ func TestFullScreenTogglesOnAndOff(t *testing.T) {
 	}
 }
 
+// TestVSwitchesBetweenGridAndList — the key goes to the list and comes back.
+// It used to answer "grid" every time, and the list was out of reach.
+func TestVSwitchesBetweenGridAndList(t *testing.T) {
+	m := testModel(testGrid())
+	m.handleNavigate("v")
+	if m.showingGrid() {
+		t.Fatal("v should go to the list")
+	}
+	m.handleNavigate("v")
+	if !m.showingGrid() {
+		t.Fatal("v again should come back to the grid")
+	}
+}
+
 // TestHelpOpensAndCloses.
 func TestHelpOpensAndCloses(t *testing.T) {
 	m := testModel(testGrid())
@@ -248,5 +262,35 @@ func TestArrowsOnA2x2GridMoveLiterally(t *testing.T) {
 		if m.focus.Project != 0 || m.focus.Cell != c.expected {
 			t.Errorf("%s from cell %d should go to %d, went to %#v", c.key, c.from, c.expected, m.focus)
 		}
+	}
+}
+
+// TestArrowsOnTheListWalkOneRow — the list is one cell per row. ↓ goes to
+// the row right below, even when the mosaic would put that cell elsewhere,
+// and crosses into the next project only after the last row of this one.
+func TestArrowsOnTheListWalkOneRow(t *testing.T) {
+	state := protocol.State{Projects: []protocol.Project{
+		{ID: "p1", Name: "api", Path: "/dev/api"},
+		{ID: "p2", Name: "web", Path: "/dev/web"},
+	}}
+	for p, cells := range []int{3, 2} {
+		for i := range cells {
+			state.Projects[p].Cells = append(state.Projects[p].Cells, protocol.Cell{
+				ID: string(rune('a'+p)) + string(rune('0'+i)), Type: "session", Name: "session", State: "working", Live: true,
+			})
+		}
+	}
+	m := &Model{state: state, view: viewList, sizes: map[string]Dims{}, width: 200, height: 40}
+
+	rows := []Focus{{Cell: 0}, {Cell: 1}, {Cell: 2}, {Project: 1}, {Project: 1, Cell: 1}}
+	for i, want := range rows[1:] {
+		m.handleNavigate("down")
+		if m.focus.Project != want.Project || m.focus.Cell != want.Cell {
+			t.Fatalf("↓ number %d should land on row %d %+v, got %+v", i+1, i+1, want, m.focus)
+		}
+	}
+	m.handleNavigate("up")
+	if m.focus.Project != 1 || m.focus.Cell != 0 {
+		t.Fatalf("↑ should go back one row, got %+v", m.focus)
 	}
 }

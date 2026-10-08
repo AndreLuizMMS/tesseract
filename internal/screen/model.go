@@ -67,6 +67,10 @@ type warnTick struct{}
 // Model is the screen. It holds what the engine sent to draw, the keyboard
 // mode and where the focus is — no business rule lives here.
 type Model struct {
+	// EngineGone says the screen closed because the engine went away, not
+	// because the user asked: whoever ran it says so on the way out.
+	EngineGone bool
+
 	client *Client
 	state  protocol.State
 	focus  Focus
@@ -85,6 +89,8 @@ type Model struct {
 	question     *Question
 	confirmation *Confirmation
 	help         bool
+	// helpScroll is the help's first line showing, when it doesn't all fit.
+	helpScroll   int
 	results      *protocol.Matches
 	resultChosen int
 	// blinking prevents two blocking-status-bar clocks from running at once.
@@ -215,6 +221,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = string(msg)
 
 	case engineDied:
+		m.EngineGone = true
 		return m, tea.Quit
 
 	case panelTick:
@@ -278,9 +285,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case m.confirmation != nil:
 		return m, m.handleConfirmation(key)
 	case m.help:
-		if action := keyboard.Lookup(keyboard.Browse, key); action == keyboard.Back || action == keyboard.Help {
-			m.help = false
-		}
+		m.handleHelp(key)
 		return m, nil
 	case m.results != nil:
 		return m, m.handleResults(key)
@@ -288,6 +293,30 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.handleTyping(key, msg)
 	}
 	return m.handleNavigate(key)
+}
+
+// handleHelp scrolls the help with the same keys that move through the grid
+// and through a cell's history, and closes it with the ones that opened it.
+func (m *Model) handleHelp(key string) {
+	step := 0
+	switch keyboard.Lookup(keyboard.Browse, key) {
+	case keyboard.Back, keyboard.Help:
+		m.help = false
+		return
+	case keyboard.CellUp:
+		step = -1
+	case keyboard.CellDown:
+		step = 1
+	case keyboard.ScrollPageUp:
+		step = -helpRoom(m.height)
+	case keyboard.ScrollPageDown:
+		step = helpRoom(m.height)
+	case keyboard.ScrollTop:
+		step = -m.helpScroll
+	case keyboard.ScrollBottom:
+		step = helpLastScroll(m.height)
+	}
+	m.helpScroll = min(max(m.helpScroll+step, 0), helpLastScroll(m.height))
 }
 
 // handlePaste hands the pasted text to whoever owns the keyboard now. Paste
@@ -389,8 +418,12 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 	case keyboard.Fullscreen:
 		m.focus.Full = !m.focus.Full
 	case keyboard.SwitchScreen:
-		m.view = viewList
-		if !m.showingGrid() {
+		// Decide from where the screen is now, before changing it: asking
+		// after setting the list always answered "list" and sent the screen
+		// straight back to the grid — the key never left it.
+		if m.showingGrid() {
+			m.view = viewList
+		} else {
 			m.view = viewGrid
 		}
 		m.send(protocol.TypeScreen, protocol.Screen{Screen: m.view})
@@ -464,7 +497,7 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 			m.send(protocol.TypeScroll, protocol.Scroll{Cell: item.ID, Live: true})
 		}
 	case keyboard.Help:
-		m.help = true
+		m.help, m.helpScroll = true, 0
 	case keyboard.Close:
 		return m, tea.Quit
 	}
@@ -635,11 +668,10 @@ func (m *Model) moveDirection(dx, dy int) {
 		m.moveThroughCells(dx + dy)
 		return
 	}
-	if dy != 0 {
-		m.focus.Project, m.focus.Cell = m.focus.Project+dy, 0
-		return
-	}
-	m.moveThroughCells(dx)
+	// The list is one cell per row: every arrow walks a row, crossing
+	// projects, instead of jumping to the next project and skipping the
+	// rows in between.
+	m.moveThroughCells(dx + dy)
 }
 
 // moveThroughCells walks the whole grid, crossing project boundaries: on the
@@ -853,9 +885,13 @@ func (m *Model) View() tea.View {
 	// Tesseract owns the terminal's background while it's open, and gives it
 	// back on exit. Without this the grid would inherit the caller's
 	// background, and the theme's black would only show up under what the
-	// app itself paints — everything else, including agent output, would
-	// keep the outside background.
-	view.BackgroundColor = theme.ScreenBackground()
+	// app itself paints. It follows the keyboard: the default background
+	// while the application has it, the deepest one once a cell takes it.
+	background := theme.Browse
+	if m.typing {
+		background = theme.Type
+	}
+	view.BackgroundColor = theme.ScreenBackground(background)
 	view.ForegroundColor = theme.ScreenForeground()
 	view.WindowTitle = m.windowTitle()
 	if m.width == 0 || m.height == 0 {
@@ -875,37 +911,42 @@ func (m *Model) View() tea.View {
 		}
 	}
 
-	var background string
+	var drawing string
 	if m.showingGrid() {
-		background = Draw(state, m.focus, mode, m.width, m.height, err)
+		drawing = Draw(state, m.focus, mode, m.width, m.height, err)
 	} else {
-		background = DrawList(state, m.focus, mode, m.width, m.height, err)
+		drawing = DrawList(state, m.focus, mode, m.width, m.height, err)
 	}
 
 	switch {
 	case m.panel != nil:
-		background = overlay(background, m.panel.Draw(m.width), m.width, m.height)
+		drawing = overlay(drawing, m.panel.Draw(m.width), m.width, m.height)
 	case m.idePicker != nil:
-		background = overlay(background, m.idePicker.Draw(m.width), m.width, m.height)
+		drawing = overlay(drawing, m.idePicker.Draw(m.width), m.width, m.height)
 	case m.form != nil:
-		background = overlay(background, m.form.Draw(m.width), m.width, m.height)
+		drawing = overlay(drawing, m.form.Draw(m.width), m.width, m.height)
 	case m.question != nil:
-		background = overlay(background, m.question.Draw(m.width), m.width, m.height)
+		drawing = overlay(drawing, m.question.Draw(m.width), m.width, m.height)
 	case m.confirmation != nil:
-		background = overlay(background, m.confirmation.Draw(m.width), m.width, m.height)
+		drawing = overlay(drawing, m.confirmation.Draw(m.width), m.width, m.height)
 	case m.help:
-		background = overlay(background, helpBox(m.width, m.height), m.width, m.height)
+		drawing = overlay(drawing, helpBox(m.width, m.height, m.helpScroll), m.width, m.height)
 	case m.results != nil:
-		background = overlay(background, resultsBox(*m.results, m.resultChosen, m.width), m.width, m.height)
+		drawing = overlay(drawing, resultsBox(*m.results, m.resultChosen, m.width), m.width, m.height)
 	}
-	view.SetContent(background)
+	view.SetContent(drawing)
 
 	// The cursor only shows up when the keyboard belongs to the cell and the
 	// reading is live — a blinking cursor over scrolled-back history would
 	// be a lie.
 	if item := m.focusedCell(); m.typing && item != nil && item.Live && item.CursorX >= 0 {
 		if x, y, has := m.cellOrigin(item.ID); has {
-			view.Cursor = tea.NewCursor(x+item.CursorX, y+item.CursorY)
+			// Phosphor, like every cursor the brand draws. The terminal's own
+			// color comes back as soon as the cursor leaves the view — on
+			// ctrl+l, and when the screen closes.
+			cursor := tea.NewCursor(x+item.CursorX, y+item.CursorY)
+			cursor.Color = theme.CursorColor()
+			view.Cursor = cursor
 		}
 	}
 	return view
@@ -966,7 +1007,7 @@ func (m *Model) send(kind string, data any) {
 		return // a screen with no engine on the other side: only the drawing gets exercised
 	}
 	if err := m.client.Send(kind, data); err != nil {
-		m.err = "the engine didn't respond: " + err.Error()
+		m.err = "Engine did not respond: " + err.Error()
 	}
 }
 
@@ -989,12 +1030,12 @@ func (m *Model) focusedCell() *protocol.Cell {
 // killConfirmation builds the kill warning, saying whether the whole project
 // leaves the screen along with it.
 func killConfirmation(project protocol.Project, item protocol.Cell) *Confirmation {
-	lines := []string{"kill " + item.Type + " · " + item.Name + "?"}
+	lines := []string{"Kill " + item.Type + " · " + item.Name + "?"}
 	if len(project.Cells) == 1 {
 		lines = append(lines, "",
-			scrollColor.Render("it's the last cell of "+strings.ToUpper(project.Name)+","),
-			scrollColor.Render("so the project leaves the screen."),
-			faintColor.Render("the directory on disk is left untouched."))
+			warnColor.Render("Last cell of "+strings.ToUpper(project.Name)+":"),
+			warnColor.Render("the project leaves the screen."),
+			mutedColor.Render("The directory on disk stays untouched."))
 	}
 	return &Confirmation{Title: "KILL", Lines: lines, Action: keyboard.Kill, Target: item.ID}
 }
@@ -1007,7 +1048,7 @@ func (m *Model) openDocker() {
 		return
 	}
 	if !project.HasCompose {
-		m.err = "the project " + project.Name + " has no compose file at its root"
+		m.err = "No compose file at the root of " + project.Name + ". Add compose.yml there, then d opens the panel."
 		return
 	}
 	m.panel = NewDockerPanel(project.ID, project.Name)
