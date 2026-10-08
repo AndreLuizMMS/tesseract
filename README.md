@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="themes/logo-hero.svg" alt="Tesseract — the mosaic doesn't fall apart" width="720">
+  <img src="themes/logo-hero.svg" alt="Tesseract — the mosaic never falls apart" width="720">
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@ conversations picked back up.
   <img src="docs/img/mosaico.svg" alt="The Tesseract mosaic: three projects, five cells, one stuck waiting for approval" width="1000">
 </p>
 
-`⬤ answered` has something to read. `⏵ approve` **won't move** without you — and it's the
+`⬤ responded` has something to read. `⏵ approve` **won't move** without you — and it's the
 only signal that turns into a solid bar across the whole line, blinking, because urgency
 here is filled area, not color. Works from a distance, out of the corner of your eye, and
 with `NO_COLOR=1`.
@@ -45,7 +45,7 @@ ts
 ## Shortcuts
 
 Moving around is only with the arrows — no letter touches the grid. `↵` enters the cell and
-**every** key becomes hers; `ctrl-l` gives back the keyboard. `?` opens the map on screen.
+**every** key becomes hers; `ctrl+l` gives back the keyboard. `?` opens the map on screen.
 
 **[The full keyboard map →](docs/atalhos.md)**
 

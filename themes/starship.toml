@@ -1,23 +1,27 @@
 # themes/starship.toml
 # Tesseract Neon prompt.  export STARSHIP_CONFIG=~/.config/starship.toml
 #
-# Prompt rule: the ⧉ is the only element in phosphor green — it marks that
-# the keyboard is yours. Everything that is structure (path, host, branch)
-# is cyan. No prompt state (error, jobs, duration) uses green or cyan.
+# The prompt is the brand sheet's, on a single line:  ⧉ ~/projects/api ›
+#
+# Prompt rule: the ⧉ is the glyph, and the glyph is cyan — structure, like
+# the host and the branch. The path is secondary text. The › is the only
+# element in phosphor green: it sits where the cursor is, and it marks that
+# the keyboard is yours. No prompt state (error, jobs, duration) uses green
+# or cyan.
 
 add_newline = true
 
-format = """
-[⧉ ](bold #55FFA6)$username$hostname$directory$git_branch$git_state$git_status$cmd_duration$jobs
-$character"""
+format = """[⧉ ](#22E0D0)$username$hostname$directory$git_branch$git_state$git_status$cmd_duration$jobs$character"""
 
 right_format = """$time"""
 
 [character]
-# No green on success: green is keyboard ownership, not command result.
-success_symbol = "[▸](bold #BFD1C6)"
-error_symbol = "[▸](bold #FF3B47)"
-vimcmd_symbol = "[◂](bold #FFB454)"
+# The › is phosphor because the keyboard is yours, not because the last
+# command went well: green is keyboard ownership, never a result. A failed
+# command paints it in the dead state's red — a state color, as it should be.
+success_symbol = "[›](#55FFA6)"
+error_symbol = "[›](bold #FF3B47)"
+vimcmd_symbol = "[‹](bold #FFB454)"
 
 [username]
 style_user = "#6C8076"
@@ -31,7 +35,7 @@ style = "#128C86"
 format = "[$hostname]($style) "
 
 [directory]
-style = "bold #128C86"
+style = "#6C8076"
 truncation_length = 3
 truncate_to_repo = true
 read_only = " ▓"

@@ -114,12 +114,12 @@ socket, and a screen showing that cell full-screen with the two modes.
 
 **Manual validation**
 
-1. `go run ./cmd/tess` — opens with one `bash` cell full-screen, NAVIGATE mode, with the
+1. `go run ./cmd/tess` — opens with one `bash` cell full-screen, BROWSE mode, with the
    title bar and footer lit.
 2. `↵` — enters TYPE: bar and footer dim, the `▓ TYPE ▓` badge appears, the cell's border
    thickens.
 3. Type `q` and `D` — both letters show up in the shell, nothing happens in the app.
-4. `ls -la` + `↵` — the output shows up. `ctrl-l` — back to NAVIGATE, chrome lights up.
+4. `ls -la` + `↵` — the output shows up. `ctrl+l` — back to BROWSE, chrome lights up.
 5. `q` — the screen closes. `tess status` shows the engine alive with one cell.
 6. `go run ./cmd/tess` again — the same cell is there, with the `ls` output still visible,
    and the shell responds.
@@ -135,7 +135,7 @@ creation form, `n` `D` `o` `v`.
 **Required automated tests**
 
 - `teclado`: **no key has two meanings** in the same mode; in TYPE mode the only reserved
-  key is `ctrl-l`; every key in the map has help text. That test is the mechanical
+  key is `ctrl+l`; every key in the map has help text. That test is the mechanical
   guarantee of rule 2 — if it breaks, the rule was violated.
 - `tela/mosaico`: with 3 projects and a fixed width of 120 columns, the focused column gets
   reading width and the others become a strip; the rendered output matches a golden file.
@@ -154,7 +154,7 @@ creation form, `n` `D` `o` `v`.
    became a strip with vertical initials, cell count and Docker indicator.
 4. `←` `→` — the neighboring column fattens and the current one shrinks. `↑` `↓` move
    between cells.
-5. Type `j`, `k`, `h`, `l` in NAVIGATE — nothing happens; those letters don't navigate.
+5. Type `j`, `k`, `h`, `l` in BROWSE — nothing happens; those letters don't navigate.
 6. `o` — the focused cell takes over the screen. `shift` + drag selects text from it only,
    without grabbing the neighbor. `esc` goes back to the mosaic.
 7. `D` — asks for confirmation. On a project's last cell, the confirmation warns that the
@@ -166,7 +166,7 @@ creation form, `n` `D` `o` `v`.
 ### Phase 3 — the other cell types
 
 `claude`, `cursor`, `logs`, `md`. Turn states with the anti-false-alarm heuristic.
-`p`, `r`, `R`, `ctrl-r`, `space`, `1`…`9`.
+`p`, `r`, `R`, `ctrl+r`, `space`, `1`…`9`.
 
 **Required automated tests**
 
@@ -186,13 +186,13 @@ creation form, `n` `D` `o` `v`.
 1. Create a `claude` cell in a real project. It comes up and Claude's screen appears.
 2. `p` — sends a prompt without entering the cell. Claude starts working; the marker turns
    to working.
-3. It finishes: the marker turns to `⬤ ANSWERED`, the alert sounds, the system notification
+3. It finishes: the marker turns to `⬤ RESPONDED`, the alert sounds, the system notification
    comes up with the cell's and the project's name.
 4. Ask for something that needs approval: the marker turns to `⏵ APPROVE`, with a color
    different from answered.
 5. `space` from another project — jumps straight to the cell that called.
 6. `R` — rename the cell. The name changes on screen **and** the conversation inside Claude
-   is renamed. `ctrl-r` — the cell adopts the name Claude gave the conversation.
+   is renamed. `ctrl+r` — the cell adopts the name Claude gave the conversation.
 7. Repeat 1, 2 and 6 with `cursor`.
 8. Create an `md` cell pointing at a file. Ask Claude to edit that file: the rendered
    markdown updates itself alongside it.

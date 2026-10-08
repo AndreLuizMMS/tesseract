@@ -23,7 +23,12 @@ those 16 colors, Claude Code starts speaking the same language as the grid.
 Claude Code theme:  dark-ansi
 ```
 
-To switch, inside any Claude Code session:
+Inside a cell there is nothing to do: the engine starts Claude Code with
+`--settings '{"theme":"dark-ansi"}'`, which holds for that session only and
+writes nothing to your settings (`claudeTheme` in `config.json` changes or
+turns it off).
+
+Outside Tesseract, to switch by hand inside any Claude Code session:
 
 ```
 /config

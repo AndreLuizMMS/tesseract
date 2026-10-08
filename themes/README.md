@@ -1,7 +1,7 @@
 ```
      ┌────┐
      │┌───┼┐    T E S S E R A C T
-     ││ ▓ ││    the mosaic doesn't come apart
+     ││ ▓ ││    the mosaic never falls apart
      └┼───┘│
       └────┘    ts 0.1.0 // MIT
 ```
@@ -32,13 +32,13 @@ state that **blocks** takes up the whole line.
 | Signal | State | What to do |
 |---|---|---|
 | `▸ WORKING` | live process producing | nothing — let it work |
-| `⬤ REPLIED` | handed back the turn, has text waiting | read when you can; nothing is blocked |
+| `⬤ RESPONDED` | handed back the turn, has text waiting | read when you can; nothing is blocked |
 | `⏵ APPROVE` | stuck on a question and **not moving** | answer: the work is stopped on this |
-| `✖ DIED` | the process died on its own | `r` brings it back up |
+| `✖ CRASHED` | the process died on its own | `r` brings it back up |
 | `○ STOPPED` | no process, cell preserved | `r` resumes where it left off |
-| `⚠ ORPHAN` | the project's directory vanished from disk | recreate the path or kill the cell |
+| `⚠ ORPHANED` | the project's directory vanished from disk | recreate the path or kill the cell |
 
-**Replied ≠ approve.** That's the distinction that makes the alarm worth
+**Responded ≠ approve.** That's the distinction that makes the alarm worth
 something: an agent stuck on a question blocks the work; an agent that
 finished its turn just has something to read.
 
@@ -59,7 +59,7 @@ And **no state color is ever green or cyan** — the two are already owned:
 There are never two keyboard owners at the same time. That rule is what makes
 shortcut collisions structurally impossible.
 
-### NAVIGATE — the keyboard belongs to the app
+### BROWSE — the keyboard belongs to the app
 
 The default. Every key is a command: arrows move through the grid, letters
 act on the focused cell. Cell borders are **simple**, the background is the
@@ -68,7 +68,7 @@ default background, and the bottom bar shows the shortcuts.
 ### TYPE — the keyboard belongs to the cell
 
 `↵` enters. From there **every key goes to the agent, no exceptions**
-— not `q`, not `D`, not `tab`, not the arrows. Only `ctrl-l` returns the
+— not `q`, not `D`, not `tab`, not the arrows. Only `ctrl+l` returns the
 keyboard to the app.
 
 The mode is impossible to mistake, because it changes four things at once:
@@ -79,8 +79,10 @@ The mode is impossible to mistake, because it changes four things at once:
 4. the cell holding the keyboard turns **phosphor green** — and it's the
    only phosphor green on screen.
 
-With `NO_COLOR=1` items 1 and 4 disappear, and items 2 and 3 remain: double
-border and inverted badge don't depend on color at all.
+With `NO_COLOR=1` items 1 and 4 disappear, and items 2 and 3 remain: the
+double border and the badge don't depend on color at all. The badge stops
+being inverted there and keeps its blocks and its weight — with no color, the
+`approve` bar is the only solid area on screen.
 
 ---
 
@@ -127,7 +129,7 @@ in its own config folder and requires no third-party daemon.
 | Key | Action |
 |---|---|
 | `↵` | enters TYPE mode on the focused cell |
-| `ctrl-l` | returns the keyboard to the app |
+| `ctrl+l` | returns the keyboard to the app |
 | `o` | focused cell in full screen |
 | `v` | toggles mosaic ↔ list |
 
@@ -138,7 +140,7 @@ in its own config folder and requires no third-party daemon.
 | `n` | create — asks for the project, then the cell |
 | `r` | resumes a stopped cell, or brings a dead cell back up |
 | `D` | kills the focused cell — always confirms |
-| `ctrl-r` | adopts, as the cell name, the name the agent gave the conversation |
+| `ctrl+r` | adopts, as the cell name, the name the agent gave the conversation |
 
 **Act and read**
 
@@ -146,7 +148,7 @@ in its own config folder and requires no third-party daemon.
 |---|---|
 | `p` | sends a prompt to the focused cell without entering it |
 | `d` | opens the focused project's Docker panel |
-| `ctrl-e` | opens the project directory in the configured IDE |
+| `ctrl+e` | opens the project directory in the configured IDE |
 | `/` | searches the focused cell's history |
 | `esc` | exits scrolling and closes whatever is open |
 | `?` | help |
@@ -156,9 +158,9 @@ in its own config folder and requires no third-party daemon.
 
 ## Theme configuration
 
-The whole palette lives in a single file, `internal/tema/tema.go`. No other
+The whole palette lives in a single file, `internal/theme/theme.go`. No other
 file in the project writes hex — whatever draws asks for the token by name
-(`tema.BrandPhosphor`, `tema.FluxCore`, `tema.StateBlock`). The
+(`theme.BrandPhosphor`, `theme.FluxCore`, `theme.StateBlock`). The
 `scripts/check-theme.sh` script fails if anyone breaks that rule, or tries
 to use green or cyan as a state color.
 

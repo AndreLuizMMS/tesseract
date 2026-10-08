@@ -49,11 +49,11 @@ signals at once — a glyph, a color and a shape — so that none of them is ind
 | Signal | State | What to do |
 |---|---|---|
 | `▸ WORKING` | live process producing | nothing — let it work |
-| `⬤ ANSWERED` | gave back its turn, has a response waiting to be read | read when you can; nothing is blocked |
+| `⬤ RESPONDED` | gave back its turn, has a response waiting to be read | read when you can; nothing is blocked |
 | `⏵ APPROVE` | stuck on a question and **won't move** without an answer | answer: the work stopped here |
 | `✖ CRASHED` | the process died on its own | `r` brings it back up |
 | `○ STOPPED` | no process, cell preserved | `r` resumes from where it stopped |
-| `⚠ ORPHAN` | the project's directory disappeared from disk | recreate the path or kill the cell |
+| `⚠ ORPHANED` | the project's directory disappeared from disk — every cell of the project shows it, whatever its process is doing, until the path is back (checked every 10 s) | recreate the path or kill the cell |
 
 `⏵ APPROVE` is the only one that turns into a **solid, inverted bar filling the whole line**
 of the cell's header, and the only one that **blinks** — 1.8s on, 200ms off, forever, while
@@ -64,9 +64,9 @@ your eye and works with no color at all.
 In the off frame the bar **stays a bar**: only the background changes. The filled area is
 what says "this is blocking the work", and it never disappears. And the clock only exists
 while there's a blocked cell — with none, the screen stays completely still.
-`TESSERACT_SEM_PISCA=1` turns off the blink for those who prefer a still screen.
+`TESSERACT_NO_BLINK=1` turns off the blink for those who prefer a still screen.
 
-**Answered ≠ approve.** That's the distinction that makes the alarm worth something: an
+**Responded ≠ approve.** That's the distinction that makes the alarm worth something: an
 agent stuck on a question blocks the work; an agent that finished its turn just has
 something to read.
 
@@ -96,7 +96,8 @@ state, port, health and uptime; brings up, stops, restarts and rebuilds a servic
 whole stack; and turns a service's log into a mosaic cell.
 
 While Docker is working, the panel says what it's doing and keeps updating the list — the
-services turn green one at a time instead of everything changing at once at the end.
+services flip to `▸ up` one at a time instead of everything changing at once at the end. A
+service that exited on an error reads `✖`, one stopped cleanly `○`: the same glyphs as a cell.
 
 **No destructive action exists here.** There's no `down -v`, no deleting a volume.
 
@@ -106,12 +107,12 @@ services turn green one at a time instead of everything changing at once at the 
   <img src="img/digitar.svg" alt="TYPE mode: the screen dims, the badge appears and only the cell with the keyboard stays lit" width="1000">
 </p>
 
-By default you're in **NAVIGATE**: every key belongs to the app.
+By default you're in **BROWSE**: every key belongs to the app.
 
 `↵` enters **TYPE**: every key belongs to the cell, **with no exception whatsoever**. Not
-`q`, not `D`, not `tab`, not the arrows. `ctrl-l` gives back the keyboard.
+`q`, not `D`, not `tab`, not the arrows. `ctrl+l` gives back the keyboard.
 
-Pasting (`ctrl-v`, or whatever your terminal uses) works in TYPE mode and in text fields.
+Pasting (`ctrl+v`, or whatever your terminal uses) works in TYPE mode and in text fields.
 The text goes in **marked as a paste**: a multi-line prompt enters whole into the agent's
 box, instead of each line break becoming a send. In a single-line field — the project's
 path, the `p` prompt — the paste gets flattened into one line.
@@ -121,13 +122,14 @@ structurally impossible. And the mode is impossible to get wrong, because it cha
 **four** things at once:
 
 1. the screen background darkens and the rest dims;
-2. the focused cell's border thickens and doubles;
+2. the focused cell's border becomes double;
 3. the `▓ TYPE ▓` badge appears reversed;
 4. the cell holding the keyboard turns **phosphor green** — and it's the only phosphor
    green on the screen.
 
-With `NO_COLOR=1` signals 1 and 4 disappear, and signals 2 and 3 stay: double border and
-reversed badge don't depend on color at all.
+With `NO_COLOR=1` signals 1 and 4 disappear, and signals 2 and 3 stay: the double border and
+the badge don't depend on color at all. The badge stops being reversed there — with no
+color, the `approve` bar is the only solid area on the screen.
 
 ## Copying what the agent wrote
 
@@ -154,6 +156,8 @@ defaults.
   "historyLimit": 5242880,
   "scrollbackLines": 2000,
   "sleepAfterMinutes": 15,
+  "mods": true,
+  "claudeTheme": "dark-ansi",
   "agents": {
     "claude": {
       "program": "claude",
@@ -176,14 +180,38 @@ the same conversation. A tab holding a question is never released, and neither i
 what's running in there is yours, and silence in a shell doesn't mean idleness. Zero turns
 it off and keeps every tab you ever opened resident.
 
-The **usage badge** for the 5-hour window shows up in the title bar when your Claude Code
-statusline writes `~/.claude/tesseract-quota.json` (or the old `squad-quota.json`) in the
-format `{"used_percentage": 59, "resets_at": 1786955400}`. Without the file, everything
-still works — the badge just doesn't show up.
+`mods` loads Tesseract's mods into every Claude Code cell. It's through them that the
+agent itself says what its turn is doing, so the cell knows it's waiting for approval
+because Claude Code said so — and the notice tells you *what* is waiting ("requested
+approval: Bash: pnpm migrate"). Turn it off and the cell goes back to being read from the
+outside, by the text on its screen. Nothing else changes: the same happens by itself for a
+cursor cell, or a Claude Code too old to load a mod.
+
+`claudeTheme` is the theme Claude Code starts with inside a cell. `dark-ansi` draws with
+your terminal's own sixteen colors, which is what makes the agent speak the grid's
+palette (see `themes/claude-code.md`). It's passed on the command line, so it holds for
+the cell and your theme outside Tesseract stays as you left it. An empty string leaves
+the theme alone; so does passing your own `--settings` in `args`.
+
+With the mods on, a prompt sent from the mosaic without entering the cell is delivered
+as your own message and queued behind whatever is running, instead of being typed into
+the terminal. Renaming works the same way.
+
+The **usage badge** for the 5-hour window shows up in the title bar by itself as soon as a
+Claude Code cell has measured it. Without the mods it falls back to the old way: your
+Claude Code statusline writes `~/.claude/tesseract-quota.json` (or the old
+`squad-quota.json`) in the format `{"used_percentage": 59, "resets_at": 1786955400}`. With
+neither, everything still works — the badge just doesn't show up.
+
+The mod has two switches of its own, in Claude Code's `/config`: **Detalhe na
+notificação** (off, the notice goes back to a plain "approve" and no text of
+the conversation leaves the session) and **Quota no mosaico**.
 
 ## Who runs inside a cell
 
-Every process Tesseract starts gets `TESSERACT=1` in the environment. It can't paint an
+Every process Tesseract starts gets `TESSERACT=1` in the environment, and
+`TESSERACT_CELL=<project>/<cell>` with the name the cell was born with (a later rename
+doesn't reach a process that's already running). It can't paint an
 agent's interface — what the cell shows is what the process wrote, and nothing more. What
 it can do is say "you're in here", and let whoever cares dress accordingly.
 
