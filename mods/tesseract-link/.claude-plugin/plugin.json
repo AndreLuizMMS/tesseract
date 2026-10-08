@@ -1,0 +1,22 @@
+{
+  "name": "tesseract-link",
+  "version": "0.1.0",
+  "description": "Liga a sessão do Claude Code ao engine do Tesseract: estado do turno, id da conversa, quota e prompts enviados do mosaico. Só age dentro de uma célula.",
+  "author": {
+    "name": "André Luiz"
+  },
+  "userConfig": {
+    "notifyDetail": {
+      "type": "boolean",
+      "title": "Detalhe na notificação",
+      "description": "Manda ao engine o que está esperando (ferramenta e comando) e o começo da resposta, para o aviso do sistema dizer mais que \"pediu aprovação\". Desligado, o aviso volta a ser genérico e nenhum texto da conversa sai da sessão.",
+      "default": true
+    },
+    "quota": {
+      "type": "boolean",
+      "title": "Quota no mosaico",
+      "description": "Reporta o uso da janela de 5 horas ao engine a cada medição. Desligado, o selo de quota volta a depender do arquivo escrito pelo statusline.",
+      "default": true
+    }
+  }
+}
