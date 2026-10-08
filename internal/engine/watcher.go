@@ -39,20 +39,25 @@ func (e *Engine) Watch() {
 			return
 		case <-clock.C:
 			tick++
-			changed := e.checkStates()
-			if tick%ticksBetweenDiskChecks == 0 {
-				changed = e.checkDirectories() || changed
-			}
-			if tick%ticksBetweenDockerChecks == 1 {
-				changed = e.checkDocker() || changed
-			}
-			// A still grid sends no snapshot: whoever draws on the other
-			// side has nothing to redraw, and the engine doesn't pay for
-			// JSON for nothing.
-			if changed || tick%ticksBetweenRefresh == 0 {
-				e.markDirty()
-			}
+			e.watchTick(tick)
 		}
+	}
+}
+
+// watchTick is one look at the grid. Most ticks only read the cells' state;
+// the disk, Docker and the heartbeat each come around on their own count.
+func (e *Engine) watchTick(tick int) {
+	changed := e.checkStates()
+	if tick%ticksBetweenDiskChecks == 0 {
+		changed = e.checkDirectories() || changed
+	}
+	if tick%ticksBetweenDockerChecks == 1 {
+		changed = e.checkDocker() || changed
+	}
+	// A still grid sends no snapshot: whoever draws on the other side has
+	// nothing to redraw, and the engine doesn't pay for JSON for nothing.
+	if changed || tick%ticksBetweenRefresh == 0 {
+		e.markDirty()
 	}
 }
 
@@ -61,8 +66,9 @@ func (e *Engine) stopWatcher() {
 	e.once.Do(func() { close(e.stop) })
 }
 
-// checkStates announces the changes worth a notice: who answered, who asked
-// for approval, and who died.
+// checkStates announces the changes worth a notice: who responded, who is
+// waiting on an approve, and who died. The words are the ones the cell's own
+// marker uses — the notice and the screen can't name one state two ways.
 func (e *Engine) checkStates() bool {
 	type notice struct{ text string }
 	var notices []notice
@@ -85,12 +91,12 @@ func (e *Engine) checkStates() bool {
 			changed = true
 			switch state {
 			case cell.Replied:
-				notices = append(notices, notice{c.name + " · " + projectName + " answered"})
+				notices = append(notices, notice{withDetail(c.name+" · "+projectName+" responded", c.takeDetail())})
 				if c.pendingRename {
 					toAdoptName = append(toAdoptName, c.id)
 				}
 			case cell.Approve:
-				notices = append(notices, notice{c.name + " · " + projectName + " requested approval"})
+				notices = append(notices, notice{withDetail(c.name+" · "+projectName+" approve", c.takeDetail())})
 			case cell.Crashed:
 				if previous != cell.Stopped {
 					notices = append(notices, notice{c.name + " · " + projectName + " crashed"})
@@ -111,20 +117,22 @@ func (e *Engine) checkStates() bool {
 	return changed
 }
 
-// checkDirectories marks as orphaned the cell whose project has disappeared
-// from disk.
+// checkDirectories marks as orphaned the project whose directory has
+// disappeared from disk, and takes the mark back when it returns.
+//
+// The mark lives on the project, not on the cell's last state: that one
+// belongs to checkStates, which rewrites it with what the process says on
+// the very next tick — and the process, alive in a directory that's gone,
+// keeps saying it's working.
 func (e *Engine) checkDirectories() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	changed := false
 	for _, p := range e.projects {
-		if info, err := os.Stat(p.path); err == nil && info.IsDir() {
-			continue
-		}
-		for _, c := range p.cells {
-			changed = changed || c.lastState != cell.Orphaned
-			c.lastState = cell.Orphaned
-		}
+		info, err := os.Stat(p.path)
+		orphan := err != nil || !info.IsDir()
+		changed = changed || p.orphan != orphan
+		p.orphan = orphan
 	}
 	return changed
 }

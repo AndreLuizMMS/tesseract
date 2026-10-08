@@ -1,6 +1,9 @@
 package cell
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 func init() {
 	Register(Descriptor{Type: "bash", Order: 30}, func() Cell { return &Bash{} })
@@ -39,6 +42,9 @@ func terminalEnvironment() []string {
 		case len(pair) > 5 && pair[:5] == "TERM=":
 		case len(pair) > 10 && pair[:10] == "COLORTERM=":
 		case len(pair) > 10 && pair[:10] == "TESSERACT=":
+		// An engine started from inside a cell would hand that cell's
+		// identity down to every cell of its own.
+		case strings.HasPrefix(pair, "TESSERACT_CELL"), strings.HasPrefix(pair, "TESSERACT_TAB="), strings.HasPrefix(pair, "TESSERACT_BIN="):
 		default:
 			environment = append(environment, pair)
 		}

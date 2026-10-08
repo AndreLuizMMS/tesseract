@@ -27,9 +27,33 @@ const (
 // They're lists because agents change this text between versions, and
 // because the same cell needs to recognize the old and the new one without
 // choosing.
+//
+// Working and Question match anywhere on the screen. WorkingLines and
+// QuestionLines only match at the start of a line: they're for an interface
+// that writes the same word in more than one place, where only the line that
+// opens with it means the thing.
 type Markers struct {
-	Working  []string
-	Question []string
+	Working       []string
+	Question      []string
+	WorkingLines  []string
+	QuestionLines []string
+}
+
+// anyLineStarts says whether any line of the screen opens with one of the
+// texts, indentation aside.
+func anyLineStarts(screen string, texts []string) bool {
+	if len(texts) == 0 {
+		return false
+	}
+	for line := range strings.SplitSeq(screen, "\n") {
+		line = strings.TrimLeft(line, " ")
+		for _, text := range texts {
+			if text != "" && strings.HasPrefix(line, text) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // anyPresent says whether any of the texts shows up on the screen, ignoring
@@ -65,6 +89,17 @@ type Turn struct {
 	// anyone.
 	interacted bool
 	state      State
+	// linked marks that a mod inside the agent's own session is attached, and
+	// spoken that it has said something since. From its first word on the
+	// screen isn't read at all: what the agent says about itself beats any
+	// guess from outside. Until then the screen is all there is — a mod that
+	// attaches while a question read off the screen is still up knows nothing
+	// about it, and would leave it there until the next turn.
+	linked bool
+	spoken bool
+	// signaledAt is the mod's clock on the last state it reported, so a
+	// report that arrives late doesn't undo a newer one.
+	signaledAt int64
 }
 
 // NewTurn prepares tracking for an agent with its markers.
@@ -77,12 +112,16 @@ func (t *Turn) Observe(screen string) State {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.linked && t.spoken {
+		return t.state
+	}
+
 	changed := t.screenChanged(screen)
-	question := anyPresent(screen, t.markers.Question)
+	question := anyPresent(screen, t.markers.Question) || anyLineStarts(screen, t.markers.QuestionLines)
 
 	working := changed
-	if len(t.markers.Working) > 0 {
-		working = anyPresent(screen, t.markers.Working)
+	if len(t.markers.Working) > 0 || len(t.markers.WorkingLines) > 0 {
+		working = anyPresent(screen, t.markers.Working) || anyLineStarts(screen, t.markers.WorkingLines)
 	}
 
 	if working && !t.interacted {
@@ -114,12 +153,62 @@ func (t *Turn) Observe(screen string) State {
 		return t.state
 	}
 
+	// The question left the screen, so somebody answered it. Approve is a
+	// question on screen and nothing else: without this, an agent that never
+	// shows work afterwards — or shows it in words this cell doesn't know —
+	// would be stuck asking for an approval already given.
+	if t.state == Approve {
+		t.state = Working
+	}
+
 	t.silence++
 	if t.armed && t.silence >= readingsToEnd {
 		t.armed = false
 		t.state = Replied
 	}
 	return t.state
+}
+
+// Link says whether a mod is attached to speak for the turn. Either way the
+// screen reading starts clean: turned off, the counters from before the mod
+// took over describe a screen that's long gone; turned on, the screen keeps
+// being read until the mod's first word.
+func (t *Turn) Link(on bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.linked, t.spoken = on, false
+	t.working, t.silence, t.armed = 0, 0, false
+}
+
+// Signal is the agent itself saying what state its turn is in. It only
+// counts while a mod is linked, and returns whether it was taken: with the
+// link down the screen reading is in charge, and a report older than the
+// last one taken is a straggler.
+func (t *Turn) Signal(state State, at int64) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.linked || at < t.signaledAt {
+		return false
+	}
+	t.signaledAt = at
+	t.state = state
+	t.spoken = true
+	// A turn the agent reports is a turn someone asked for, even when the
+	// request came from a place the cell never saw.
+	t.interacted = true
+	return true
+}
+
+// Answer marks that the user answered the question the agent was stuck on.
+// The mod only speaks again when the approved tool finishes, which can take
+// minutes — without this the cell would keep asking for an approval that
+// was already given.
+func (t *Turn) Answer() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.linked && t.state == Approve {
+		t.state = Working
+	}
 }
 
 // Interact marks that someone asked the agent for something. From here on

@@ -143,7 +143,7 @@ func TestCreateWithInvalidPathDoesNotChangeState(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist")
 	if _, err := e.Create(protocol.Create{Path: missing, Type: "bash"}); err == nil {
 		t.Fatal("a missing path should fail")
-	} else if !strings.Contains(err.Error(), "does not exist") {
+	} else if !strings.Contains(err.Error(), "No directory at") {
 		t.Fatalf("unclear message: %v", err)
 	}
 

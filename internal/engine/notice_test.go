@@ -8,7 +8,7 @@ import (
 // TestNotificationCommandRespectsCustom — whoever pointed to another
 // notifier gets sent to it.
 func TestNotificationCommandRespectsCustom(t *testing.T) {
-	command := notificationCommand("/usr/bin/my-notify --urgent", "Tesseract", "claude · cortz answered")
+	command := notificationCommand("/usr/bin/my-notify --urgent", "Tesseract", "claude · cortz responded")
 	if command == nil {
 		t.Fatal("the custom command should have been used")
 	}
@@ -20,7 +20,7 @@ func TestNotificationCommandRespectsCustom(t *testing.T) {
 		t.Fatalf("args came out %v", args)
 	}
 	// Title and body are always the last two arguments.
-	if args[len(args)-2] != "Tesseract" || args[len(args)-1] != "claude · cortz answered" {
+	if args[len(args)-2] != "Tesseract" || args[len(args)-1] != "claude · cortz responded" {
 		t.Fatalf("title and body were not the last ones: %v", args)
 	}
 	if args[1] != "--urgent" {
@@ -31,7 +31,7 @@ func TestNotificationCommandRespectsCustom(t *testing.T) {
 // TestNotificationAlwaysHasAPath — on this machine (WSL) there's always a
 // way to notify, even if it's through PowerShell.
 func TestNotificationAlwaysHasAPath(t *testing.T) {
-	command := notificationCommand("", "Tesseract", "claude · cortz answered")
+	command := notificationCommand("", "Tesseract", "claude · cortz responded")
 	if command == nil {
 		t.Skip("machine has no notifier")
 	}
@@ -43,7 +43,7 @@ func TestNotificationAlwaysHasAPath(t *testing.T) {
 // TestToastEscapesQuotes — a cell name with an apostrophe doesn't break the
 // PowerShell script.
 func TestToastEscapesQuotes(t *testing.T) {
-	script := toastScript("Tesseract", "the agent it's done answered")
+	script := toastScript("Tesseract", "the agent it's done responded")
 	if strings.Contains(script, "it's done") {
 		t.Fatalf("the apostrophe should have been escaped: %s", script)
 	}
@@ -60,5 +60,5 @@ func TestToastEscapesQuotes(t *testing.T) {
 func TestNoticeOffCallsNothing(t *testing.T) {
 	m := New(t.TempDir(), Config{Sound: false, Notify: false})
 	// No process to watch, this just must not blow up.
-	m.announce("claude · cortz answered")
+	m.announce("claude · cortz responded")
 }

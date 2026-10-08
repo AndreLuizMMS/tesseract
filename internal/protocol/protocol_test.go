@@ -43,6 +43,12 @@ func testCases() []testCase {
 		{"stop", TypeStop, Summary{}, func() any { return new(Summary) }},
 		{"summary", TypeSummary, Summary{Text: "engine running · 1 project"}, func() any { return new(Summary) }},
 		{"error", TypeError, Error{Message: "path does not exist"}, func() any { return new(Error) }},
+		{"report", TypeReport, Report{
+			Cell: "c1", Tab: "claude", Kind: "state", State: "approve", Detail: "Bash: pnpm migrate",
+			Session: "0b0e7e0c-58a5-4b6e-9f0c-0f6f3c1d2e3f", Percent: 23.5, ResetsAt: "2026-10-08T21:10:00Z", At: 1791481236448,
+		}, func() any { return new(Report) }},
+		{"link", TypeLink, Link{Cell: "c1", Tab: "claude"}, func() any { return new(Link) }},
+		{"deliver", TypeDeliver, Deliver{Text: "cover the mobile menu"}, func() any { return new(Deliver) }},
 		{"state", TypeState, State{
 			Notice: "previous state preserved",
 			Screen: "grid",
@@ -109,6 +115,7 @@ func TestEveryTypeHasCase(t *testing.T) {
 		TypeResume, TypeTab, TypePrompt, TypeComplete, TypeScreen, TypeSearch,
 		TypeDocker, TypeEditor, TypeGoToLine, TypeStatus, TypeStop, TypeState, TypeCompleted,
 		TypeMatches, TypeServices, TypeSummary, TypeError,
+		TypeReport, TypeLink, TypeDeliver,
 	}
 	covered := map[string]bool{}
 	for _, c := range testCases() {

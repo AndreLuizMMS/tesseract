@@ -26,6 +26,9 @@ const (
 	TypeGoToLine  = "go-to-line"
 	TypeStatus    = "status"
 	TypeStop      = "stop"
+	TypeReport    = "report"
+	TypeLink      = "link"
+	TypeDeliver   = "deliver"
 	TypeState     = "state"
 	TypeCompleted = "completed"
 	TypeMatches   = "matches"
@@ -204,6 +207,55 @@ type IDEs struct {
 type GoToLine struct {
 	Cell string `json:"cell"`
 	Line int    `json:"line"`
+}
+
+// Report is what the mod running inside a Claude Code cell tells the engine
+// about its own session. It replaces guessing from the cell's screen: the
+// agent says what turn state it's in, which conversation it's holding and
+// how much of the usage window is gone.
+type Report struct {
+	Cell string `json:"cell"`
+	Tab  string `json:"tab,omitempty"`
+	// Kind picks which of the fields below matter: "state", "session",
+	// "quota", "title" or "delivered".
+	Kind string `json:"kind"`
+	// Delivery is the ID of the Deliver the mod is answering, and Refused
+	// says its session had nowhere to put it.
+	Delivery string `json:"delivery,omitempty"`
+	Refused  bool   `json:"refused,omitempty"`
+	// State is working, answered, approve or ended.
+	State string `json:"state,omitempty"`
+	// Detail is what the notice says beyond the state: the tool and command
+	// waiting for approval, or the opening of the answer.
+	Detail string `json:"detail,omitempty"`
+	// Session is the conversation's real identity, which changes under the
+	// cell on /clear, /resume and /branch.
+	Session string `json:"session,omitempty"`
+	// Percent and ResetsAt are the 5-hour window, the latter in RFC 3339.
+	Percent  float64 `json:"percent,omitempty"`
+	ResetsAt string  `json:"resetsAt,omitempty"`
+	// At is the mod's clock in milliseconds when the event happened. Each
+	// report travels in its own process, and this is what keeps a late one
+	// from overwriting a newer state.
+	At int64 `json:"at,omitempty"`
+}
+
+// Link turns the connection into the engine's way of reaching the mod of
+// one cell: from here on it receives Deliver messages and no snapshot.
+type Link struct {
+	Cell string `json:"cell"`
+	Tab  string `json:"tab,omitempty"`
+}
+
+// Deliver is work the engine hands to a cell's mod, to be submitted as the
+// user's own words. A text that opens with a slash is a command.
+// The mod answers with a "delivered" report carrying the ID, and ignores a
+// delivery whose Expires (milliseconds) has passed: the engine has given up
+// on it and typed the text into the cell instead.
+type Deliver struct {
+	ID      string `json:"id,omitempty"`
+	Text    string `json:"text"`
+	Expires int64  `json:"expires,omitempty"`
 }
 
 // CellType is a type's spec, as the form needs to know it. Comes from the

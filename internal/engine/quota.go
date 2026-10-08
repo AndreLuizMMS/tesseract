@@ -31,11 +31,39 @@ var cachedQuota struct {
 	read  time.Time
 }
 
+// reportedQuota is the usage a cell's mod measured from inside Claude Code.
+// It's the first source: the statusline file only speaks when no mod has.
+var reportedQuota struct {
+	sync.Mutex
+	percent  int
+	rollover time.Time
+	at       time.Time
+}
+
+// reportedQuotaAt is the mod's number, while it's fresh. The time left is
+// worked out on every reading, because the clock runs between two reports.
+func reportedQuotaAt(now time.Time) *protocol.Quota {
+	reportedQuota.Lock()
+	defer reportedQuota.Unlock()
+	if reportedQuota.at.IsZero() || now.Sub(reportedQuota.at) > quotaStaleAfter {
+		return nil
+	}
+	quota := &protocol.Quota{Percent: reportedQuota.percent}
+	if !reportedQuota.rollover.IsZero() {
+		quota.Rollover = timeRemaining(reportedQuota.rollover.Sub(now))
+	}
+	return quota
+}
+
 // ReadQuota returns the 5-hour window's usage, or nil when the data doesn't
-// exist or is stale. Without the file, everything still works — the badge
+// exist or is stale. A mod's report comes first and the statusline file is
+// what's left without one; with neither, everything still works — the badge
 // just doesn't show up.
 func ReadQuota() *protocol.Quota {
 	now := time.Now()
+	if quota := reportedQuotaAt(now); quota != nil {
+		return quota
+	}
 	cachedQuota.Lock()
 	defer cachedQuota.Unlock()
 	if now.Sub(cachedQuota.read) < quotaCacheTTL {

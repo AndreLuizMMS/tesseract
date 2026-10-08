@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andreluiz/tesseract/internal/cell"
 	"github.com/andreluiz/tesseract/internal/protocol"
 )
 
@@ -84,19 +85,30 @@ func (s *Server) handle(conn net.Conn) {
 
 	var writeMu sync.Mutex
 	encoder := json.NewEncoder(conn)
-	respond := func(kind string, data any) {
+	send := func(kind string, data any) error {
 		envelope, err := protocol.Pack(kind, data)
 		if err != nil {
-			return
+			return err
 		}
 		writeMu.Lock()
 		defer writeMu.Unlock()
-		_ = encoder.Encode(envelope)
+		return encoder.Encode(envelope)
 	}
+	respond := func(kind string, data any) { _ = send(kind, data) }
 
 	done := make(chan struct{})
+	quiet := sync.OnceFunc(func() { close(done) })
 	go s.pushSnapshots(respond, done)
-	defer close(done)
+	defer quiet()
+
+	// detach is set when the connection turns out to be a cell's mod. The
+	// connection dropping is how the engine learns the mod is gone.
+	var detach func()
+	defer func() {
+		if detach != nil {
+			detach()
+		}
+	}()
 
 	decoder := json.NewDecoder(conn)
 	for {
@@ -107,7 +119,25 @@ func (s *Server) handle(conn net.Conn) {
 			}
 			return
 		}
-		s.handleRequest(envelope, respond)
+		if envelope.Type != protocol.TypeLink {
+			s.handleRequest(envelope, respond)
+			continue
+		}
+		request, err := protocol.Unpack[protocol.Link](envelope)
+		if err == nil && detach == nil {
+			// A mod draws nothing: its connection stops getting snapshots
+			// and carries only what the engine has to hand it.
+			quiet()
+			detach, err = s.engine.Link(request.Cell, request.Tab, func(delivery cell.Delivery) error {
+				return send(protocol.TypeDeliver, protocol.Deliver{ID: delivery.ID, Text: delivery.Text, Expires: delivery.Expires})
+			})
+		}
+		if err != nil {
+			// Closing is the answer: whoever is on the other end exits
+			// instead of waiting on a link that was never made.
+			respond(protocol.TypeError, protocol.Error{Message: err.Error()})
+			return
+		}
 	}
 }
 
@@ -214,6 +244,19 @@ func (s *Server) handleRequest(envelope protocol.Message, respond func(string, a
 			return
 		}
 		fail(s.engine.Prompt(request.Cell, request.Text))
+
+	case protocol.TypeReport:
+		request, err := protocol.Unpack[protocol.Report](envelope)
+		if err != nil {
+			fail(err)
+			return
+		}
+		if err := s.engine.Report(request); err != nil {
+			fail(err)
+			return
+		}
+		// Whoever reports is a one-shot process waiting to know it landed.
+		respond(protocol.TypeSummary, protocol.Summary{Text: "ok"})
 
 	case protocol.TypeEditor:
 		request, err := protocol.Unpack[protocol.Editor](envelope)

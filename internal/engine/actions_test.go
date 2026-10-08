@@ -150,7 +150,7 @@ func TestResumeBringsUpACrashedCell(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating: %v", err)
 	}
-	pasteAndEnter(t, m, id, "exit")
+	pasteAndEnter(t, m, id, "exit 3")
 	if !waitFor(t, 5*time.Second, func() bool {
 		return m.Snapshot().Projects[0].Cells[0].State == "down"
 	}) {
@@ -313,5 +313,33 @@ func TestEditorDoesNotStallOnTheWSLPrompt(t *testing.T) {
 	}
 	if string(opened) != project {
 		t.Fatalf("opened %q, expected the project's directory %q", opened, project)
+	}
+}
+
+// TestRemoteCLIIsFoundWhereTheIDEKeepsIt — VS Code's launcher is `code` and
+// its server lives in ~/.vscode-server, not ~/.code-server: looking under the
+// launcher's name never found a window to reuse. Cursor's folder does carry
+// its own name.
+func TestRemoteCLIIsFoundWhereTheIDEKeepsIt(t *testing.T) {
+	home := t.TempDir()
+	install := func(folder, name string) string {
+		dir := filepath.Join(home, folder, "bin", "110a328e", "bin", "remote-cli")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cli := filepath.Join(dir, name)
+		if err := os.WriteFile(cli, nil, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return cli
+	}
+	for name, folder := range map[string]string{
+		"code": ".vscode-server", "code-insiders": ".vscode-server-insiders",
+		"codium": ".vscodium-server", "cursor": ".cursor-server",
+	} {
+		want := install(folder, name)
+		if found := remoteCLIs(home, name); len(found) != 1 || found[0] != want {
+			t.Errorf("%s: expected %s, found %v", name, want, found)
+		}
 	}
 }

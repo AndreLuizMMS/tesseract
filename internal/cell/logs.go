@@ -31,11 +31,11 @@ type Logs struct {
 
 func (l *Logs) Spawn(cfg Config) error {
 	if cfg.Target == "" {
-		return fmt.Errorf("the logs cell needs to know which service to follow")
+		return fmt.Errorf("The logs cell needs a service. d opens the Docker panel to pick one.")
 	}
 	l.file = docker.Detect(cfg.Directory)
 	if l.file == "" {
-		return fmt.Errorf("the project has no compose file at its root")
+		return fmt.Errorf("No compose file at the root of this project.")
 	}
 	l.service = cfg.Target
 	l.program, l.args = docker.LogCommand(l.file, l.service)

@@ -124,7 +124,7 @@ func newCursorConversation(directory string, since time.Time) string {
 func cursorConversationName(directory, conversation string) (string, error) {
 	entries := cursorEntries(directory)
 	if len(entries) == 0 {
-		return "", fmt.Errorf("Cursor hasn't saved anything for this folder yet")
+		return "", fmt.Errorf("Cursor hasn't saved anything for this folder yet. p sends its first prompt.")
 	}
 	if conversation != "" {
 		for _, entry := range entries {
@@ -132,7 +132,7 @@ func cursorConversationName(directory, conversation string) (string, error) {
 				return entry.Title, nil
 			}
 		}
-		return "", fmt.Errorf("the conversation doesn't have a name yet")
+		return "", fmt.Errorf("The conversation has no name yet. ctrl+r asks the agent for one.")
 	}
 	var chosen cursorConversationEntry
 	for _, entry := range entries {

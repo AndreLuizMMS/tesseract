@@ -103,22 +103,25 @@ func TestKilledCellBecomesStopped(t *testing.T) {
 	}
 }
 
-// TestProcessThatDiesOnItsOwnCrashes is the other end: nobody asked, so it
-// crashed.
+// TestProcessThatDiesOnItsOwnCrashes is the other end: nobody asked, and it
+// went out on an error, so it crashed. One that leaves with exit 0 was told
+// to leave (the shell's exit, the agent's /exit): that's stopped.
 func TestProcessThatDiesOnItsOwnCrashes(t *testing.T) {
-	dir := t.TempDir()
-	c, err := New("bash")
-	if err != nil {
-		t.Fatalf("manufacture cell: %v", err)
-	}
-	if err := c.Spawn(Config{ID: "c1", Directory: dir, Columns: 40, Lines: 10}); err != nil {
-		t.Fatalf("spawn: %v", err)
-	}
-	defer c.Kill()
+	for command, want := range map[string]State{"exit 3": Crashed, "exit": Stopped} {
+		dir := t.TempDir()
+		c, err := New("bash")
+		if err != nil {
+			t.Fatalf("manufacture cell: %v", err)
+		}
+		if err := c.Spawn(Config{ID: "c1", Directory: dir, Columns: 40, Lines: 10}); err != nil {
+			t.Fatalf("spawn: %v", err)
+		}
+		defer c.Kill()
 
-	pasteAndEnter(t, c, "exit")
-	if !waitFor(t, 3*time.Second, func() bool { return c.State() == Crashed }) {
-		t.Fatalf("state after the shell exited: %q, expected crashed", c.State())
+		pasteAndEnter(t, c, command)
+		if !waitFor(t, 3*time.Second, func() bool { return c.State() == want }) {
+			t.Fatalf("state after the shell ran %q: %q, expected %q", command, c.State(), want)
+		}
 	}
 }
 
@@ -133,7 +136,7 @@ func TestSpawnInNonexistentDirectoryFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("spawning in a nonexistent directory should fail")
 	}
-	if !strings.Contains(err.Error(), "doesn't exist") {
+	if !strings.Contains(err.Error(), "directory is gone") {
 		t.Fatalf("unclear error message: %v", err)
 	}
 }
@@ -414,5 +417,34 @@ func TestScrollbackRespectsTheCap(t *testing.T) {
 	}
 	if above := agent.emulator.ScrollbackLen(); above > 25 {
 		t.Fatalf("the internal screen kept %d lines above, the cap is 25", above)
+	}
+}
+
+// TestTitleWithAStarDoesNotSpillOntoTheScreen is Claude Code's own start:
+// it names the window "✳ Claude Code" and draws its header. The star's
+// second byte ended the title early and the rest was typed over the header
+// ("Claude CodClaude█Code"). The title arrives whole, or cut anywhere.
+func TestTitleWithAStarDoesNotSpillOntoTheScreen(t *testing.T) {
+	const start = "\x1b[?2004h\x1b]0;✳ Claude Code\x07\x1b[91m ▐\x1b[40m▛███▛█\x1b[12G\x1b[39m\x1b[49m\x1b[1mClaude\x1b[19GCode\x1b[24G\x1b[22mv2.1.295\r\n" +
+		"\x1b]2;título\x1b\\second line ✳ stays\r\n"
+	for cut := 0; cut <= len(start); cut++ {
+		screen := vt.NewSafeEmulator(60, 4)
+		go func() {
+			answers := make([]byte, 1024)
+			for {
+				if _, err := screen.Read(answers); err != nil {
+					return
+				}
+			}
+		}()
+		var guard titleGuard
+		_, _ = screen.Write(guard.clean([]byte(start[:cut])))
+		_, _ = screen.Write(guard.clean([]byte(start[cut:])))
+		lines := strings.Split(screen.String(), "\n")
+		first, second := strings.TrimRight(lines[0], " "), strings.TrimRight(lines[1], " ")
+		_ = screen.Close()
+		if first != " ▐▛███▛█   Claude Code v2.1.295" || second != "second line ✳ stays" {
+			t.Fatalf("cut at byte %d, the screen shows %q and %q", cut, first, second)
+		}
 	}
 }

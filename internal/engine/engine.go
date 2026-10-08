@@ -32,8 +32,11 @@ type Engine struct {
 	screen   string
 	notice   string
 	version  atomic.Uint64
-	stop     chan struct{}
-	once     sync.Once
+	// discoveries numbers each conversation an agent reports, in the order
+	// they were reported (see saveConversation).
+	discoveries atomic.Uint64
+	stop        chan struct{}
+	once        sync.Once
 }
 
 type project struct {
@@ -44,6 +47,10 @@ type project struct {
 	compose string
 	// docker is the stack summary for the strip, refreshed from time to time.
 	docker string
+	// orphan marks that the directory vanished from disk. The processes may
+	// well be alive in there: it's the project that's gone, and every cell
+	// of it shows that instead of its own state.
+	orphan bool
 	cells  []*liveCell
 }
 
@@ -54,14 +61,20 @@ type liveCell struct {
 	target        string
 	tab           string
 	conversations map[string]string
-	proc          cell.Cell
-	record        *history.History
+	// discovered is the ticket of the last conversation saved for each tab.
+	discovered map[string]uint64
+	proc       cell.Cell
+	record     *history.History
 	// lastState is what the watcher saw last time, so it only notifies the
 	// change and not the idle state.
 	lastState cell.State
 	// pendingRename marks that an automatic /rename was sent and the watcher
 	// needs to adopt the name as soon as the turn ends.
 	pendingRename bool
+	// detail is what the cell's mod said about the state it last reported —
+	// the command waiting for approval, the opening of the answer — and
+	// detailTab is the tab it spoke for. The watcher puts it in the notice.
+	detail, detailTab string
 }
 
 // New prepares an engine over a state directory.
@@ -204,7 +217,13 @@ func (e *Engine) wake(p *project, c *liveCell) error {
 		Conversations: conversations,
 		// Off the lock: whoever calls this may be the cell's own birth, which
 		// is already holding the engine's lock.
-		OnConversationDiscovered: func(tab, id string) { go e.saveConversation(cellID, tab, id) },
+		// Each discovery is saved by its own goroutine, and they don't run in
+		// the order they were made: the ticket, taken here, is what keeps the
+		// id the agent was born with from landing after the one its mod
+		// reported and putting the old conversation back.
+		OnConversationDiscovered: func(tab, id string) {
+			go e.saveConversation(cellID, tab, id, e.discoveries.Add(1))
+		},
 
 		Profiles: e.profiles(),
 		OpenHistory: func(suffix string) (*history.History, error) {
@@ -227,13 +246,16 @@ func (e *Engine) profiles() map[string]cell.Profile {
 			},
 		}
 	}
+	claude := profiles["claude"]
+	claude.Args = append(append([]string{}, claude.Args...), e.claudeArgs(claude.Args)...)
+	profiles["claude"] = claude
 	return profiles
 }
 
 // saveConversation records the identity of the conversation the agent
 // opened, so it can be reattached after a crash. On a cell with tabs, each
 // tab has its own.
-func (e *Engine) saveConversation(cellID, tab, conversation string) {
+func (e *Engine) saveConversation(cellID, tab, conversation string, ticket uint64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, p := range e.projects {
@@ -247,6 +269,13 @@ func (e *Engine) saveConversation(cellID, tab, conversation string) {
 			if c.conversations == nil {
 				c.conversations = map[string]string{}
 			}
+			if c.discovered == nil {
+				c.discovered = map[string]uint64{}
+			}
+			if ticket < c.discovered[tab] {
+				return // a newer discovery got here first
+			}
+			c.discovered[tab] = ticket
 			if c.conversations[tab] == conversation {
 				return
 			}
@@ -430,7 +459,7 @@ func (e *Engine) historyOf(c *liveCell) *history.History {
 func (e *Engine) Rename(cellID, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return fmt.Errorf("the name cannot be empty")
+		return fmt.Errorf("Name can't be empty. ctrl+r asks the agent for one.")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -459,6 +488,7 @@ func (e *Engine) Snapshot() protocol.State {
 	type portrait struct {
 		project, cell int
 		proc          cell.Cell
+		orphan        bool
 	}
 
 	e.mu.Lock()
@@ -479,13 +509,14 @@ func (e *Engine) Snapshot() protocol.State {
 					project: len(snapshot.Projects),
 					cell:    len(drawing.Cells),
 					proc:    c.proc,
+					orphan:  p.orphan,
 				})
 			}
 			drawing.Cells = append(drawing.Cells, protocol.Cell{
 				ID:    c.id,
 				Type:  c.kind,
 				Name:  c.name,
-				State: string(cell.Stopped),
+				State: string(p.restState()),
 				Live:  true,
 			})
 		}
@@ -504,7 +535,9 @@ func (e *Engine) Snapshot() protocol.State {
 			cellSnapshot.Asleep = withSleep.AsleepTabs()
 		}
 		frame := next.proc.Draw()
-		cellSnapshot.State = string(next.proc.State())
+		if !next.orphan {
+			cellSnapshot.State = string(next.proc.State())
+		}
 		cellSnapshot.Lines = frame.Lines
 		cellSnapshot.CursorX = frame.CursorX
 		cellSnapshot.CursorY = frame.CursorY
@@ -557,18 +590,36 @@ func (e *Engine) Summary() string {
 	for _, p := range e.projects {
 		cells += len(p.cells)
 	}
-	fmt.Fprintf(&text, "engine running · %d project(s) · %d cell(s)\n", len(e.projects), cells)
+	fmt.Fprintf(&text, "engine running · %s · %s\n",
+		plural(len(e.projects), "project", "projects"), plural(cells, "cell", "cells"))
 	for _, p := range e.projects {
 		fmt.Fprintf(&text, "\n%s  %s\n", filepath.Base(p.path), p.path)
 		for _, c := range p.cells {
-			state := cell.Stopped
-			if c.proc != nil {
+			state := p.restState()
+			if c.proc != nil && !p.orphan {
 				state = c.proc.State()
 			}
 			fmt.Fprintf(&text, "  %s %-7s %s\n", state.Marker(), c.kind, c.name)
 		}
 	}
 	return text.String()
+}
+
+// restState is a cell's state before its process is asked: orphaned when
+// the project's directory is gone, stopped otherwise.
+func (p *project) restState() cell.State {
+	if p.orphan {
+		return cell.Orphaned
+	}
+	return cell.Stopped
+}
+
+// plural writes the number next to the noun in the right form.
+func plural(count int, one, many string) string {
+	if count == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", count, many)
 }
 
 // Shutdown kills every cell and releases the files. The desired state stays
@@ -686,10 +737,12 @@ func autoName(p *project, kind string) string {
 }
 
 // validatePath requires a directory that exists and is writable, right now.
+// Its errors land on the screen's footer after the form has closed, so each
+// one is a whole sentence that ends on the key that fixes it.
 func validatePath(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", fmt.Errorf("the project needs a path")
+		return "", fmt.Errorf("Project needs a path. n opens the form again.")
 	}
 	if strings.HasPrefix(raw, "~") {
 		if home, err := os.UserHomeDir(); err == nil {
@@ -698,17 +751,17 @@ func validatePath(raw string) (string, error) {
 	}
 	path, err := filepath.Abs(raw)
 	if err != nil {
-		return "", fmt.Errorf("invalid path: %s", raw)
+		return "", fmt.Errorf("Invalid path: %s. n picks a folder from the list.", raw)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", fmt.Errorf("directory does not exist: %s", path)
+		return "", fmt.Errorf("No directory at %s. n picks another folder.", path)
 	}
 	if !info.IsDir() {
-		return "", fmt.Errorf("path is not a directory: %s", path)
+		return "", fmt.Errorf("%s is a file, not a directory. n picks a folder.", path)
 	}
 	if err := syscall.Access(path, 2 /* W_OK */); err != nil {
-		return "", fmt.Errorf("no write permission on: %s", path)
+		return "", fmt.Errorf("No write permission on %s. n picks another folder.", path)
 	}
 	return path, nil
 }

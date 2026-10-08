@@ -22,11 +22,11 @@ type Shell struct {
 
 func (s *Shell) Spawn(cfg Config) error {
 	if cfg.Target == "" {
-		return fmt.Errorf("the shell cell needs to know which service to enter")
+		return fmt.Errorf("The shell cell needs a service. d opens the Docker panel to pick one.")
 	}
 	file := docker.Detect(cfg.Directory)
 	if file == "" {
-		return fmt.Errorf("the project has no compose file at its root")
+		return fmt.Errorf("No compose file at the root of this project.")
 	}
 	program, args := docker.ShellCommand(file, cfg.Target)
 	return s.start(cfg, program, args, terminalEnvironment())

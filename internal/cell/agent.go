@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/x/vt"
@@ -48,12 +49,23 @@ type Agent struct {
 	stop             chan struct{}
 	readName         func(directory, conversation string) (string, error)
 	findConversation func(directory string, since time.Time) string
+
+	// linkMu guards what the mod changes from outside the watch: the
+	// conversation's identity and the way to reach the mod itself. links are
+	// the mod connections attached right now, oldest first; acks are the
+	// deliveries still waiting for the mod to say it took them.
+	linkMu     sync.Mutex
+	links      []*func(Delivery) error
+	acks       map[string]chan bool
+	deliveries int64
 }
 
 // spawn brings the agent up and starts following its turn.
 func (a *Agent) spawn(cfg Config, profile Profile, program string, args []string, markers Markers) error {
 	// The user's config wins: it exists for the day the agent changes the
 	// text it writes on its own screen.
+	// It replaces what matches anywhere on the screen; the line markers
+	// stay, since they're Tesseract's own skin and change with it.
 	if len(profile.Markers.Working) > 0 {
 		markers.Working = profile.Markers.Working
 	}
@@ -64,7 +76,7 @@ func (a *Agent) spawn(cfg Config, profile Profile, program string, args []string
 	a.conversation = cfg.Conversation
 	a.bornAt = time.Now()
 	a.stop = make(chan struct{})
-	if err := a.start(cfg, program, args, terminalEnvironment()); err != nil {
+	if err := a.start(cfg, program, args, append(terminalEnvironment(), linkEnvironment(cfg)...)); err != nil {
 		return err
 	}
 	go a.watchTurn()
@@ -90,12 +102,9 @@ func (a *Agent) watchTurn() {
 				previous = state
 				a.notify()
 			}
-			if a.conversation == "" && a.findConversation != nil {
+			if a.Conversation() == "" && a.findConversation != nil {
 				if found := a.findConversation(a.config.Directory, a.bornAt); found != "" {
-					a.conversation = found
-					if a.config.OnConversationDiscovered != nil {
-						a.config.OnConversationDiscovered(a.config.Tab, found)
-					}
+					_ = a.Rebind("", found)
 				}
 			}
 		}
@@ -131,6 +140,9 @@ func (a *Agent) States() []State {
 func (a *Agent) Key(tap Keystroke) error {
 	a.turn.Interact()
 	a.turn.Seen()
+	if answers(tap) {
+		a.turn.Answer()
+	}
 	return a.Process.Key(tap)
 }
 
@@ -138,9 +150,17 @@ func (a *Agent) Key(tap Keystroke) error {
 func (a *Agent) Prompt(text string) error {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return fmt.Errorf("the prompt is empty")
+		return fmt.Errorf("Empty prompt. p opens the box again.")
 	}
 	a.turn.Interact()
+	// With a mod inside the session the text goes in as the user's own
+	// words, queued behind whatever is running. Pasting is what's left for
+	// an agent with no mod, or one whose mod didn't answer: it types into
+	// whatever has the keyboard, and the enter has to wait for the agent to
+	// digest the paste.
+	if taken, err := a.viaLink(text); taken || err != nil {
+		return err
+	}
 	if err := a.Process.Key(Keystroke{Paste: text}); err != nil {
 		return err
 	}
@@ -152,7 +172,7 @@ func (a *Agent) Prompt(text string) error {
 // itself chooses and writes the conversation's title.
 func (a *Agent) RequestAutoName() error {
 	if a.renameCommand == "" {
-		return fmt.Errorf("this agent doesn't know how to rename its own conversation")
+		return fmt.Errorf("This agent can't rename its own conversation. Name it from inside: ↵ enters the cell.")
 	}
 	return a.Prompt(a.renameCommand)
 }
@@ -162,21 +182,25 @@ func (a *Agent) RequestAutoName() error {
 // empty.
 func (a *Agent) ConversationName() (string, error) {
 	if a.readName == nil {
-		return "", fmt.Errorf("this agent doesn't keep a conversation name")
+		return "", fmt.Errorf("This agent keeps no conversation name. Name it from inside: ↵ enters the cell.")
 	}
-	name, err := a.readName(a.config.Directory, a.conversation)
+	name, err := a.readName(a.config.Directory, a.Conversation())
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(name) == "" {
-		return "", fmt.Errorf("the conversation doesn't have a name yet")
+		return "", fmt.Errorf("The conversation has no name yet. ctrl+r asks the agent for one.")
 	}
 	return name, nil
 }
 
 // Conversation is the conversation's identity, which the engine keeps to
 // reattach later.
-func (a *Agent) Conversation() string { return a.conversation }
+func (a *Agent) Conversation() string {
+	a.linkMu.Lock()
+	defer a.linkMu.Unlock()
+	return a.conversation
+}
 
 // Kill ends the watch along with the process.
 func (a *Agent) Kill() error {

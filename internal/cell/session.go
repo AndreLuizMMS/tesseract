@@ -318,7 +318,7 @@ func (s *Session) Draw() Frame {
 func (s *Session) Key(tap Keystroke) error {
 	current := s.current()
 	if current == nil {
-		return fmt.Errorf("the tab hasn't come up yet")
+		return fmt.Errorf("The tab is still coming up. Try again in a moment.")
 	}
 	return current.Key(tap)
 }
@@ -410,11 +410,11 @@ func (s *Session) ActiveHistory() *history.History {
 func (s *Session) Prompt(text string) error {
 	current := s.current()
 	if current == nil {
-		return fmt.Errorf("the tab hasn't come up yet")
+		return fmt.Errorf("The tab is still coming up. Try again in a moment.")
 	}
 	withPrompt, accepts := current.(WithPrompt)
 	if !accepts {
-		return fmt.Errorf("the %s tab doesn't take a prompt", s.ActiveTab())
+		return fmt.Errorf("The %s tab takes no prompt. tab switches to an agent.", s.ActiveTab())
 	}
 	return withPrompt.Prompt(text)
 }
@@ -423,7 +423,7 @@ func (s *Session) Prompt(text string) error {
 func (s *Session) RequestAutoName() error {
 	withConversation, ok := s.current().(WithConversation)
 	if !ok {
-		return fmt.Errorf("the %s tab doesn't have a named conversation", s.ActiveTab())
+		return fmt.Errorf("The %s tab has no conversation to name. tab switches to an agent.", s.ActiveTab())
 	}
 	return withConversation.RequestAutoName()
 }
@@ -432,7 +432,7 @@ func (s *Session) RequestAutoName() error {
 func (s *Session) ConversationName() (string, error) {
 	withConversation, ok := s.current().(WithConversation)
 	if !ok {
-		return "", fmt.Errorf("the %s tab doesn't have a named conversation", s.ActiveTab())
+		return "", fmt.Errorf("The %s tab has no conversation to name. tab switches to an agent.", s.ActiveTab())
 	}
 	return withConversation.ConversationName()
 }

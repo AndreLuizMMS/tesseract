@@ -266,3 +266,77 @@ func TestClaudePermissionQuestionsWaitForTheUser(t *testing.T) {
 		}
 	}
 }
+
+// The skin mod (mods/tesseract-skin) redraws Claude Code in the brand's
+// vocabulary: the band above the prompt carries the turn's state from start
+// to end, the spinner becomes "▸ WORKING · …", the blocked tool call becomes
+// a solid "⏵ APPROVE" bar and the end of the turn "⬤ RESPONDED · …". None of
+// Claude Code's own texts survive, so the screen reading has to know these
+// too — it's what's left when the link drops with the skin still loaded.
+const (
+	skinWorking = "› migra as tabelas\n\n" +
+		"· Read db/schema.sql\n\n" +
+		"▸ WORKING · thinking · 12s\n\n" +
+		"⧉ api/claude 1 · ▸ WORKING · 5h 43%\n" +
+		"────────\n❯ \n"
+	skinApprove = "› migra as tabelas\n\n" +
+		" ⏵ APPROVE  Bash: pnpm migrate  Enter approves, Esc declines\n\n" +
+		"⧉ api/claude 1 · ▸ WORKING · 5h 43%\n" +
+		"────────\n❯ \n"
+	skinRunning = "› migra as tabelas\n\n" +
+		"▸ Bash pnpm migrate\n\n" +
+		"▸ WORKING · tool · 31s\n\n" +
+		"⧉ api/claude 1 · ▸ WORKING · 5h 43%\n" +
+		"────────\n❯ \n"
+	skinResponded = "› migra as tabelas\n\n" +
+		"Migrei as 3 tabelas.\n\n" +
+		"⬤ RESPONDED · 41s\n\n" +
+		"⧉ api/claude 1 · ⬤ RESPONDED · 5h 43%\n" +
+		"────────\n❯ \n"
+)
+
+// TestSkinScreenIsReadWithoutTheLink walks a whole turn drawn by the skin,
+// with no mod speaking: work, a question, the answer, the end.
+func TestSkinScreenIsReadWithoutTheLink(t *testing.T) {
+	turn := NewTurn(claudeMarkers)
+	turn.Interact()
+
+	for range readingsToArm {
+		if state := turn.Observe(skinWorking); state != Working {
+			t.Fatalf("the skin's spinner is work, got %q", state)
+		}
+	}
+	// The band still says WORKING while the bar asks: the bar wins.
+	if state := turn.Observe(skinApprove); state != Approve {
+		t.Fatalf("the skin's approve bar is a question, got %q", state)
+	}
+	// Answered: the bar is gone and the tool runs. This is where the cell
+	// used to stay stuck on approve.
+	if state := turn.Observe(skinRunning); state != Working {
+		t.Fatalf("the question was answered and the tool is running, got %q", state)
+	}
+	for range readingsToArm {
+		turn.Observe(skinRunning)
+	}
+	var state State
+	for range readingsToEnd {
+		state = turn.Observe(skinResponded)
+	}
+	if state != Replied {
+		t.Fatalf("the skin's turn ended, the cell should have replied, got %q", state)
+	}
+}
+
+// TestApproveClearsWhenTheQuestionLeavesTheScreen — with no mod to say the
+// question was answered, the question leaving the screen is the answer. It
+// can't wait for work to show up afterwards: a declined tool shows none.
+func TestApproveClearsWhenTheQuestionLeavesTheScreen(t *testing.T) {
+	turn := NewTurn(claudeMarkers)
+	turn.Interact()
+	if state := turn.Observe("Do you want to proceed?\n❯ 1. Yes"); state != Approve {
+		t.Fatalf("expected approve, got %q", state)
+	}
+	if state := turn.Observe("❯ \n? for shortcuts"); state != Working {
+		t.Fatalf("the question is gone, the cell still says %q", state)
+	}
+}

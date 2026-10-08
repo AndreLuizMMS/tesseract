@@ -31,7 +31,7 @@ func (e *Engine) Resume(cellID string) error {
 			if c.proc != nil {
 				state := c.proc.State()
 				if state != cell.Crashed && state != cell.Stopped && state != cell.Orphaned {
-					return fmt.Errorf("cell %s is already running", c.name)
+					return fmt.Errorf("%s is already running. ↵ enters it.", c.name)
 				}
 				_ = c.proc.Kill()
 			}
@@ -58,7 +58,7 @@ func (e *Engine) SwitchTab(cellID string, step int) error {
 	}
 	withTabs, ok := c.proc.(cell.WithTabs)
 	if !ok {
-		return fmt.Errorf("cell %s has no tabs", c.name)
+		return fmt.Errorf("%s has a single screen. No tab to switch to.", c.name)
 	}
 	if err := withTabs.SwitchTab(step); err != nil {
 		return err
@@ -79,7 +79,7 @@ func (e *Engine) Prompt(cellID, text string) error {
 	}
 	withPrompt, accepts := c.proc.(cell.WithPrompt)
 	if !accepts {
-		return fmt.Errorf("cell %s does not accept prompts", c.name)
+		return fmt.Errorf("%s takes no prompt. ↵ enters it to type.", c.name)
 	}
 	if err := withPrompt.Prompt(text); err != nil {
 		return err
@@ -98,7 +98,7 @@ func (e *Engine) AutoRename(cellID string) error {
 	}
 	withConversation, ok := c.proc.(cell.WithConversation)
 	if !ok {
-		return fmt.Errorf("cell %s has no named conversation", c.name)
+		return fmt.Errorf("%s has no conversation to name. ctrl+r works on an agent's cell.", c.name)
 	}
 	if err := withConversation.RequestAutoName(); err != nil {
 		return err
@@ -123,7 +123,7 @@ func (e *Engine) AdoptAgentName(cellID string) error {
 
 	withConversation, ok := c.proc.(cell.WithConversation)
 	if !ok {
-		return fmt.Errorf("cell %s has no named conversation", c.name)
+		return fmt.Errorf("%s has no conversation to name. ctrl+r works on an agent's cell.", c.name)
 	}
 	name, err := withConversation.ConversationName()
 	if err != nil {
@@ -255,7 +255,7 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 		return fmt.Errorf("project %s does not exist", projectID)
 	}
 	if id == "" {
-		return fmt.Errorf("no IDE picked")
+		return fmt.Errorf("No IDE picked. ↑↓ picks one, ↵ opens it.")
 	}
 
 	// The `code`/`codium` launcher inside WSL asks, on stderr, whether to
@@ -276,11 +276,11 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 		} else {
 			distro := wslDistro()
 			if distro == "" {
-				return fmt.Errorf("could not find the WSL distro name")
+				return fmt.Errorf("WSL distro name not found. ctrl+e picks an IDE installed on Linux.")
 			}
 			target, ok := windowsInstalled(id, windowsExeFor(id))
 			if !ok {
-				return fmt.Errorf("%s is not installed on the Windows side", id)
+				return fmt.Errorf("%s isn't installed on the Windows side. ctrl+e picks another IDE.", id)
 			}
 			uri := "vscode-remote://wsl+" + distro + path
 			if target != id {
@@ -300,7 +300,7 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 	output := &strings.Builder{}
 	command.Stdout, command.Stderr = output, output
 	if err := command.Start(); err != nil {
-		return fmt.Errorf("could not open %s: %w", id, err)
+		return fmt.Errorf("Could not open %s (%w). ctrl+e picks another IDE.", id, err)
 	}
 
 	// The IDE that opens a window stays alive; the one that didn't dies right
@@ -311,7 +311,7 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 	select {
 	case err := <-died:
 		if err != nil {
-			return fmt.Errorf("%s did not open: %s", binaryName, firstLine(output.String(), err))
+			return fmt.Errorf("%s did not open: %s. ctrl+e picks another IDE.", binaryName, strings.TrimSuffix(firstLine(output.String(), err), "."))
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
@@ -352,7 +352,7 @@ func ideAlreadyOpen(name string) (cli string, window string) {
 	if err != nil {
 		return "", ""
 	}
-	found, _ := filepath.Glob(filepath.Join(home, "."+name+"-server", "bin", "*", "bin", "remote-cli", name))
+	found := remoteCLIs(home, name)
 	if len(found) == 0 {
 		return "", ""
 	}
@@ -361,6 +361,26 @@ func ideAlreadyOpen(name string) (cli string, window string) {
 		return "", ""
 	}
 	return newest(found), window
+}
+
+// serverFolders is where each IDE keeps its remote server under the home
+// directory, for the ones whose folder isn't named after the launcher: VS
+// Code's launcher is `code`, and its server lives in ~/.vscode-server.
+var serverFolders = map[string]string{
+	"code":          ".vscode-server",
+	"code-insiders": ".vscode-server-insiders",
+	"codium":        ".vscodium-server",
+}
+
+// remoteCLIs lists every install of the IDE's remote CLI on this side — one
+// per server version the IDE has ever pushed here.
+func remoteCLIs(home, name string) []string {
+	folder, known := serverFolders[name]
+	if !known {
+		folder = "." + name + "-server"
+	}
+	found, _ := filepath.Glob(filepath.Join(home, folder, "bin", "*", "bin", "remote-cli", name))
+	return found
 }
 
 // liveWindow is the socket of the window that still responds. IDEs leave
@@ -474,7 +494,7 @@ func (e *Engine) Docker(request protocol.Docker) (protocol.Services, error) {
 		return protocol.Services{}, fmt.Errorf("project %s does not exist", request.Project)
 	}
 	if target.compose == "" {
-		return protocol.Services{}, fmt.Errorf("project %s has no compose file at its root", target.path)
+		return protocol.Services{}, fmt.Errorf("No compose file at the root of %s. Add compose.yml there, then d opens the panel.", filepath.Base(target.path))
 	}
 
 	response := protocol.Services{
@@ -485,7 +505,7 @@ func (e *Engine) Docker(request protocol.Docker) (protocol.Services, error) {
 	case "list":
 	case "log", "shell":
 		if request.Service == "" {
-			return response, fmt.Errorf("which service?")
+			return response, fmt.Errorf("No service picked. ↑↓ picks one.")
 		}
 		kind, label := "logs", "logs "
 		if request.Action == "shell" {

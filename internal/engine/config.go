@@ -41,6 +41,15 @@ type Config struct {
 	// silent before its process is put to sleep. The conversation isn't
 	// lost — coming back to the tab reattaches it. Zero turns it off.
 	SleepAfterMinutes int `json:"sleepAfterMinutes,omitempty"`
+	// Mods loads Tesseract's mods into every Claude Code cell: it's through
+	// them that the agent reports its own turn, conversation and usage.
+	// Off, the cell goes back to being read from the outside.
+	Mods bool `json:"mods"`
+	// ClaudeTheme is the theme Claude Code is started with inside a cell.
+	// The default draws with the terminal's own colors, so the agent speaks
+	// the grid's palette; it holds for the cell's session only. Empty leaves
+	// the user's own theme alone.
+	ClaudeTheme string `json:"claudeTheme"`
 	// Agents is the profile of each agent type.
 	Agents map[string]AgentProfile `json:"agents,omitempty"`
 }
@@ -54,6 +63,8 @@ func DefaultConfig() Config {
 		HistoryLimit:      history.DefaultCap,
 		ScrollbackLines:   DefaultScrollback,
 		SleepAfterMinutes: DefaultSleepAfterMinutes,
+		Mods:              true,
+		ClaudeTheme:       "dark-ansi",
 		Agents:            map[string]AgentProfile{},
 	}
 }

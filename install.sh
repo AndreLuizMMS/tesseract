@@ -131,6 +131,15 @@ chmod 755 "$provisorio"
 mv -f "$provisorio" "$destino/ts"
 trap - EXIT
 
+# The mods are what Claude Code loads inside each cell. They live next to
+# nothing the user edits, so a fresh copy on every install is the update.
+if [ -d "$raiz/mods" ]; then
+	aviso "installing the Claude Code mods"
+	rm -rf "${suporte:?}/mods"
+	mkdir -p "$suporte"
+	cp -R "$raiz/mods" "$suporte/mods"
+fi
+
 aviso "installing the service"
 mkdir -p "$servicos"
 cp "$raiz/systemd/tesseract.service" "$servicos/tesseract.service"

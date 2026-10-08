@@ -40,8 +40,16 @@ var claudeMarkers = Markers{
 		// them, and an unrecognized question would end the turn as if the
 		// answer had come.
 		"Do you want to",
-		"1. Yes, I trust this folder",
+		"Yes, I trust this folder",
 	},
+	// With Tesseract's own skin loaded (mods/tesseract-skin) the spinner and
+	// the permission line are redrawn in the brand's vocabulary, and none of
+	// the texts above survive. The skin also writes the turn's state on the
+	// band above the prompt, for the whole turn — including while a question
+	// is up — so only the line that opens with the marker counts: the
+	// spinner's and the approve bar's.
+	WorkingLines:  []string{"▸ WORKING"},
+	QuestionLines: []string{"⏵ APPROVE"},
 }
 
 // Claude is Claude Code running in the project's directory.
@@ -129,7 +137,7 @@ func claudeConversationName(directory, conversation string) (string, error) {
 
 	opened, err := os.Open(file)
 	if err != nil {
-		return "", fmt.Errorf("the conversation doesn't have a transcript yet")
+		return "", fmt.Errorf("The conversation has no transcript yet. p sends its first prompt.")
 	}
 	defer opened.Close()
 
@@ -161,7 +169,7 @@ func claudeConversationName(directory, conversation string) (string, error) {
 func mostRecentTranscript(folder string) (string, error) {
 	entries, err := os.ReadDir(folder)
 	if err != nil {
-		return "", fmt.Errorf("the conversation doesn't have a transcript yet")
+		return "", fmt.Errorf("The conversation has no transcript yet. p sends its first prompt.")
 	}
 	var chosen string
 	var newest time.Time
@@ -178,7 +186,7 @@ func mostRecentTranscript(folder string) (string, error) {
 		}
 	}
 	if chosen == "" {
-		return "", fmt.Errorf("the conversation doesn't have a transcript yet")
+		return "", fmt.Errorf("The conversation has no transcript yet. p sends its first prompt.")
 	}
 	return chosen, nil
 }

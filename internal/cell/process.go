@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -45,6 +46,77 @@ type Process struct {
 	// wrote or a key the user sent. It's what says a cell can be put to
 	// sleep without taking work along with it.
 	touched time.Time
+
+	// titles cleans what goes into the internal screen (see titleGuard).
+	// Only the goroutine that reads the process uses it.
+	titles titleGuard
+}
+
+// titleGuard takes the letters outside ASCII out of the window titles a
+// program sets (ESC ] … BEL). The internal screen reads the byte 0x9C as the
+// end of the title, and 0x9C is also the second byte of a letter like "✳" in
+// UTF-8: Claude Code's title, "✳ Claude Code", ended at the star, and the
+// rest of it was typed over the first line of the cell. Nothing here draws
+// the title, so nothing is lost by cleaning it.
+//
+// It keeps its place between one read and the next: a title can arrive cut
+// in two.
+type titleGuard struct{ state byte }
+
+const (
+	inText        byte = iota
+	afterEscape        // ESC seen: a "]" opens a title
+	inTitle            // between ESC ] and its end
+	escapeInTitle      // ESC inside a title: "\" ends it
+)
+
+func (g *titleGuard) clean(chunk []byte) []byte {
+	var out []byte // made only when something has to come out
+	for i, b := range chunk {
+		drop := false
+		switch g.state {
+		case inTitle:
+			switch {
+			case b == 0x07:
+				g.state = inText
+			case b == 0x1b:
+				g.state = escapeInTitle
+			case b >= 0x80:
+				drop = true
+			}
+		case escapeInTitle:
+			switch b {
+			case '\\':
+				g.state = inText
+			case ']':
+				g.state = inTitle
+			default:
+				g.state = inText
+			}
+		case afterEscape:
+			switch b {
+			case ']':
+				g.state = inTitle
+			case 0x1b:
+			default:
+				g.state = inText
+			}
+		default:
+			if b == 0x1b {
+				g.state = afterEscape
+			}
+		}
+		if drop && out == nil {
+			out = append(make([]byte, 0, len(chunk)), chunk[:i]...)
+		}
+		if !drop && out != nil {
+			out = append(out, b)
+		}
+	}
+	if out == nil {
+		return chunk
+	}
+	return out
 }
 
 // start brings the command up inside a pseudo terminal of the requested
@@ -57,7 +129,7 @@ func (p *Process) start(cfg Config, program string, args []string, environment [
 		cfg.Lines = 24
 	}
 	if info, err := os.Stat(cfg.Directory); err != nil || !info.IsDir() {
-		return fmt.Errorf("project directory doesn't exist: %s", cfg.Directory)
+		return fmt.Errorf("Project directory is gone: %s. Bring it back and r restarts the cell.", cfg.Directory)
 	}
 
 	p.config = cfg
@@ -83,7 +155,7 @@ func (p *Process) start(cfg Config, program string, args []string, environment [
 			// questions and die here, because there's no process yet to
 			// receive them.
 			p.brush.Lock()
-			_, _ = p.emulator.Write(tail)
+			_, _ = p.emulator.Write(p.titles.clean(tail))
 			p.frameValid = false
 			p.brush.Unlock()
 		}
@@ -107,14 +179,17 @@ func (p *Process) reconnect(program string, args, environment []string) error {
 
 	cmd := exec.Command(program, args...)
 	cmd.Dir = p.config.Directory
-	cmd.Env = environment
+	// Every cell learns which one it is, as the user reads it on the grid:
+	// project/cell. It's the name at birth — renaming the cell later doesn't
+	// reach a process that's already running.
+	cmd.Env = append(environment, "TESSERACT_CELL="+filepath.Base(p.config.Directory)+"/"+p.config.Name)
 
 	terminal, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(columns),
 		Rows: uint16(lines),
 	})
 	if err != nil {
-		return fmt.Errorf("bringing up %s in %s: %w", program, p.config.Directory, err)
+		return fmt.Errorf("Could not start %s in %s (%w). r tries again.", program, p.config.Directory, err)
 	}
 
 	p.mu.Lock()
@@ -150,7 +225,7 @@ func (p *Process) readFromProcess(terminal *os.File, cmd *exec.Cmd) {
 		if n > 0 {
 			p.touch()
 			p.brush.Lock()
-			_, _ = p.emulator.Write(buf[:n])
+			_, _ = p.emulator.Write(p.titles.clean(buf[:n]))
 			p.frameValid = false
 			p.brush.Unlock()
 			if p.config.History != nil {
@@ -163,10 +238,14 @@ func (p *Process) readFromProcess(terminal *os.File, cmd *exec.Cmd) {
 		}
 	}
 
-	_ = cmd.Wait()
+	// A program that ends by itself with exit 0 was told to (/exit, the
+	// shell's exit): that's a cell stopped, the same as one the engine took
+	// down. Only an exit with an error, or by a signal nobody here sent, is
+	// a crash worth a notice.
+	clean := cmd.Wait() == nil
 
 	p.mu.Lock()
-	if p.dying {
+	if p.dying || clean {
 		p.state = Stopped
 	} else {
 		p.state = Crashed
@@ -297,7 +376,7 @@ func (p *Process) Key(tap Keystroke) error {
 	p.mu.Unlock()
 
 	if finished || p.emulator == nil {
-		return fmt.Errorf("the cell isn't running")
+		return fmt.Errorf("The cell isn't running. r restarts it in the same spot.")
 	}
 	if tap.Paste != "" {
 		// Paste goes in as a paste, not as typing: when the program in
