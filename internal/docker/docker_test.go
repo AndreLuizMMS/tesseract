@@ -286,3 +286,19 @@ func TestAnyFell(t *testing.T) {
 		}
 	}
 }
+
+// TestDeclaredServicesFillTheList — a stack that never came up has no
+// container for `ps` to list, and still has services to bring up one by one.
+func TestDeclaredServicesFillTheList(t *testing.T) {
+	running := []Service{{Name: "api", State: "up"}}
+	got := withDeclared(running, []string{"db", "api", "web"})
+	if len(got) != 3 || got[0].Name != "api" || got[1].Name != "db" || got[2].Name != "web" {
+		t.Fatalf("the ones with a container come first, then the file's order: %+v", got)
+	}
+	if got[1].State != "not created" || Fell(got[1].State) {
+		t.Fatalf("a service with no container is not a fallen one: %+v", got[1])
+	}
+	if got := Summary(withDeclared(nil, []string{"db", "web"})); got != "stopped" {
+		t.Fatalf("a stack that never came up is \"stopped\", got %q", got)
+	}
+}

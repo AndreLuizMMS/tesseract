@@ -133,7 +133,33 @@ func Services(dir, file string) ([]Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReadServices(out)
+	services, err := ReadServices(out)
+	if err != nil {
+		return nil, err
+	}
+	// `ps` only knows a service once it has a container. A stack that never
+	// came up — or came back from a `down` — would list nothing, and there'd
+	// be no line to bring a single service up from. The file says what the
+	// stack has; a failure here just leaves the list as `ps` gave it.
+	if declared, err := run(ctx, dir, file, "config", "--services"); err == nil {
+		services = withDeclared(services, strings.Fields(string(declared)))
+	}
+	return services, nil
+}
+
+// withDeclared adds the services the compose file declares and `ps` didn't
+// list, in the file's order, after the ones that have a container.
+func withDeclared(services []Service, declared []string) []Service {
+	known := make(map[string]bool, len(services))
+	for _, service := range services {
+		known[service.Name] = true
+	}
+	for _, name := range declared {
+		if !known[name] {
+			services = append(services, Service{Name: name, State: "not created"})
+		}
+	}
+	return services
 }
 
 // Summary is what the project's strip shows: how many services are up.
