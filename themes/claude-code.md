@@ -6,7 +6,7 @@ Claude Code paints with its own 24-bit palette — orange in the badge, pink
 in the logo, blue and magenta in the context bar. None of that knows about
 Tesseract Neon, so inside the cell it clashes with the grid: colors the
 panel reserved for meaning (orange means "approve", green means "your
-keyboard is here") show up in the middle of the conversation without
+typing lands here") show up in the middle of the conversation without
 meaning anything.
 
 Tesseract has no way to censor the agent's color — the cell is a real
@@ -23,20 +23,20 @@ those 16 colors, Claude Code starts speaking the same language as the grid.
 Claude Code theme:  dark-ansi
 ```
 
-Inside a cell there is nothing to do: the engine starts Claude Code with
-`--settings '{"theme":"dark-ansi"}'`, which holds for that session only and
+**Inside a cell there is nothing to do.** The engine starts Claude Code with
+`--settings '{"theme":"dark-ansi", …}'`, which holds for that session only and
 writes nothing to your settings (`claudeTheme` in `config.json` changes or
 turns it off).
 
-Outside Tesseract, to switch by hand inside any Claude Code session:
+Only outside Tesseract is there a step by hand — for a Claude Code you run in
+a plain terminal and want in the same palette:
 
 ```
 /config
 ```
 
-and choose **dark-ansi** in the theme field. It applies to every session,
-including ones already running in cells — Claude Code re-reads the theme
-immediately.
+and choose **dark-ansi** in the theme field. That one is your global setting:
+it applies to every session of yours from then on.
 
 > Don't edit `~/.claude.json` by hand for this. Every live session rewrites
 > that file on exit, and your edit goes away with it. `/config` writes
@@ -71,15 +71,10 @@ It's better than a theme with fixed hex, too: when you swap Tesseract's
 palette, Claude Code switches along with it, with nobody reconfiguring
 anything.
 
-## The two steps, together
+## What's left for you
 
-```sh
-# 1. the terminal emulator speaks Tesseract Neon
-#    (pick the file for your terminal in themes/)
-
-# 2. Claude Code stops having its own color
-/config   →   theme   →   dark-ansi
-```
+One step, once: the terminal emulator speaks Tesseract Neon (pick the file for
+your terminal in `themes/`). The cells take care of the rest by themselves.
 
 The grid's `⏵ APPROVE` remains the only meaningful orange, and phosphor
 green keeps appearing once per screen.

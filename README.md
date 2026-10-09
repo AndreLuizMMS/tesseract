@@ -18,13 +18,18 @@ keeps going, the machine reboots and the grid comes back in the same positions, 
 conversations picked back up.
 
 <p align="center">
-  <img src="docs/img/mosaico.svg" alt="The Tesseract mosaic: three projects, five cells, one stuck waiting for approval" width="1000">
+  <img src="docs/img/mosaico.svg" alt="The Tesseract mosaic: three projects, each in its own color, four cells, one stuck waiting for approval" width="1000">
 </p>
 
 `⬤ responded` has something to read. `⏵ approve` **won't move** without you — and it's the
 only signal that turns into a solid bar across the whole line, blinking, because urgency
 here is filled area, not color. Works from a distance, out of the corner of your eye, and
 with `NO_COLOR=1`.
+
+Each project has a color of its own — its name and the line of its cells — so you know
+whose cell you're looking at before reading a word. A state is a glyph at the end of the
+cell's top line, and the screen says each thing once: the last line is `?` until there's
+something to tell you. **[How the screen reads →](docs/tema.md)**
 
 ## Install
 

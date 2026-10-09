@@ -24,33 +24,41 @@ close the screen.
 
 ## The alphabet of states
 
-Every cell is in exactly one state, and the state always has **three**
-signals: a glyph, a color and a shape. Take away the color and the glyph
-remains. Take away the color and the glyph and the shape remains — only the
-state that **blocks** takes up the whole line.
+Every cell is in exactly one state, and the state is the **glyph that ends
+the cell's top line**. Every state has a glyph of its own and a color: take
+away the color and the glyph remains. Only the state that **blocks** takes up
+the whole line, and only that one is written out.
 
-| Signal | State | What to do |
+| Glyph | State | What to do |
 |---|---|---|
-| `▸ WORKING` | live process producing | nothing — let it work |
-| `⬤ RESPONDED` | handed back the turn, has text waiting | read when you can; nothing is blocked |
+| `▸` | working: live process producing | nothing — let it work |
+| `⬤` | responded: handed back the turn, has text waiting | read when you can; nothing is blocked |
 | `⏵ APPROVE` | stuck on a question and **not moving** | answer: the work is stopped on this |
-| `✖ CRASHED` | the process died on its own | `r` brings it back up |
-| `○ STOPPED` | no process, cell preserved | `r` resumes where it left off |
-| `⚠ ORPHANED` | the project's directory vanished from disk | recreate the path or kill the cell |
+| `✖` | crashed: the process died on its own | `r` brings it back up |
+| `○` | stopped: no process, cell preserved | `r` resumes where it left off |
+| `◐` | interrupted: you stopped the turn halfway | ask again when you want |
+| `◌` | background: the conversation left the cell's screen | `↵` enters the cell |
+| `⚠` | orphaned: the project's directory vanished from disk | recreate the path or kill the cell |
 
 **Responded ≠ approve.** That's the distinction that makes the alarm worth
 something: an agent stuck on a question blocks the work; an agent that
 finished its turn just has something to read.
 
-That's why `⏵ APPROVE` is the **only** line that appears as a solid inverted
-bar, taking up the full width: urgency here is filled area, not hue. The
-other five states are a glyph and a label.
+That's why `⏵ APPROVE` is the **only** line that appears as a solid bar,
+taking up the full width: urgency here is filled area, not hue. The other
+states are a glyph; their words are in the help (`?`).
 
-And **no state color is ever green or cyan** — the two are already owned:
+Color has four jobs on the screen, and they never swap:
 
-- **green is keyboard ownership.** Phosphor green `#55FFA6` appears at most
-  once per screen, in the cell that has your keyboard. Nothing else.
-- **cyan is structure.** Grid, corners, numbering, labels. Never a state.
+- **a project's hue** paints its name and the line of its cells — vivid on
+  the focused cell, dim on the rest. Six hues; never a state.
+- **a state's color** paints its glyph, and the `approve` bar.
+- **phosphor green** `#55FFA6` is where the typing lands: the word `TYPE` on
+  the cell that has your keyboard, a field's caret, the cursor. At most once
+  per screen.
+- **the neutral ladder** is everything else. Cyan is the brand's own mark.
+
+The full rules are in [`docs/tema.md`](../docs/tema.md).
 
 ---
 
@@ -61,9 +69,10 @@ shortcut collisions structurally impossible.
 
 ### BROWSE — the keyboard belongs to the app
 
-The default. Every key is a command: arrows move through the grid, letters
-act on the focused cell. Cell borders are **simple**, the background is the
-default background, and the bottom bar shows the shortcuts.
+The default, and the screen at rest: nothing names it. Every key is a
+command: arrows move through the grid, letters act on the focused cell. The
+last line of the screen is the status line, and at rest it is one key — `?`,
+which lists all the others.
 
 ### TYPE — the keyboard belongs to the cell
 
@@ -74,15 +83,15 @@ keyboard to the app.
 The mode is impossible to mistake, because it changes four things at once:
 
 1. the screen background darkens;
-2. the focused cell's border becomes **double**;
-3. the `▓ TYPE ▓` badge appears inverted;
-4. the cell holding the keyboard turns **phosphor green** — and it's the
-   only phosphor green on screen.
+2. every other cell loses its project's color and dims;
+3. the bottom line of the cell holding the keyboard ends in the word
+   ` TYPE `, in **phosphor green** — the only phosphor green on screen;
+4. the status line changes from `?` to `ctrl+l`.
 
-With `NO_COLOR=1` items 1 and 4 disappear, and items 2 and 3 remain: the
-double border and the badge don't depend on color at all. The badge stops
-being inverted there and keeps its blocks and its weight — with no color, the
-`approve` bar is the only solid area on screen.
+Every box is the same thin line with rounded corners in both modes. With
+`NO_COLOR=1` item 1 disappears and the others remain: the word and the key
+are text, and the dimming becomes the terminal's own faint — with no color,
+the `approve` bar is the only solid area on screen.
 
 ---
 
@@ -162,7 +171,7 @@ The whole palette lives in a single file, `internal/theme/theme.go`. No other
 file in the project writes hex — whatever draws asks for the token by name
 (`theme.BrandPhosphor`, `theme.FluxCore`, `theme.StateBlock`). The
 `scripts/check-theme.sh` script fails if anyone breaks that rule, or tries
-to use green or cyan as a state color.
+to use a project hue, green or cyan as a state color.
 
 ### The terminal and the tools
 
@@ -185,8 +194,10 @@ The `themes/` folder ships **Tesseract Neon** ready for the rest of the desk:
 | `eza-ls-colors.sh` | `LS_COLORS` and `EZA_COLORS` |
 | `claude-code.md` | how to make Claude Code stop having its own color inside the cell |
 
-Each of them follows the same rules as the panel: green only where there's
-ownership, cyan only where there's structure, state color in neither.
+Each of them carries the brand's own palette — the phosphor on the cursor,
+cyan on what is structure in that tool, a state color in neither. The six
+project hues are the mosaic's alone; on a 16-color terminal they land on the
+plain half of this same ANSI table.
 
 The syntax theme (`bat.tmTheme`) serves both `bat` and `delta`:
 
@@ -217,8 +228,8 @@ the shape carry the meaning on their own, and color only reinforces it.
 ```
 
 The script prints the whole palette in ANSI blocks for visual inspection, and
-fails if it finds green or cyan in the state map, or hex written outside the
-theme file.
+fails if it finds a project hue, green or cyan in the state map, or hex
+written outside the theme file.
 
 ---
 

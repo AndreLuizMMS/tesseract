@@ -41,16 +41,19 @@ with fifteen live cells.
 Tesseract runs *outside* the agent, so by itself it can only read the cell's screen and
 type into it. For Claude Code there is a second way in: a **mod** (`mods/tesseract-link`),
 a plugin whose code runs inside the session and sees the real events. The engine starts
-every Claude Code cell with `--plugin-dir` for each `mods/tesseract-*` folder it finds, and
+every Claude Code cell with `--plugin-dir` for the `mods/tesseract-*` folders it finds, and
 the mod only acts when it finds itself inside a cell.
 
 ```
 Claude Code session                        engine
-  turn started / ended   ── ts report ──▶  cell state: working, answered
-  permission dialog      ── ts report ──▶  approve + "Bash: pnpm migrate" in the notice
+  turn started / ended   ── ts report ──▶  cell state: working, responded, idle, interrupted
+  permission dialog      ── ts report ──▶  approve + what it waits for ("Bash: pnpm migrate")
   session id changed     ── ts report ──▶  saved, so a reboot resumes the right conversation
-  usage measured         ── ts report ──▶  quota badge
+  usage measured         ── ts report ──▶  quota on the status line, and the cell's context window
+  markdown written       ── ts report ──▶  status line offers `m`, which reads it in the md tab
+  file edited            ── ts report ──▶  `f` in the IDE picker opens it at the line
   $.prompt.submit        ◀── ts link ────  prompt sent from the mosaic
+  says its state again   ◀── ts link ────  "attached": the link is up
 ```
 
 - **Mod → engine** is `ts report '<json>'`, one short-lived process per event, over the
@@ -66,7 +69,7 @@ Claude Code session                        engine
   and the engine waits two seconds for the mod's receipt (`ts report` with
   `kind: "delivered"`). A receipt marked `refused` — the conversation was sent to Claude
   Code's background and the cell shows its list of agents — becomes an error on the
-  footer; no receipt at all, and the text is typed into the cell's terminal the way it is
+  status line; no receipt at all, and the text is typed into the cell's terminal the way it is
   for an agent with no mod. A prompt never disappears in silence.
 - **One cell, one voice.** Claude Code's background sessions are born from the cell's
   process and inherit its environment and mods. They aren't what the cell shows, so they
@@ -81,21 +84,51 @@ Claude Code session                        engine
   doesn't silence the screen either: the mod knows nothing about a question that was
   answered before it loaded, and freezing the state at attach left the cell on "approve"
   until the first turn. A mod may drop and attach again as many times as it likes. The
-  usage badge works the same way: the mod's number
+  quota works the same way: the mod's number
   first, the statusline file when there is none.
-- **The screen reading knows the skin's words too.** With `mods/tesseract-skin` loaded,
-  Claude Code's spinner becomes `▸ WORKING · …` and a blocked tool call becomes the
-  `⏵ APPROVE` bar, and none of Claude Code's own texts are left to find. Only a line that
-  *opens* with the marker counts — the skin's band above the prompt carries the turn's
-  state too, for the whole turn. And "approve" is a question on screen, nothing else: when
-  it leaves the screen the cell stops asking, with or without a mod to say so.
+- **The screen reading knows the skin's glyphs too.** With `mods/tesseract-skin` loaded,
+  Claude Code's spinner becomes `▸ thinking · …` and a blocked tool call becomes
+  `⏵ Bash: …`, and none of Claude Code's own texts are left to find. Inside a cell the skin
+  writes no state word, so the glyph is the marker, and only a line that *opens* with it
+  counts. A line that asks beats a line that works: a call queued behind the one waiting on
+  you is still drawn as `▸`. And "approve" is a question on screen, nothing else: when it
+  leaves the screen the cell stops asking, with or without a mod to say so.
 - **One thing the mod can't see** is the moment the user answers a permission dialog: the
   next event only comes when the approved tool finishes, which can take minutes. The cell
   clears "approve" itself when enter, esc or a digit goes into it.
+- **A state report only counts while the link is up**, and the mod loads before it is. So
+  the engine's first line on a new link is `{"event":"attached"}`, and the mod answers by
+  saying where its session stands. That's what makes a cell that was just born show an
+  idle agent instead of a working one, and what puts a cell right after its link drops
+  and comes back.
+- **Idle never takes down an unread answer.** "Idle" is the agent saying nothing is going
+  on at its prompt; `⬤` (responded) is the user not having looked yet. Only a key going into
+  the cell clears that one — and what's left then is idle, not working.
+- **Approving from the mosaic is a key typed into the cell.** The dialog is Claude Code's,
+  and enter and esc are its keys: the engine owns the terminal, so it types them. It does
+  so only for what the mod reported as a tool's permission dialog (`ask: "tool"`), still
+  up, on the tab showing — a question with options, a plan, or an approve read off the
+  screen is refused, and the user enters the cell.
+- **One thing no mod can say** is that the conversation left the screen: `←` on an empty
+  prompt forks it into a background session and leaves the cell's process on Claude
+  Code's list of agents, with no session bound for the mod to speak for. That one is read
+  off the screen (`Markers.Away`) and shows as `◌` (background).
+
+**The mosaic is the only panel.** Docker, the markdown reader and the IDE picker exist once,
+in Go, reachable from any cell. A mod never draws one: the tool mods (`tesseract-docker`,
+`tesseract-md`, `tesseract-ide`) keep what only code inside the session can do — refuse a
+destructive command before it runs, give the agent a tool, fill the prompt, say which file
+was just written — and each one runs `ts report` by itself, the same way the link does.
 
 The theme is not the mod's job. Setting it from inside the session writes the user's
-global settings; the engine passes `--settings '{"theme":"dark-ansi"}'` on the command
-line instead, which holds for that cell's session and nothing else.
+global settings; the engine passes `--settings '{"theme":"dark-ansi", …}'` on the command
+line instead, which holds for that cell's session and nothing else. The same flag carries
+`permissions.deny` for the Docker commands that delete data (`dockerDeny` in
+`config.json`): a second layer under the `tesseract-docker` mod's guard, in Claude Code's
+own rules, which hold even where the mod didn't load.
+
+Not every mod in `mods/` goes into a cell: `tesseract-roster` is left out unless `roster`
+is on in `config.json`, because the mosaic already says who's calling.
 
 ## Stack
 

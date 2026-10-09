@@ -1,5 +1,13 @@
 # Levantamento: Tesseract → mods do Claude Code
 
+> **Como ficou (divisão final).** TUI Go = painéis; mods = sinais, guarda e tools.
+> Docker, leitor de markdown e seletor de IDE existem uma vez só, no mosaico (`d`, aba
+> `md`, `ctrl+e`). Os mods `tesseract-docker`, `tesseract-md` e `tesseract-ide` perderam
+> `/docker`, `/md` e `/open` e ficaram com o que só roda dentro da sessão: a guarda de
+> comando destrutivo, as tools do Claude, `/dlog` (log para o prompt) e os relatos
+> "markdown escrito" e "último arquivo editado" ao engine. O texto abaixo é o levantamento
+> original, anterior a essa decisão.
+
 > Data: 2026-10-08. Somente análise; nenhum código foi alterado.
 > Fonte: leitura do código do repositório e da doc oficial de mods
 > (<https://code.claude.com/docs/en/plugins/mods/>). Tipos da API conferidos
