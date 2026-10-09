@@ -2,9 +2,11 @@ package cell
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,13 +45,20 @@ var claudeMarkers = Markers{
 		"Yes, I trust this folder",
 	},
 	// With Tesseract's own skin loaded (mods/tesseract-skin) the spinner and
-	// the permission line are redrawn in the brand's vocabulary, and none of
-	// the texts above survive. The skin also writes the turn's state on the
-	// band above the prompt, for the whole turn — including while a question
-	// is up — so only the line that opens with the marker counts: the
-	// spinner's and the approve bar's.
-	WorkingLines:  []string{"▸ WORKING"},
-	QuestionLines: []string{"⏵ APPROVE"},
+	// the permission line are redrawn with the mosaic's glyphs, and none of
+	// the texts above survive. Inside a cell the skin writes no state word,
+	// so the glyph that opens the line is the marker: ▸ opens the spinner and
+	// a tool call that's running or waiting its turn, ⏵ the one call that's
+	// asking. Only a line that opens with it counts — the glyph in the middle
+	// of a sentence is somebody quoting it.
+	WorkingLines:  []string{"▸ "},
+	QuestionLines: []string{"⏵ "},
+	// ← on an empty prompt sends the conversation to a background session and
+	// leaves the cell on Claude Code's list of agents. The first text is the
+	// notice it opens with, the second the placeholder of the box under the
+	// list (Claude Code 2.1.295). Only a line that opens with one counts: a
+	// conversation that quotes these words isn't away.
+	Away: []string{"Your conversation moved to the background", "❯ describe a task for a new session"},
 }
 
 // Claude is Claude Code running in the project's directory.
@@ -84,12 +93,42 @@ func (c *Claude) Spawn(cfg Config) error {
 	// and asking to resume it would make the agent die at the start — it
 	// starts over with the same identity instead.
 	if hasTranscript(cfg.Directory, cfg.Conversation) {
+		reclaim(program, cfg.Conversation)
 		args = append(args, "--resume", cfg.Conversation)
 	} else {
 		args = append(args, "--session-id", cfg.Conversation)
 	}
 
 	return c.spawn(cfg, profile, program, args, claudeMarkers)
+}
+
+// reclaimWait bounds the one command reclaim runs. Measured, it takes 0.7 s.
+const reclaimWait = 5 * time.Second
+
+// reclaim takes a conversation back from Claude Code's background service
+// before it's resumed. ← on an empty prompt moves the conversation into a
+// session the service hosts, and that session outlives the cell's process:
+// resuming it while it runs there is refused ("This session is running in
+// the background"), and the cell would come back dead. Stopping it keeps the
+// conversation and lets this process be the one that runs it again.
+//
+// The service keeps a folder per session it ever hosted, named after the
+// first eight characters of the id — the same short id `claude stop` takes.
+// No folder is the normal case, and costs one stat.
+func reclaim(program, conversation string) {
+	home, err := os.UserHomeDir()
+	if err != nil || len(conversation) < 8 {
+		return
+	}
+	short := conversation[:8]
+	if _, err := os.Stat(filepath.Join(home, ".claude", "jobs", short)); err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), reclaimWait)
+	defer cancel()
+	// A session that already stopped answers the same way; one that can't be
+	// stopped shows up as the resume failing, on the cell's own screen.
+	_ = exec.CommandContext(ctx, program, "stop", short).Run()
 }
 
 // hasTranscript says whether the conversation already exists on the agent's

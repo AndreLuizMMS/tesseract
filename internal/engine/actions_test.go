@@ -220,7 +220,7 @@ func TestEditorWithNoIDEPickedWarns(t *testing.T) {
 		t.Fatalf("creating: %v", err)
 	}
 	projectID := m.Snapshot().Projects[0].ID
-	if err := m.OpenInEditor(projectID, "", ""); err == nil {
+	if err := m.OpenInEditor(projectID, "", "", ""); err == nil {
 		t.Fatal("with no IDE picked, it should have warned")
 	}
 }
@@ -304,7 +304,7 @@ func TestEditorDoesNotStallOnTheWSLPrompt(t *testing.T) {
 	if _, err := m.Create(protocol.Create{Path: project, Type: "bash"}); err != nil {
 		t.Fatalf("creating: %v", err)
 	}
-	if err := m.OpenInEditor(m.Snapshot().Projects[0].ID, fake, "wsl"); err != nil {
+	if err := m.OpenInEditor(m.Snapshot().Projects[0].ID, fake, "wsl", ""); err != nil {
 		t.Fatalf("the editor should have opened: %v", err)
 	}
 	opened, err := os.ReadFile(marker)

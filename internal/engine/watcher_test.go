@@ -106,8 +106,10 @@ func TestVanishedDirectoryOrphansTheCells(t *testing.T) {
 			t.Fatalf("the cell should stay orphaned while the directory is gone, got %q", got)
 		}
 	}
-	if !strings.Contains(m.Summary(), cell.Orphaned.Marker()) {
-		t.Fatalf("the status summary should say orphaned too: %q", m.Summary())
+	// `ts status` is read with no legend at hand: the glyph and its word,
+	// and the kind only when the name doesn't already say it.
+	if !strings.Contains(m.Summary(), "  ⚠ orphaned     bash 1\n") {
+		t.Fatalf("the status summary should say orphaned too, glyph and word: %q", m.Summary())
 	}
 
 	if err := os.Mkdir(dir, 0o755); err != nil {
@@ -118,5 +120,66 @@ func TestVanishedDirectoryOrphansTheCells(t *testing.T) {
 	}
 	if got := state(); got == string(cell.Orphaned) {
 		t.Fatal("the directory is back and the cell is still orphaned")
+	}
+}
+
+// tabbedCell is a cell with two tabs whose state is the tab in view's: the
+// agent's tab holds an answer nobody read, the other one is at rest.
+type tabbedCell struct {
+	cell.Cell
+	tab    string
+	states map[string]cell.State
+}
+
+func (c *tabbedCell) State() cell.State   { return c.states[c.tab] }
+func (c *tabbedCell) Tabs() []string      { return []string{"claude", "md"} }
+func (c *tabbedCell) ActiveTab() string   { return c.tab }
+func (c *tabbedCell) SwitchTab(int) error { return nil }
+
+// TestTurnEndIsAnnouncedOnce — the answer stays unread on the agent's tab
+// while the user reads a markdown on another. Coming back to it shows the
+// same answer again, and that isn't news: one turn's end, one notice.
+func TestTurnEndIsAnnouncedOnce(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "notices.txt")
+	notifier := filepath.Join(t.TempDir(), "notify")
+	script := "#!/bin/sh\nshift\necho \"$1\" >> " + log + "\n"
+	if err := os.WriteFile(notifier, []byte(script), 0o755); err != nil {
+		t.Fatalf("prepare notifier: %v", err)
+	}
+	e := New(t.TempDir(), Config{Notify: true, NotifyCommand: notifier})
+	agent := &tabbedCell{tab: "claude", states: map[string]cell.State{"claude": cell.Working, "md": cell.Idle}}
+	watched := &liveCell{id: "c1", name: "session 1", proc: agent}
+	e.projects = []*project{{path: "/work/beta", cells: []*liveCell{watched}}}
+	notices := func() string {
+		time.Sleep(300 * time.Millisecond) // the notifier is released, not waited for
+		content, _ := os.ReadFile(log)
+		return string(content)
+	}
+
+	e.checkStates()
+	agent.states["claude"] = cell.Replied
+	watched.detail, watched.detailTab = "done", "claude"
+	e.checkStates()
+	if got := notices(); got != "session 1 · beta responded: done\n" {
+		t.Fatalf("the end of the turn should be announced with what was said, got %q", got)
+	}
+
+	agent.tab = "md"
+	e.checkStates()
+	agent.tab = "claude"
+	if !e.checkStates() {
+		t.Fatal("the tab coming back still has to redraw the grid")
+	}
+	if got := notices(); got != "session 1 · beta responded: done\n" {
+		t.Fatalf("coming back to the tab announced the same answer again: %q", got)
+	}
+
+	// A new turn on the tab in view is news again.
+	agent.states["claude"] = cell.Working
+	e.checkStates()
+	agent.states["claude"] = cell.Replied
+	e.checkStates()
+	if got := notices(); strings.Count(got, "responded") != 2 {
+		t.Fatalf("the next turn's end should be announced, got %q", got)
 	}
 }

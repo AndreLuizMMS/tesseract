@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/andreluiz/tesseract/internal/cell"
 	"github.com/andreluiz/tesseract/internal/protocol"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 func waitFor(t *testing.T, deadlineIn time.Duration, condition func() bool) bool {
@@ -512,5 +513,36 @@ func TestRecentsSurviveARestart(t *testing.T) {
 	t.Cleanup(second.Shutdown)
 	if recents := second.Snapshot().Recents; len(recents) != 1 || recents[0] != dir {
 		t.Fatalf("the history should come back from disk: %v", recents)
+	}
+}
+
+// TestNextColorKeepsNeighborsApart — a new project wears the hue the fewest
+// are wearing, and never the one of the project right before it: no two look
+// the same while there's a hue to spare, and none repeats its neighbor's
+// after that.
+func TestNextColorKeepsNeighborsApart(t *testing.T) {
+	e := &Engine{}
+	for i := range 3 * theme.HueCount {
+		color := e.nextColor()
+		if color < 0 || color >= theme.HueCount {
+			t.Fatalf("project %d got color %d, outside the hues", i, color)
+		}
+		if i < theme.HueCount {
+			for _, p := range e.projects {
+				if p.color == color {
+					t.Fatalf("project %d repeats a hue with %d still free", i, theme.HueCount-i)
+				}
+			}
+		}
+		if last := len(e.projects) - 1; last >= 0 && e.projects[last].color == color {
+			t.Fatalf("project %d wears its neighbor's hue", i)
+		}
+		e.projects = append(e.projects, &project{color: color})
+	}
+	// A hue that was given back is the next one handed out. Colors saved by
+	// an older engine counted past the last hue, and wrap around.
+	e.projects = []*project{{color: 0}, {color: 7}, {color: 2}}
+	if got := e.nextColor(); got != 3 {
+		t.Fatalf("with teal, pink and lime taken the next hue is the fourth, got %d", got)
 	}
 }

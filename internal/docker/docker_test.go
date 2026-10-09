@@ -264,3 +264,25 @@ func TestLogCommandDoesNotFollowAnotherService(t *testing.T) {
 		t.Fatalf("command came %q, expected %q", joined, want)
 	}
 }
+
+// TestAnyFell — a stack fell when a service went down on its own. One that
+// was stopped, or never started, didn't.
+func TestAnyFell(t *testing.T) {
+	stack := func(states ...string) []Service {
+		var services []Service
+		for _, state := range states {
+			services = append(services, Service{State: state})
+		}
+		return services
+	}
+	for _, calm := range [][]Service{nil, stack("up"), stack("up", "exited (0)", "exited (137)", "exited (143)", "created")} {
+		if AnyFell(calm) {
+			t.Errorf("nothing fell here: %+v", calm)
+		}
+	}
+	for _, fallen := range [][]Service{stack("exited (1)"), stack("up", "up", "dead"), stack("up", "exited (2)")} {
+		if !AnyFell(fallen) {
+			t.Errorf("a service fell here: %+v", fallen)
+		}
+	}
+}

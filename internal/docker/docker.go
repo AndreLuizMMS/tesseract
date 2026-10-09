@@ -153,6 +153,27 @@ func Summary(services []Service) string {
 	return strconv.Itoa(up) + "/" + strconv.Itoa(len(services))
 }
 
+// Fell says whether a service in this state went down on its own: it exited
+// on an error, or it's dead. 137 and 143 are SIGKILL and SIGTERM — what a
+// stop leaves behind, and nobody's failure.
+func Fell(state string) bool {
+	var exit int
+	if _, err := fmt.Sscanf(state, "exited (%d)", &exit); err == nil {
+		return exit != 0 && exit != 137 && exit != 143
+	}
+	return state == "dead"
+}
+
+// AnyFell says whether any service of the stack fell.
+func AnyFell(services []Service) bool {
+	for _, service := range services {
+		if Fell(service.State) {
+			return true
+		}
+	}
+	return false
+}
+
 // Act runs an action on a service, or on the whole stack when the service
 // comes in empty. An unknown action is refused — that's how nothing
 // destructive gets in.

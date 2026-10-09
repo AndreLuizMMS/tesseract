@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -229,7 +230,8 @@ func TestModsComeFromWhereTheyAre(t *testing.T) {
 
 	e := New(t.TempDir(), DefaultConfig())
 	args := e.profiles()["claude"].Args
-	wantArgs := []string{"--plugin-dir", want[0], "--plugin-dir", want[1], "--settings", `{"theme":"dark-ansi"}`}
+	denied, _ := json.Marshal(dockerDenyRules)
+	wantArgs := []string{"--plugin-dir", want[0], "--plugin-dir", want[1], "--settings", `{"permissions":{"deny":` + string(denied) + `},"theme":"dark-ansi"}`}
 	if !slices.Equal(args, wantArgs) {
 		t.Fatalf("claude comes up with %v", args)
 	}
@@ -238,7 +240,7 @@ func TestModsComeFromWhereTheyAre(t *testing.T) {
 	}
 
 	config := DefaultConfig()
-	config.Mods, config.ClaudeTheme = false, ""
+	config.Mods, config.ClaudeTheme, config.DockerDeny = false, "", false
 	config.Agents["claude"] = AgentProfile{Args: []string{"--verbose"}}
 	if args := New(t.TempDir(), config).profiles()["claude"].Args; !slices.Equal(args, []string{"--verbose"}) {
 		t.Fatalf("with both turned off only the user's args should remain: %v", args)

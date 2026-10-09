@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/andreluiz/tesseract/internal/docker"
 	"github.com/andreluiz/tesseract/internal/engine/history"
 	"github.com/andreluiz/tesseract/internal/protocol"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 // Engine holds the live grid.
@@ -37,6 +39,8 @@ type Engine struct {
 	discoveries atomic.Uint64
 	stop        chan struct{}
 	once        sync.Once
+	// down says Shutdown already ran (see save).
+	down bool
 }
 
 type project struct {
@@ -47,6 +51,9 @@ type project struct {
 	compose string
 	// docker is the stack summary for the strip, refreshed from time to time.
 	docker string
+	// dockerDown says a service of the stack fell on its own, as of the same
+	// reading.
+	dockerDown bool
 	// orphan marks that the directory vanished from disk. The processes may
 	// well be alive in there: it's the project that's gone, and every cell
 	// of it shows that instead of its own state.
@@ -68,6 +75,8 @@ type liveCell struct {
 	// lastState is what the watcher saw last time, so it only notifies the
 	// change and not the idle state.
 	lastState cell.State
+	// lastTab is the tab that state was read from, on a cell with tabs.
+	lastTab string
 	// pendingRename marks that an automatic /rename was sent and the watcher
 	// needs to adopt the name as soon as the turn ends.
 	pendingRename bool
@@ -75,6 +84,12 @@ type liveCell struct {
 	// the command waiting for approval, the opening of the answer — and
 	// detailTab is the tab it spoke for. The watcher puts it in the notice.
 	detail, detailTab string
+	// written is what the cell's tool mods said its agent wrote last.
+	written writtenFiles
+	// said is the same word kept for the screen, and context how full each
+	// tab's conversation window is (see said.go).
+	said    said
+	context map[string]int
 }
 
 // New prepares an engine over a state directory.
@@ -489,6 +504,8 @@ func (e *Engine) Snapshot() protocol.State {
 		project, cell int
 		proc          cell.Cell
 		orphan        bool
+		said          said
+		context       map[string]int
 	}
 
 	e.mu.Lock()
@@ -502,6 +519,7 @@ func (e *Engine) Snapshot() protocol.State {
 			Color:      p.color,
 			HasCompose: p.compose != "",
 			Docker:     p.docker,
+			DockerDown: p.dockerDown,
 		}
 		for _, c := range p.cells {
 			if c.proc != nil {
@@ -510,14 +528,18 @@ func (e *Engine) Snapshot() protocol.State {
 					cell:    len(drawing.Cells),
 					proc:    c.proc,
 					orphan:  p.orphan,
+					said:    c.said,
+					context: maps.Clone(c.context),
 				})
 			}
 			drawing.Cells = append(drawing.Cells, protocol.Cell{
-				ID:    c.id,
-				Type:  c.kind,
-				Name:  c.name,
-				State: string(p.restState()),
-				Live:  true,
+				ID:     c.id,
+				Type:   c.kind,
+				Name:   c.name,
+				State:  string(p.restState()),
+				Live:   true,
+				Doc:    inProject(p.path, c.written.doc),
+				Edited: c.written.edited(p.path),
 			})
 		}
 		snapshot.Projects = append(snapshot.Projects, drawing)
@@ -538,6 +560,8 @@ func (e *Engine) Snapshot() protocol.State {
 		if !next.orphan {
 			cellSnapshot.State = string(next.proc.State())
 		}
+		cellSnapshot.Detail, cellSnapshot.Ask = next.said.saidFor(cellSnapshot.State, cellSnapshot.Tab, cellSnapshot.Tabs != nil)
+		cellSnapshot.Context = next.context[cellSnapshot.Tab]
 		cellSnapshot.Lines = frame.Lines
 		cellSnapshot.CursorX = frame.CursorX
 		cellSnapshot.CursorY = frame.CursorY
@@ -547,18 +571,25 @@ func (e *Engine) Snapshot() protocol.State {
 	return snapshot
 }
 
-// nextColor picks the new project's column color: the first one nobody is
-// using, so that two neighboring projects never look the same.
+// nextColor picks the new project's hue: the one the fewest projects are
+// wearing, the first of them in the theme's order. While there's a hue
+// nobody has, no two projects look the same; once they're all taken, the new
+// project — which lands at the end of the mosaic — at least never repeats the
+// one right before it.
 func (e *Engine) nextColor() int {
-	used := map[int]bool{}
+	var worn [theme.HueCount]int
+	last := -1
 	for _, p := range e.projects {
-		used[p.color] = true
+		last = ((p.color % theme.HueCount) + theme.HueCount) % theme.HueCount
+		worn[last]++
 	}
-	for color := 0; ; color++ {
-		if !used[color] {
-			return color
+	best := -1
+	for hue, count := range worn {
+		if hue != last && (best < 0 || count < worn[best]) {
+			best = hue
 		}
 	}
+	return best
 }
 
 // typeCards gives the screen what it needs to build the form without knowing
@@ -599,7 +630,14 @@ func (e *Engine) Summary() string {
 			if c.proc != nil && !p.orphan {
 				state = c.proc.State()
 			}
-			fmt.Fprintf(&text, "  %s %-7s %s\n", state.Marker(), c.kind, c.name)
+			// The glyph and its word: a terminal that prints this has no
+			// legend to look the glyph up in. The kind is only said when
+			// the name doesn't already ("session 1" is a session).
+			label := c.name
+			if !strings.HasPrefix(c.name, c.kind) {
+				label += "  · " + c.kind
+			}
+			fmt.Fprintf(&text, "  %s %-11s  %s\n", state.Marker(), state.Word(), label)
 		}
 	}
 	return text.String()
@@ -628,6 +666,7 @@ func (e *Engine) Shutdown() {
 	e.stopWatcher()
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.down = true
 	for _, p := range e.projects {
 		for _, c := range p.cells {
 			if c.proc != nil {
@@ -662,7 +701,16 @@ func (e *Engine) Screen() string {
 }
 
 // save writes the desired state. Always called with the lock held.
+//
+// An engine that was shut down writes nothing more: what's on disk is the
+// grid as it stood. A conversation an agent reports at birth is saved by a
+// goroutine of its own, and one that lost the race against Shutdown used to
+// write into a state directory whoever stopped the engine was already done
+// with.
 func (e *Engine) save() {
+	if e.down {
+		return
+	}
 	state := DesiredState{Screen: e.screen, Recents: e.recents}
 	for _, p := range e.projects {
 		saved := SavedProject{ID: p.id, Path: p.path, Color: p.color}

@@ -331,7 +331,7 @@ func (s *Session) State() State {
 }
 
 func (s *Session) States() []State {
-	return []State{Working, Replied, Approve, Crashed, Stopped, Orphaned}
+	return []State{Working, Idle, Replied, Approve, Interrupted, Background, Crashed, Stopped, Orphaned}
 }
 
 // Resize stores the size and passes it to every tab already opened:

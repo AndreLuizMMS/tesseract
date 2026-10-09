@@ -69,7 +69,13 @@ type Md struct {
 
 func (m *Md) Spawn(cfg Config) error {
 	m.directory = cfg.Directory
-	m.columns, m.lines = max(cfg.Columns, 40), max(cfg.Lines, 10)
+	// The size the screen reserved is the size: a floor here made a short
+	// cell count lines it doesn't show ("1–9 of 16" over five lines) until
+	// the next resize. Only a cell born before any size is known guesses.
+	m.columns, m.lines = cfg.Columns, cfg.Lines
+	if m.columns <= 0 || m.lines <= 0 {
+		m.columns, m.lines = 40, 10
+	}
 	m.notify = cfg.Notify
 	m.stop = make(chan struct{})
 	m.state = Stopped
@@ -330,8 +336,8 @@ func (m *Md) pageHeader() string {
 	left := " " + file + " "
 	right := " " + position + " · esc back to list "
 	filler := max(m.columns-len([]rune(left))-len([]rune(right)), 1)
-	return titleInk.Render(left) + ruleInk.Render(strings.Repeat("─", filler)) +
-		numberInk.Render(" "+position) + noteInk.Render(" · ") + keyInk.Render("esc") + noteInk.Render(" back to list ")
+	return titleInk.Render(left) + strings.Repeat(" ", filler) +
+		noteInk.Render(" "+position+" · ") + keyInk.Render("esc") + noteInk.Render(" back to list ")
 }
 
 // drawList assembles the search box on top and the files below. Called with
@@ -343,10 +349,9 @@ func (m *Md) drawList() []string {
 		documents = " document · "
 	}
 	lines := []string{
-		labelInk.Render(searchLabel) + m.filter,
-		ruleInk.Render(" " + strings.Repeat("─", max(m.columns-2, 1))),
-		numberInk.Render(" "+strconv.Itoa(len(matched))+" of "+strconv.Itoa(len(m.files))) +
-			noteInk.Render(documents) + keyInk.Render("↑↓") + noteInk.Render(" pick · ") +
+		noteInk.Render(searchLabel) + m.filter,
+		noteInk.Render(" "+strconv.Itoa(len(matched))+" of "+strconv.Itoa(len(m.files))+documents) +
+			keyInk.Render("↑↓") + noteInk.Render(" pick · ") +
 			keyInk.Render("↵") + noteInk.Render(" open"),
 		"",
 	}
@@ -383,24 +388,28 @@ func (m *Md) listLine(file string, selected bool) string {
 
 // Inks for the markdown tab. Kept here instead of in the screen because the
 // cell draws its own content — the screen only receives lines already made —
-// but every color still comes from the theme, token by token: cyan for what
-// is structure (the label, the keys, the count), green only on the bar of
-// the row the keys act on.
+// but every color still comes from the theme, token by token, and the
+// frame around the reading is the screen's own neutral ladder: a key in its
+// own weight, a note in the secondary tone, the bar of the picked row in the
+// title's.
 var (
-	labelInk  = theme.Tint(theme.Structure().Bold(true))
-	keyInk    = theme.Tint(theme.Numbering())
-	numberInk = theme.Tint(theme.Structure())
-	ruleInk   = theme.Tint(theme.Paint(theme.LineActive, ""))
+	keyInk    = theme.Tint(theme.Paint(theme.FgDefault, "").Bold(true))
 	noteInk   = theme.Tint(theme.Paint(theme.FgMuted, ""))
 	nameInk   = theme.Tint(theme.Paint(theme.FgDefault, ""))
 	titleInk  = theme.Tint(theme.Paint(theme.FgBright, "").Bold(true))
-	barInk    = theme.Tint(theme.Paint(theme.BrandLive, "").Bold(true))
+	barInk    = theme.Tint(theme.Paint(theme.FgBright, "").Bold(true))
 	pickedInk = theme.Tint(theme.Paint(theme.FgBright, theme.BgRaised).Bold(true))
 )
 
+// relativeTo names a file the short way: from the project's root when it
+// lives in there, from home (~) when it doesn't — an agent's plan is kept
+// under ~/.claude, and climbing to it from the project is a row of "../".
 func relativeTo(root, path string) string {
-	if relative, err := filepath.Rel(root, path); err == nil {
+	if relative, err := filepath.Rel(root, path); err == nil && !strings.HasPrefix(relative, "..") {
 		return relative
+	}
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home+"/") {
+		return "~" + strings.TrimPrefix(path, home)
 	}
 	return path
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/x/vt"
@@ -42,11 +43,14 @@ type WithConversation interface {
 // state, a named conversation, and prompting without entering.
 type Agent struct {
 	Process
-	turn             *Turn
-	renameCommand    string
-	conversation     string
-	bornAt           time.Time
-	stop             chan struct{}
+	turn          *Turn
+	renameCommand string
+	conversation  string
+	bornAt        time.Time
+	stop          chan struct{}
+	// away says the screen shows something other than the conversation (see
+	// Markers.Away). It's read off the screen on every watch.
+	away             atomic.Bool
 	readName         func(directory, conversation string) (string, error)
 	findConversation func(directory string, since time.Time) string
 
@@ -97,8 +101,10 @@ func (a *Agent) watchTurn() {
 			if a.Process.State() != Working {
 				return // the process died; it's in charge of the state now
 			}
-			state := a.turn.Observe(a.screenAsText())
-			if state != previous {
+			screen := a.screenAsText()
+			state := a.turn.Observe(screen)
+			wasAway := a.away.Swap(anyLineStarts(screen, a.turn.markers.Away))
+			if state != previous || wasAway != a.away.Load() {
 				previous = state
 				a.notify()
 			}
@@ -128,11 +134,16 @@ func (a *Agent) State() State {
 	if base := a.Process.State(); base != Working {
 		return base
 	}
+	// Whatever the turn last said was about a conversation that isn't on
+	// this screen any more.
+	if a.away.Load() {
+		return Background
+	}
 	return a.turn.State()
 }
 
 func (a *Agent) States() []State {
-	return []State{Working, Replied, Approve, Crashed, Stopped, Orphaned}
+	return []State{Working, Idle, Replied, Approve, Interrupted, Background, Crashed, Stopped, Orphaned}
 }
 
 // Key marks the cell as read: whoever entered it already saw what there was
@@ -158,6 +169,11 @@ func (a *Agent) Prompt(text string) error {
 	// an agent with no mod, or one whose mod didn't answer: it types into
 	// whatever has the keyboard, and the enter has to wait for the agent to
 	// digest the paste.
+	// The list of agents is on screen: the conversation's own session would
+	// take the prompt and run it where nobody is looking.
+	if a.away.Load() {
+		return errNotOnScreen
+	}
 	if taken, err := a.viaLink(text); taken || err != nil {
 		return err
 	}

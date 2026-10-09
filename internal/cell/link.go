@@ -115,9 +115,10 @@ func (a *Agent) Rebind(_, conversation string) error {
 	return nil
 }
 
-// errNotOnScreen is the mod saying its session can't take work: the
-// conversation was sent to the background, and the cell shows Claude Code's
-// list of agents instead. Typing the text there would start something else.
+// errNotOnScreen is a prompt with nowhere to go: the conversation was sent to
+// the background, and the cell shows Claude Code's list of agents instead.
+// Typing the text there would start something else. The cell reads it off
+// the screen, and a mod whose session can't take work says the same.
 var errNotOnScreen = fmt.Errorf("The conversation isn't on screen in this cell. ↵ enters it; esc there brings the conversation back.")
 
 // viaLink hands the text to the mod that owns the cell and waits for its

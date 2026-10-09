@@ -79,11 +79,11 @@ func main() {
 
 // openScreen connects to the engine, starting it if needed, and draws.
 func openScreen() error {
-	// The opening runs while the engine is being looked for, on one thread,
-	// and the connection runs on the other. The animation's time is time
-	// that was going to pass anyway — no wait is invented just to show it.
+	// The engine is asked first: whether the brand draws itself or just shows
+	// up depends on what comes back. A grid being restored is someone coming
+	// back to work, and three seconds of drawing in front of cells that were
+	// ready in milliseconds is a wait invented to show it.
 	width, _, _ := term.GetSize(os.Stderr.Fd())
-	opening := screen.NewOpening(os.Stderr, animateOpening(width), width)
 
 	type arrival struct {
 		client  *screen.Client
@@ -109,8 +109,6 @@ func openScreen() error {
 		connected <- arrival{client: client, initial: initial, took: time.Since(start), err: err}
 	}()
 
-	opening.Build()
-
 	arrived := <-connected
 	if arrived.err != nil {
 		if arrived.client != nil {
@@ -121,6 +119,8 @@ func openScreen() error {
 	client, initial := arrived.client, arrived.initial
 	defer client.Close()
 
+	opening := screen.NewOpening(os.Stderr, animateOpening(width, len(initial.Projects)), width)
+	opening.Build()
 	opening.Tally(engineCount(initial, arrived.took))
 	// An empty grid starts with a shell right here: there's always
 	// something to look at.
@@ -156,8 +156,11 @@ func openScreen() error {
 // disappears: the terminal would wrap the line, the fixed cursor-up would
 // miscount and leftover garbage would pile up frame after frame — better
 // the usual static banner. A width of zero is a terminal that didn't say.
-func animateOpening(width int) bool {
-	if _, off := os.LookupEnv("TESSERACT_NO_OPENING"); off {
+//
+// And it only runs over an empty grid — the first run, or a grid the user
+// emptied. With projects to restore the static banner is the whole opening.
+func animateOpening(width, projects int) bool {
+	if _, off := os.LookupEnv("TESSERACT_NO_OPENING"); off || projects > 0 {
 		return false
 	}
 	info, err := os.Stderr.Stat()

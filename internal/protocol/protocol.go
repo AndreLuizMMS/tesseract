@@ -17,6 +17,7 @@ const (
 	TypeResume    = "resume"
 	TypeTab       = "tab"
 	TypePrompt    = "prompt"
+	TypeAnswer    = "answer"
 	TypeComplete  = "complete"
 	TypeScreen    = "screen"
 	TypeSearch    = "search"
@@ -24,6 +25,7 @@ const (
 	TypeEditor    = "editor"
 	TypeListIDEs  = "list-ides"
 	TypeGoToLine  = "go-to-line"
+	TypeOpenDoc   = "open-doc"
 	TypeStatus    = "status"
 	TypeStop      = "stop"
 	TypeReport    = "report"
@@ -104,6 +106,14 @@ type Prompt struct {
 	Text string `json:"text"`
 }
 
+// Answer settles, from the mosaic, the tool approval the focused cell is
+// blocked on: approve it or decline it, without entering the cell. The engine
+// refuses when the cell isn't waiting on exactly that.
+type Answer struct {
+	Cell    string `json:"cell"`
+	Approve bool   `json:"approve"`
+}
+
 // Complete asks the engine to complete a typed path.
 type Complete struct {
 	Path     string `json:"path"`
@@ -179,6 +189,9 @@ type Editor struct {
 	Project  string `json:"project"`
 	ID       string `json:"id"`
 	Location string `json:"location"`
+	// Cell, when set, asks for the last file that cell's agent edited, at
+	// the line, instead of the bare directory.
+	Cell string `json:"cell,omitempty"`
 }
 
 // ListIDEs asks the engine which IDEs are reachable from here to open the
@@ -209,6 +222,12 @@ type GoToLine struct {
 	Line int    `json:"line"`
 }
 
+// OpenDoc opens, in the cell's markdown reader, the file its agent last
+// wrote.
+type OpenDoc struct {
+	Cell string `json:"cell"`
+}
+
 // Report is what the mod running inside a Claude Code cell tells the engine
 // about its own session. It replaces guessing from the cell's screen: the
 // agent says what turn state it's in, which conversation it's holding and
@@ -217,14 +236,21 @@ type Report struct {
 	Cell string `json:"cell"`
 	Tab  string `json:"tab,omitempty"`
 	// Kind picks which of the fields below matter: "state", "session",
-	// "quota", "title" or "delivered".
+	// "quota", "title", "delivered", "doc" or "edit".
 	Kind string `json:"kind"`
 	// Delivery is the ID of the Deliver the mod is answering, and Refused
 	// says its session had nowhere to put it.
 	Delivery string `json:"delivery,omitempty"`
 	Refused  bool   `json:"refused,omitempty"`
-	// State is working, answered, approve or ended.
+	// State is working, idle, answered, approve, interrupted or ended.
 	State string `json:"state,omitempty"`
+	// Ask says what an approve is waiting for: "tool" (a permission dialog,
+	// which enter approves and esc declines), "question" or "plan".
+	Ask string `json:"ask,omitempty"`
+	// Summary is the answer in one short line, when the mod was asked to
+	// write one. It takes the detail's place in the notice and shows on the
+	// cell's header.
+	Summary string `json:"summary,omitempty"`
 	// Detail is what the notice says beyond the state: the tool and command
 	// waiting for approval, or the opening of the answer.
 	Detail string `json:"detail,omitempty"`
@@ -234,10 +260,19 @@ type Report struct {
 	// Percent and ResetsAt are the 5-hour window, the latter in RFC 3339.
 	Percent  float64 `json:"percent,omitempty"`
 	ResetsAt string  `json:"resetsAt,omitempty"`
+	// Weekly is the 7-day window, riding on a "quota" report. Context is how
+	// full the conversation's own window is, in a report of kind "context":
+	// that one belongs to the cell, not to the account.
+	Weekly  float64 `json:"weekly,omitempty"`
+	Context float64 `json:"context,omitempty"`
 	// At is the mod's clock in milliseconds when the event happened. Each
 	// report travels in its own process, and this is what keeps a late one
 	// from overwriting a newer state.
 	At int64 `json:"at,omitempty"`
+	// File is the absolute path the agent just wrote: a markdown to read
+	// ("doc"), or any file, with the Line the change starts on ("edit").
+	File string `json:"file,omitempty"`
+	Line int    `json:"line,omitempty"`
 }
 
 // Link turns the connection into the engine's way of reaching the mod of
@@ -256,6 +291,10 @@ type Deliver struct {
 	ID      string `json:"id,omitempty"`
 	Text    string `json:"text"`
 	Expires int64  `json:"expires,omitempty"`
+	// Event marks a line that carries no work: "attached" is the engine
+	// saying the link is up, which is when the mod's word about its state
+	// starts to count — so the mod says it again.
+	Event string `json:"event,omitempty"`
 }
 
 // CellType is a type's spec, as the form needs to know it. Comes from the
@@ -298,6 +337,20 @@ type Cell struct {
 	// it left off — but the screen says so instead of letting a process
 	// vanish without a word.
 	Asleep []string `json:"asleep,omitempty"`
+	// Doc is a markdown the cell's agent wrote that nobody opened yet, and
+	// Edited the last file it changed, as "path:line". Both are relative to
+	// the project and both come from the cell's mods.
+	Doc    string `json:"doc,omitempty"`
+	Edited string `json:"edited,omitempty"`
+	// Detail is what the cell's agent said about the state it's in: what an
+	// approve is waiting for, or the answer in one line. Ask is the kind of
+	// approve ("tool", "question", "plan"); only "tool" is settled from the
+	// mosaic. Both are empty for an agent with no mod speaking for it.
+	Detail string `json:"detail,omitempty"`
+	Ask    string `json:"ask,omitempty"`
+	// Context is how full the conversation's window is, in percent. Zero
+	// when nobody measured it.
+	Context int `json:"context,omitempty"`
 }
 
 // Project is one column of the mosaic.
@@ -310,7 +363,11 @@ type Project struct {
 	// Docker is the short summary of the stack for the strip: empty with no
 	// compose, "down", or "4/5" when there are services up.
 	Docker string `json:"docker,omitempty"`
-	Cells  []Cell `json:"cells"`
+	// DockerDown says a service of the stack fell on its own — exited on an
+	// error, or dead. It's the one thing about the stack the mosaic shows
+	// without being asked.
+	DockerDown bool   `json:"dockerDown,omitempty"`
+	Cells      []Cell `json:"cells"`
 }
 
 // State is the whole portrait. The engine sends this whenever anything
@@ -330,6 +387,8 @@ type State struct {
 type Quota struct {
 	Percent  int    `json:"percent"`
 	Rollover string `json:"rollover"` // how long until the window rolls over, already formatted
+	// Weekly is the 7-day window. Zero when no mod reported it.
+	Weekly int `json:"weekly,omitempty"`
 }
 
 // Message is the envelope that travels over the socket.

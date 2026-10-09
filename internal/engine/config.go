@@ -50,6 +50,14 @@ type Config struct {
 	// the grid's palette; it holds for the cell's session only. Empty leaves
 	// the user's own theme alone.
 	ClaudeTheme string `json:"claudeTheme"`
+	// DockerDeny starts every Claude Code cell with native deny rules for the
+	// Docker commands that delete data. It's a second layer under the
+	// tesseract-docker mod's guard: the rules hold even when the mod didn't
+	// load, and in a session that skips permission prompts.
+	DockerDeny bool `json:"dockerDeny"`
+	// Roster loads the tesseract-roster mod inside cells. Off by default: the
+	// mosaic already says who's calling.
+	Roster bool `json:"roster"`
 	// Agents is the profile of each agent type.
 	Agents map[string]AgentProfile `json:"agents,omitempty"`
 }
@@ -65,6 +73,7 @@ func DefaultConfig() Config {
 		SleepAfterMinutes: DefaultSleepAfterMinutes,
 		Mods:              true,
 		ClaudeTheme:       "dark-ansi",
+		DockerDeny:        true,
 		Agents:            map[string]AgentProfile{},
 	}
 }

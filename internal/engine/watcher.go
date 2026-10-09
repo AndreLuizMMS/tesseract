@@ -83,23 +83,44 @@ func (e *Engine) checkStates() bool {
 				continue
 			}
 			state := c.proc.State()
+			// A cell with tabs answers with the state of the tab in view.
+			// Changing tabs changes the answer, and that's the user looking
+			// at the cell, not the agent saying something new: a turn that
+			// ended is announced once, not again each time its tab comes
+			// back into view.
+			tab := ""
+			if withTabs, ok := c.proc.(cell.WithTabs); ok {
+				tab = withTabs.ActiveTab()
+			}
+			switchedTab := tab != c.lastTab
+			c.lastTab = tab
 			if state == c.lastState {
 				continue
 			}
 			previous := c.lastState
 			c.lastState = state
+			// What the mod said was about one state: once the cell leaves
+			// it, the word is old.
+			if c.said.state != state {
+				c.said = said{}
+			}
 			changed = true
+			say := func(text string) {
+				if !switchedTab {
+					notices = append(notices, notice{text})
+				}
+			}
 			switch state {
 			case cell.Replied:
-				notices = append(notices, notice{withDetail(c.name+" · "+projectName+" responded", c.takeDetail())})
+				say(withDetail(c.name+" · "+projectName+" responded", c.takeDetail()))
 				if c.pendingRename {
 					toAdoptName = append(toAdoptName, c.id)
 				}
 			case cell.Approve:
-				notices = append(notices, notice{withDetail(c.name+" · "+projectName+" approve", c.takeDetail())})
+				say(withDetail(c.name+" · "+projectName+" approve", c.takeDetail()))
 			case cell.Crashed:
 				if previous != cell.Stopped {
-					notices = append(notices, notice{c.name + " · " + projectName + " crashed"})
+					say(c.name + " · " + projectName + " crashed")
 				}
 			}
 		}
@@ -157,13 +178,13 @@ func (e *Engine) checkDocker() bool {
 	changed := false
 	for _, a := range targets {
 		services, err := docker.Services(a.path, a.compose)
-		summary := ""
+		summary, down := "", false
 		if err == nil {
-			summary = docker.Summary(services)
+			summary, down = docker.Summary(services), docker.AnyFell(services)
 		}
 		e.mu.Lock()
-		changed = changed || a.p.docker != summary
-		a.p.docker = summary
+		changed = changed || a.p.docker != summary || a.p.dockerDown != down
+		a.p.docker, a.p.dockerDown = summary, down
 		e.mu.Unlock()
 	}
 	return changed

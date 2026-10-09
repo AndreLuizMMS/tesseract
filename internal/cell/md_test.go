@@ -439,3 +439,33 @@ func TestMdListUsesOnlyThePalette(t *testing.T) {
 		t.Fatalf("the picked document should be a row with a bar on its left:\n%s", history.StripCodes(drawing))
 	}
 }
+
+// TestPageHeaderSaysWhatIsOnScreen — the count is of the lines the cell
+// shows, from the first frame; and a file outside the project is named from
+// home, not as a climb of "../" from the project.
+func TestPageHeaderSaysWhatIsOnScreen(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, "work", "beta")
+	plan := filepath.Join(home, ".claude", "plans", "plan.md")
+	for _, dir := range []string{project, filepath.Dir(plan)} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("prepare: %v", err)
+		}
+	}
+	if err := os.WriteFile(plan, []byte(strings.Repeat("line\n\n", 20)), 0o644); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	md := &Md{}
+	if err := md.Spawn(Config{Directory: project, Target: plan, Columns: 80, Lines: 6}); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	defer md.Kill()
+	header := history.StripCodes(md.Draw().Lines[0])
+	if !strings.Contains(header, " ~/.claude/plans/plan.md ") || strings.Contains(header, "..") {
+		t.Errorf("a file outside the project is named from home: %q", header)
+	}
+	if !strings.Contains(header, " 1–5 of ") {
+		t.Errorf("a cell of six lines shows five of the page under its header: %q", header)
+	}
+}

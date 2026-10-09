@@ -36,6 +36,7 @@ var cachedQuota struct {
 var reportedQuota struct {
 	sync.Mutex
 	percent  int
+	weekly   int
 	rollover time.Time
 	at       time.Time
 }
@@ -48,7 +49,7 @@ func reportedQuotaAt(now time.Time) *protocol.Quota {
 	if reportedQuota.at.IsZero() || now.Sub(reportedQuota.at) > quotaStaleAfter {
 		return nil
 	}
-	quota := &protocol.Quota{Percent: reportedQuota.percent}
+	quota := &protocol.Quota{Percent: reportedQuota.percent, Weekly: reportedQuota.weekly}
 	if !reportedQuota.rollover.IsZero() {
 		quota.Rollover = timeRemaining(reportedQuota.rollover.Sub(now))
 	}

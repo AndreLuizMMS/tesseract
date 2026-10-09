@@ -17,6 +17,11 @@ import (
 // its own, only the right to run a program, so the program it runs is this
 // one. Neither starts an engine — a cell only exists inside one.
 
+// movedFromCell is how Claude Code marks (CLAUDE_BG_SOURCE) the background
+// session that is a conversation sent off its own screen; the spare is
+// "spare".
+const movedFromCell = "slash"
+
 // ownCell is the cell this process was born in. It comes from the
 // environment the engine gave the agent, never from what the caller says:
 // a report can only ever speak for the cell it runs in.
@@ -26,10 +31,14 @@ func ownCell() (cell, tab string, err error) {
 		return "", "", errors.New("not inside a Tesseract cell")
 	}
 	// Claude Code's background sessions are born from the cell's process and
-	// inherit its environment, mods included, but they aren't what the cell
-	// shows: one speaking would rename the cell's conversation after itself
-	// and take the prompts meant for the session on screen.
-	if os.Getenv("CLAUDE_CODE_SESSION_KIND") == "bg" {
+	// inherit its environment, mods included. One of them is the cell's own
+	// conversation: ← forks it into a background session, and esc turns the
+	// cell's process into a viewer of that fork, so the fork is what runs
+	// every turn from then on. The others — the spare the background service
+	// keeps warm, a task dispatched from the list of agents — aren't what the
+	// cell shows: one speaking would rename the cell's conversation after
+	// itself and take the prompts meant for the session on screen.
+	if os.Getenv("CLAUDE_CODE_SESSION_KIND") == "bg" && os.Getenv("CLAUDE_BG_SOURCE") != movedFromCell {
 		return "", "", errors.New("a background session speaks for no cell")
 	}
 	return cell, os.Getenv("TESSERACT_TAB"), nil

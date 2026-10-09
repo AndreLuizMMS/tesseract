@@ -36,6 +36,9 @@ var reportedStates = map[string]cell.State{
 	"answered": cell.Replied,
 	"approve":  cell.Approve,
 	"ended":    cell.Working,
+	"idle":     cell.Idle,
+
+	"interrupted": cell.Interrupted,
 }
 
 // Report takes what a cell's mod says about its own session. Everything
@@ -49,7 +52,9 @@ func (e *Engine) Report(report protocol.Report) error {
 
 	switch report.Kind {
 	case "quota":
-		return reportQuota(report.Percent, report.ResetsAt)
+		return reportQuota(report.Percent, report.Weekly, report.ResetsAt)
+	case "context":
+		return e.reportContext(c, report)
 	case "title":
 		// The mod says the rename the engine asked for has run. One nobody
 		// asked for isn't adopted: the cell's label is the user's.
@@ -60,6 +65,8 @@ func (e *Engine) Report(report protocol.Report) error {
 			return nil
 		}
 		return e.AdoptAgentName(c.id)
+	case "doc", "edit":
+		return e.reportFile(c, report)
 	case "session", "state", "delivered":
 	default:
 		return fmt.Errorf("unknown report kind: %q", report.Kind)
@@ -85,6 +92,7 @@ func (e *Engine) Report(report protocol.Report) error {
 	}
 	e.mu.Lock()
 	c.detail, c.detailTab = cleanDetail(report.Detail), report.Tab
+	c.note(report, state)
 	e.mu.Unlock()
 	return withLink.Signal(report.Tab, state, report.At)
 }
@@ -142,8 +150,8 @@ func cleanDetail(raw string) string {
 // reportQuota keeps the usage a mod measured, which beats the file the
 // user's statusline leaves: it arrives by itself, from any cell, with no
 // script to install.
-func reportQuota(percent float64, resetsAt string) error {
-	if math.IsNaN(percent) || percent < 0 {
+func reportQuota(percent, weekly float64, resetsAt string) error {
+	if math.IsNaN(percent) || percent < 0 || math.IsNaN(weekly) || weekly < 0 {
 		return fmt.Errorf("invalid usage percentage")
 	}
 	var rollover time.Time
@@ -157,6 +165,7 @@ func reportQuota(percent float64, resetsAt string) error {
 	reportedQuota.Lock()
 	defer reportedQuota.Unlock()
 	reportedQuota.percent = min(int(percent+0.5), 100)
+	reportedQuota.weekly = min(int(weekly+0.5), 100)
 	reportedQuota.rollover = rollover
 	reportedQuota.at = time.Now()
 	return nil
@@ -207,14 +216,19 @@ func (e *Engine) claudeArgs(chosen []string) []string {
 	var args []string
 	if e.config.Mods {
 		for _, dir := range ModDirs() {
+			// The mosaic already says who's calling: inside a cell the
+			// roster would say it a second time.
+			if filepath.Base(dir) == "tesseract-roster" && !e.config.Roster {
+				continue
+			}
 			args = append(args, "--plugin-dir", dir)
 		}
 	}
 	// Whoever already passes their own settings keeps them: a second flag
 	// would compete with the first.
-	if theme := e.config.ClaudeTheme; theme != "" && !slices.Contains(chosen, "--settings") {
-		settings, _ := json.Marshal(map[string]string{"theme": theme})
-		args = append(args, "--settings", string(settings))
+	if settings := e.claudeSettings(); len(settings) > 0 && !slices.Contains(chosen, "--settings") {
+		encoded, _ := json.Marshal(settings)
+		args = append(args, "--settings", string(encoded))
 	}
 	return args
 }

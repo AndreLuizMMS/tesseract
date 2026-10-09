@@ -131,6 +131,11 @@ func (s *Server) handle(conn net.Conn) {
 			detach, err = s.engine.Link(request.Cell, request.Tab, func(delivery cell.Delivery) error {
 				return send(protocol.TypeDeliver, protocol.Deliver{ID: delivery.ID, Text: delivery.Text, Expires: delivery.Expires})
 			})
+			if err == nil {
+				// The mod's word about its state only counts from here on, so
+				// it's told when "here" is.
+				err = send(protocol.TypeDeliver, protocol.Deliver{Event: "attached"})
+			}
 		}
 		if err != nil {
 			// Closing is the answer: whoever is on the other end exits
@@ -245,6 +250,14 @@ func (s *Server) handleRequest(envelope protocol.Message, respond func(string, a
 		}
 		fail(s.engine.Prompt(request.Cell, request.Text))
 
+	case protocol.TypeAnswer:
+		request, err := protocol.Unpack[protocol.Answer](envelope)
+		if err != nil {
+			fail(err)
+			return
+		}
+		fail(s.engine.Answer(request))
+
 	case protocol.TypeReport:
 		request, err := protocol.Unpack[protocol.Report](envelope)
 		if err != nil {
@@ -264,7 +277,15 @@ func (s *Server) handleRequest(envelope protocol.Message, respond func(string, a
 			fail(err)
 			return
 		}
-		fail(s.engine.OpenInEditor(request.Project, request.ID, request.Location))
+		fail(s.engine.OpenInEditor(request.Project, request.ID, request.Location, request.Cell))
+
+	case protocol.TypeOpenDoc:
+		request, err := protocol.Unpack[protocol.OpenDoc](envelope)
+		if err != nil {
+			fail(err)
+			return
+		}
+		fail(s.engine.OpenDoc(request.Cell))
 
 	case protocol.TypeListIDEs:
 		request, err := protocol.Unpack[protocol.ListIDEs](envelope)

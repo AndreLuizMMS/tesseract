@@ -117,13 +117,31 @@ func TestModReportsAndReceivesThroughTheBinary(t *testing.T) {
 		{"link"},
 	} {
 		background := command(t, home, args...)
-		background.Env = append(background.Env, "TESSERACT_CELL_ID="+id, "CLAUDE_CODE_SESSION_KIND=bg")
+		background.Env = append(background.Env, "TESSERACT_CELL_ID="+id, "CLAUDE_CODE_SESSION_KIND=bg", "CLAUDE_BG_SOURCE=spare")
 		if out, err := background.CombinedOutput(); err == nil {
 			t.Errorf("a background session's %s was accepted: %s", args[0], out)
 		}
 	}
 	if _, conversations := savedCell(t, home); conversations["claude"] != conversation {
 		t.Fatalf("a background session changed the cell's conversation to %q", conversations["claude"])
+	}
+
+	// The exception is the cell's own conversation sent to the background
+	// with ←: esc brings that fork back on the cell's screen, the turns run
+	// in it from then on, and its id is the one a restart has to resume.
+	const fork = "d01ea55f-df74-49cb-bb35-e6f238303680"
+	moved := command(t, home, "report", `{"kind":"session","session":"`+fork+`"}`)
+	moved.Env = append(moved.Env, "TESSERACT_CELL_ID="+id, "CLAUDE_CODE_SESSION_KIND=bg", "CLAUDE_BG_SOURCE=slash")
+	if out, err := moved.CombinedOutput(); err != nil {
+		t.Fatalf("the conversation moved to the background was refused: %s", out)
+	}
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if _, conversations := savedCell(t, home); conversations["claude"] == fork {
+			break
+		}
+	}
+	if _, conversations := savedCell(t, home); conversations["claude"] != fork {
+		t.Fatalf("the engine kept %q instead of the conversation on screen", conversations["claude"])
 	}
 
 	// The link going away hands the cell back to the screen reading.

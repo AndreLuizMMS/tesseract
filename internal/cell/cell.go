@@ -6,41 +6,51 @@ package cell
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/andreluiz/tesseract/internal/engine/history"
+	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 // State is the cell's situation, as it appears in the marker.
 type State string
 
 const (
-	Working  State = "working"  // live process producing
-	Replied  State = "answered" // gave back the turn, has an answer waiting
-	Approve  State = "approve"  // stuck on a question and won't move without an answer
-	Crashed  State = "down"     // the process died on its own
-	Stopped  State = "stopped"  // no process, cell preserved
-	Orphaned State = "orphan"   // the project's directory vanished from disk
+	Working State = "working"  // live process producing
+	Replied State = "answered" // gave back the turn, has an answer waiting
+	Approve State = "approve"  // stuck on a question and won't move without an answer
+	// Idle and Interrupted only come from an agent that speaks for itself: the
+	// screen reading can't tell a quiet prompt from a quiet turn.
+	Idle        State = "idle"        // at the prompt: nothing running, nothing unread
+	Interrupted State = "interrupted" // the user stopped the turn, or declined what it asked
+	// Background is an agent whose conversation was sent off its own screen:
+	// what the cell shows is the agent's list of sessions, not the session.
+	Background State = "background"
+	Crashed    State = "down"    // the process died on its own
+	Stopped    State = "stopped" // no process, cell preserved
+	Orphaned   State = "orphan"  // the project's directory vanished from disk
 )
 
-// Marker is the symbol for the state on the cell's bar.
+// Marker is the symbol for the state, the same one the cell wears on the
+// screen: the alphabet has one home, and it's the theme's. A state with no
+// glyph — an agent at its prompt — still takes the glyph's column.
 func (e State) Marker() string {
-	switch e {
-	case Working:
-		return "▸"
-	case Replied:
-		return "⬤"
-	case Approve:
-		return "⏵"
-	case Crashed:
-		return "✖"
-	case Stopped:
-		return "○"
-	case Orphaned:
-		return "⚠"
+	if glyph := theme.Do(theme.State(e)).Glyph; glyph != "" {
+		return glyph
 	}
-	return "·"
+	return " "
+}
+
+// Word is the state written out, for where there's room for words and no
+// color to lean on — `ts status`. It's the theme's own label, so the screen's
+// legend, the notices and the command line name each state the same way.
+func (e State) Word() string {
+	if label := theme.Do(theme.State(e)).Label; label != "" {
+		return strings.ToLower(label)
+	}
+	return string(e)
 }
 
 // Config is everything a cell needs to be born.

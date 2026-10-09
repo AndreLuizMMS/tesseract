@@ -37,6 +37,10 @@ type Markers struct {
 	Question      []string
 	WorkingLines  []string
 	QuestionLines []string
+	// Away is what a line of the agent's screen opens with while the
+	// conversation isn't on it. No mod can say this one: the session it would
+	// speak for is exactly what left.
+	Away []string
 }
 
 // anyLineStarts says whether any line of the screen opens with one of the
@@ -123,6 +127,12 @@ func (t *Turn) Observe(screen string) State {
 	if len(t.markers.Working) > 0 || len(t.markers.WorkingLines) > 0 {
 		working = anyPresent(screen, t.markers.Working) || anyLineStarts(screen, t.markers.WorkingLines)
 	}
+	// A line that asks beats a line that works: with a call waiting on the
+	// user, the calls queued behind it are still drawn as work in progress,
+	// and the turn is stopped all the same.
+	if anyLineStarts(screen, t.markers.QuestionLines) {
+		working = false
+	}
 
 	if working && !t.interacted {
 		// The agent coming up and drawing itself isn't a turn. Without
@@ -191,7 +201,12 @@ func (t *Turn) Signal(state State, at int64) bool {
 		return false
 	}
 	t.signaledAt = at
-	t.state = state
+	// Idle is the agent saying nothing is going on. An answer nobody read
+	// yet is still waiting whatever the agent does at its prompt: only
+	// someone looking at the cell takes that marker down.
+	if state != Idle || t.state != Replied {
+		t.state = state
+	}
 	t.spoken = true
 	// A turn the agent reports is a turn someone asked for, even when the
 	// request came from a place the cell never saw.
@@ -225,7 +240,12 @@ func (t *Turn) Seen() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.state == Replied {
+		// A mod knows the agent is back at its prompt. The screen reading has
+		// no word for that, and keeps the one it always used.
 		t.state = Working
+		if t.linked && t.spoken {
+			t.state = Idle
+		}
 	}
 }
 

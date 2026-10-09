@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/andreluiz/tesseract/internal/cell"
@@ -179,10 +182,13 @@ func (e *Engine) DetectIDEs() []protocol.IDE {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if wslInstalled(c.ID) {
+			_, onWindows := windowsInstalled(c.ID, c.WindowsExe)
+			// The launcher a Windows install drops on WSL's PATH is that same
+			// install: it shows up once, as windows.
+			if binary := linuxInstall(c.ID); binary != "" && !(onWindows && windowsDrive.MatchString(binary)) {
 				add(protocol.IDE{ID: c.ID, Label: c.Label, Location: "wsl"})
 			}
-			if _, ok := windowsInstalled(c.ID, c.WindowsExe); ok {
+			if onWindows {
 				add(protocol.IDE{ID: c.ID, Label: c.Label, Location: "windows"})
 			}
 		}()
@@ -197,13 +203,23 @@ func (e *Engine) DetectIDEs() []protocol.IDE {
 	return list
 }
 
-// wslInstalled says whether the id names a real Linux install on PATH. The
-// remote CLI an IDE drops under ~/.<name>-server only talks to a window
-// someone else opened — it doesn't count as an install of its own.
-func wslInstalled(id string) bool {
+// linuxInstall is where the id's binary on PATH really lives, links
+// followed, or empty when there's none. The remote CLI an IDE drops under
+// ~/.<name>-server only talks to a window someone else opened — it doesn't
+// count as an install of its own.
+func linuxInstall(id string) string {
 	binary, err := exec.LookPath(id)
-	return err == nil && !strings.Contains(binary, "-server/")
+	if err != nil || strings.Contains(binary, "-server/") {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(binary); err == nil {
+		return resolved
+	}
+	return binary
 }
+
+// windowsDrive is a path on a Windows disk, as WSL mounts it.
+var windowsDrive = regexp.MustCompile(`^/mnt/[a-zA-Z]/`)
 
 // windowsRoots is where Windows keeps programs: a per-user install and the
 // two machine-wide Program Files, 64 and 32-bit alike.
@@ -240,8 +256,9 @@ func windowsInstalled(id, windowsExe string) (target string, ok bool) {
 }
 
 // OpenInEditor opens the project directory in the picked IDE, at the place
-// the picker said it lives.
-func (e *Engine) OpenInEditor(projectID, id, location string) error {
+// the picker said it lives. With a cell, it opens the last file that cell's
+// agent edited, at the line.
+func (e *Engine) OpenInEditor(projectID, id, location, cellID string) error {
 	e.mu.Lock()
 	path := ""
 	for _, p := range e.projects {
@@ -257,6 +274,13 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 	if id == "" {
 		return fmt.Errorf("No IDE picked. ↑↓ picks one, ↵ opens it.")
 	}
+	file, line := "", 0
+	if cellID != "" {
+		var err error
+		if file, line, err = e.lastEdit(cellID); err != nil {
+			return err
+		}
+	}
 
 	// The `code`/`codium` launcher inside WSL asks, on stderr, whether to
 	// really open the Linux install, and waits for an answer on stdin. The
@@ -264,7 +288,7 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 	// comes out empty, and the launcher exits without opening anything. This
 	// variable is the launcher's own way out of that prompt.
 	environment := append(withDisplay(os.Environ()), "DONT_PROMPT_WSL_INSTALL=1")
-	binaryName, arguments := id, []string{path}
+	binaryName, arguments := id, editorArguments(path, "", file, line)
 	if location == "windows" {
 		// A window already open for this IDE is reused through its remote
 		// CLI: the socket it leaves behind on WSL keeps responding even
@@ -282,25 +306,60 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 			if !ok {
 				return fmt.Errorf("%s isn't installed on the Windows side. ctrl+e picks another IDE.", id)
 			}
-			uri := "vscode-remote://wsl+" + distro + path
-			if target != id {
-				// The install's own binary, found on disk: WSL can run a
-				// Windows .exe directly, no cmd.exe or PATH in the middle.
-				binaryName, arguments = target, []string{"--folder-uri", uri}
-			} else {
+			// The install's own binary, found on disk: WSL can run a Windows
+			// .exe directly, no cmd.exe or PATH in the middle.
+			binaryName, arguments = target, editorArguments(path, distro, file, line)
+			if target == id {
 				// Only found through Windows' PATH — cmd.exe is what
 				// resolves a bare name into that PATH.
-				binaryName, arguments = cmdExePath, []string{"/c", "start", "", id, "--folder-uri", uri}
+				binaryName, arguments = cmdExePath, append([]string{"/c", "start", "", id}, arguments...)
 			}
 		}
 	}
 	command := exec.Command(binaryName, arguments...)
 	command.Dir = path
 	command.Env = environment
-	output := &strings.Builder{}
+	return launchDetached(command)
+}
+
+// editorArguments is what the IDE is asked to open: the project's directory
+// and, on top of it, the file at the line when there is one. distro is set
+// when the IDE runs on the Windows side and reaches the project through WSL.
+func editorArguments(path, distro, file string, line int) []string {
+	var goTo []string
+	if file != "" {
+		goTo = []string{"--goto", file + ":" + strconv.Itoa(line)}
+	}
+	switch {
+	case distro == "":
+		return append([]string{path}, goTo...)
+	case file == "":
+		return []string{"--folder-uri", "vscode-remote://wsl+" + distro + path}
+	}
+	return append([]string{"--remote", "wsl+" + distro, path}, goTo...)
+}
+
+// launchDetached starts the IDE with nothing tying it to the engine: a
+// session of its own, and its output in a file instead of a pipe the engine
+// would have to keep reading. So the call comes back at once, and the IDE
+// isn't taken down by a signal meant for the engine or by a pipe that closed.
+//
+// ponytail: under systemd the IDE still shares the engine's control group,
+// and stopping the service kills a Linux IDE it opened. `systemd-run --scope`
+// around the command lifts that, if it ever matters — a Windows IDE and a
+// window that was already open aren't affected.
+func launchDetached(command *exec.Cmd) error {
+	name := filepath.Base(command.Path)
+	output, err := os.CreateTemp("", "ts-ide-*.log")
+	if err != nil {
+		return fmt.Errorf("Could not open %s (%w). ctrl+e picks another IDE.", name, err)
+	}
+	defer os.Remove(output.Name())
+	defer output.Close()
 	command.Stdout, command.Stderr = output, output
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := command.Start(); err != nil {
-		return fmt.Errorf("Could not open %s (%w). ctrl+e picks another IDE.", id, err)
+		return fmt.Errorf("Could not open %s (%w). ctrl+e picks another IDE.", name, err)
 	}
 
 	// The IDE that opens a window stays alive; the one that didn't dies right
@@ -311,7 +370,8 @@ func (e *Engine) OpenInEditor(projectID, id, location string) error {
 	select {
 	case err := <-died:
 		if err != nil {
-			return fmt.Errorf("%s did not open: %s. ctrl+e picks another IDE.", binaryName, strings.TrimSuffix(firstLine(output.String(), err), "."))
+			said, _ := os.ReadFile(output.Name())
+			return fmt.Errorf("%s did not open: %s. ctrl+e picks another IDE.", name, strings.TrimSuffix(firstLine(string(said), err), "."))
 		}
 	case <-time.After(500 * time.Millisecond):
 	}
@@ -541,7 +601,7 @@ func (e *Engine) Docker(request protocol.Docker) (protocol.Services, error) {
 	}
 
 	e.mu.Lock()
-	target.docker = docker.Summary(services)
+	target.docker, target.dockerDown = docker.Summary(services), docker.AnyFell(services)
 	e.mu.Unlock()
 	e.markDirty()
 	return response, nil

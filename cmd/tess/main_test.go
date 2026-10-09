@@ -13,7 +13,6 @@ import (
 	"github.com/creack/pty"
 
 	"github.com/andreluiz/tesseract/internal/engine/history"
-	"github.com/andreluiz/tesseract/internal/theme"
 )
 
 var (
@@ -277,22 +276,18 @@ func TestScreenOpensDrawsAndCloses(t *testing.T) {
 	defer func() { lastScreen = term.Render() }()
 
 	// The screen opens with a bash cell in full screen.
+	// It opens with the application holding the keyboard: no cell wears the
+	// mode's word, and the status line is down to the help's key.
 	waitUntil(t, 10*time.Second, func() bool {
-		return strings.Contains(term.Render(), theme.Name) && strings.Contains(term.Render(), "claude")
+		return atRest(term.Render()) && strings.Contains(term.Render(), "claude")
 	})
-	render := term.Render()
-	if !strings.Contains(render, "BROWSE") {
-		t.Fatalf("the screen should open in BROWSE:\n%s", render)
-	}
-	// The key and what it does are painted apart, so the codes are stripped
-	// before looking for the two together.
-	if !strings.Contains(history.StripCodes(render), "n create") {
-		t.Fatalf("the footer should be lit:\n%s", render)
-	}
 
-	// Help opens and closes.
+	// Help opens and closes, and it's where the keys are listed.
 	_, _ = terminal.Write([]byte("?"))
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "HELP") })
+	if help := history.StripCodes(term.Render()); !strings.Contains(help, "create") {
+		t.Fatalf("the help should list the keys:\n%s", help)
+	}
 	_, _ = terminal.Write([]byte{0x1b})
 	waitUntil(t, 3*time.Second, func() bool { return !strings.Contains(term.Render(), "HELP") })
 
@@ -314,7 +309,7 @@ func TestScreenOpensDrawsAndCloses(t *testing.T) {
 		return strings.Contains(term.Render(), "tesseract-alive")
 	})
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
-	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
+	waitUntil(t, 3*time.Second, func() bool { return atRest(term.Render()) })
 
 	// Closes the screen — and the engine keeps running.
 	_, _ = terminal.Write([]byte("q"))
@@ -420,11 +415,11 @@ func TestGridWithTwoProjects(t *testing.T) {
 	go func() { _, _ = pipe(term, terminal) }()
 	go func() { _, _ = pipe(terminal, term) }()
 
-	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "CORTZ-WEB") })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "cortz-web") })
 	// Both projects stay on screen at once, neither turns into a strip.
 	waitUntil(t, 5*time.Second, func() bool {
 		render := term.Render()
-		return strings.Contains(render, "CORTZ-WEB") && strings.Contains(render, "DOXAR-API")
+		return strings.Contains(render, "cortz-web") && strings.Contains(render, "doxar-api")
 	})
 
 	// The arrow moves to the project on the side.
@@ -439,7 +434,7 @@ func TestGridWithTwoProjects(t *testing.T) {
 	}
 
 	_, _ = terminal.Write([]byte("\r")) // confirm
-	waitUntil(t, 10*time.Second, func() bool { return !strings.Contains(term.Render(), "DOXAR-API") })
+	waitUntil(t, 10*time.Second, func() bool { return !strings.Contains(term.Render(), "doxar-api") })
 
 	// The directory stays untouched on disk.
 	if _, err := os.Stat(second); err != nil {
@@ -474,12 +469,12 @@ func TestListShowsSameAsGrid(t *testing.T) {
 	go func() { _, _ = pipe(term, terminal) }()
 	go func() { _, _ = pipe(terminal, term) }()
 
-	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "CORTZ-WEB") })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), "cortz-web") })
 
 	_, _ = terminal.Write([]byte("v"))
 	waitUntil(t, 5*time.Second, func() bool {
 		render := term.Render()
-		return strings.Contains(render, "CORTZ-WEB") && strings.Contains(render, "bash")
+		return strings.Contains(render, "cortz-web") && strings.Contains(render, "bash")
 	})
 
 	_, _ = terminal.Write([]byte("q"))
@@ -498,7 +493,7 @@ func TestListShowsSameAsGrid(t *testing.T) {
 	go func() { _, _ = pipe(term2, terminal2) }()
 	go func() { _, _ = pipe(terminal2, term2) }()
 
-	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term2.Render(), "CORTZ-WEB") })
+	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term2.Render(), "cortz-web") })
 	if !strings.Contains(term2.Render(), "┬") && !strings.Contains(term2.Render(), "│") {
 		t.Fatalf("the screen should have reopened:\n%s", term2.Render())
 	}
@@ -539,7 +534,7 @@ func TestSearchInHistoryFromScreen(t *testing.T) {
 	_, _ = terminal.Write([]byte("echo needle-in-the-haystack\r"))
 	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "needle-in-the-haystack") })
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
-	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
+	waitUntil(t, 3*time.Second, func() bool { return atRest(term.Render()) })
 
 	// Search.
 	_, _ = terminal.Write([]byte("/"))
@@ -586,11 +581,6 @@ func TestTabSwitchesTabInSession(t *testing.T) {
 		return strings.Contains(render, "claude") && strings.Contains(render, "cursor") && strings.Contains(render, "bash")
 	})
 
-	// The footer tells us the key exists.
-	if !strings.Contains(history.StripCodes(term.Render()), "tab next tab") {
-		t.Errorf("the footer should show the tab key:\n%s", term.Render())
-	}
-
 	// The tab key leads to the shell, where it's possible to type.
 	goToShellTab(terminal, term)
 
@@ -600,7 +590,7 @@ func TestTabSwitchesTabInSession(t *testing.T) {
 	waitUntil(t, 6*time.Second, func() bool { return strings.Contains(term.Render(), "im-on-the-shell-tab") })
 
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
-	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
+	waitUntil(t, 3*time.Second, func() bool { return atRest(term.Render()) })
 	_, _ = terminal.Write([]byte("q"))
 	_ = waitExit(cmd, 5*time.Second)
 }
@@ -627,13 +617,16 @@ func TestFormBrowsesFoldersWithoutTyping(t *testing.T) {
 	go func() { _, _ = pipe(term, terminal) }()
 	go func() { _, _ = pipe(terminal, term) }()
 
-	waitUntil(t, 10*time.Second, func() bool { return strings.Contains(term.Render(), theme.Name) })
+	waitUntil(t, 10*time.Second, func() bool { return atRest(term.Render()) })
 	_, _ = terminal.Write([]byte("n"))
 	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "NEW") })
 
 	render := term.Render()
-	if !strings.Contains(render, os.Getenv("HOME")) {
-		t.Errorf("the form should start at the user's home:\n%s", render)
+	// With a project already on the grid the field starts there; on an
+	// empty one, at home. Which of the two this screen saw first is a matter
+	// of timing, and either way there's a path to walk from.
+	if !strings.Contains(render, os.Getenv("HOME")) && !strings.Contains(render, project) {
+		t.Errorf("the form should start at the focused project or at the user's home:\n%s", render)
 	}
 	if strings.Contains(render, "TYPE") {
 		t.Errorf("the form no longer asks for the type:\n%s", render)
@@ -644,7 +637,7 @@ func TestFormBrowsesFoldersWithoutTyping(t *testing.T) {
 
 	// Clearing home and typing another directory: the folders inside it show
 	// up on their own, which is what makes picking one a matter of arrows.
-	_, _ = terminal.Write([]byte(strings.Repeat("\x7f", len(os.Getenv("HOME"))+1)))
+	_, _ = terminal.Write([]byte(strings.Repeat("\x7f", len(os.Getenv("HOME"))+len(project)+1)))
 	_, _ = terminal.Write([]byte(home + "/"))
 	waitUntil(t, 5*time.Second, func() bool { return strings.Contains(term.Render(), "/project/") })
 
@@ -728,7 +721,15 @@ func TestMarkdownTabListsSearchesAndOpens(t *testing.T) {
 	})
 
 	_, _ = terminal.Write([]byte{0x0c}) // ctrl+l
-	waitUntil(t, 3*time.Second, func() bool { return strings.Contains(term.Render(), "BROWSE") })
+	waitUntil(t, 3*time.Second, func() bool { return atRest(term.Render()) })
 	_, _ = terminal.Write([]byte("q"))
 	_ = waitExit(cmd, 5*time.Second)
+}
+
+// atRest says the application has the keyboard and nothing is open: no cell
+// wears the mode's word, and the status line is down to the help's key.
+func atRest(render string) bool {
+	lines := strings.Split(render, "\n")
+	last := history.StripCodes(lines[len(lines)-1])
+	return !strings.Contains(history.StripCodes(render), " TYPE ") && strings.HasPrefix(last, " ?")
 }
