@@ -152,8 +152,8 @@ test('cada site redesenhado devolve árvore válida no terminal', async ($, on) 
   await startTurn($)
 
   const sites = [
-    [{ component: 'Spinner', props: { word: 'Baking', message: null, suffix: '…', mode: 'thinking' } }, /^▸ WORKING · thinking · 0s$/],
-    [{ component: 'TurnDuration', props: { word: 'Baked', durationMs: 42_000 } }, /^⬤ RESPONDED · 42s$/],
+    [{ component: 'Spinner', props: { word: 'Baking', message: null, suffix: '…', mode: 'thinking' } }, /^▸ thinking · 0s$/],
+    [{ component: 'TurnDuration', props: { word: 'Baked', durationMs: 42_000 } }, /^⬤ 42s$/],
     [{ component: 'SessionMode', props: { modes: ['focus', 'memory paused'] } }, /^FOCUS · MEMORY PAUSED$/],
     [
       {
@@ -190,9 +190,31 @@ test('cada site redesenhado devolve árvore válida no terminal', async ($, on) 
   await running.redraw({ ...toolUse().props, isErrored: true })
   expect(flatten(await running.drawn()).text).toMatch(/^✖ Bash .* · failed$/)
   await running.redraw({ ...toolUse().props, isInterrupted: true, isErrored: true })
-  expect(flatten(await running.drawn()).text).toMatch(/^○ Bash .* · interrupted$/)
+  expect(flatten(await running.drawn()).text).toMatch(/^◐ Bash .* · interrupted$/)
   await running.unmount()
+})
 
+test('dentro da célula não há faixa: o cabeçalho do mosaico já diz tudo', async ($, on) => {
+  engine(on)
+  await startTurn($)
+  const top = await $.ui.mount(band(75))
+  expect(flatten(await top.drawn()).text).toStartWith('engine ')
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 1_000, isAborted: false, reason: 'answer' })
+  await top.redraw()
+  expect(flatten(await top.drawn()).text).toStartWith('engine ')
+  await top.unmount()
+})
+
+test('dentro da célula a opção de usar fora não traz a faixa de volta', OUTSIDE, async ($, on) => {
+  engine(on)
+  const top = await $.ui.mount(band(75))
+  expect(flatten(await top.drawn()).text).toStartWith('engine ')
+  await top.unmount()
+})
+
+test('faixa fora do Tesseract: pasta, estado do turno e quota', OUTSIDE, async ($, on) => {
+  engine(on, {})
+  await startTurn($)
   const top = await $.ui.mount(band(75))
   expect(flatten(await top.drawn()).text).toBe('⧉ api · ▸ WORKING')
   await $.session.measure({
@@ -290,8 +312,8 @@ test('fora do Tesseract com a opção ligada', { options: { outside_tesseract: t
   await ui.unmount()
 })
 
-test('superfície desligada fica com o Claude Code', { options: { band: false } }, async ($, on) => {
-  engine(on)
+test('superfície desligada fica com o Claude Code', { options: { band: false, outside_tesseract: true } }, async ($, on) => {
+  engine(on, {})
   const ui = await $.ui.mount(band(75))
   expect(flatten(await ui.drawn()).text).toStartWith('engine ')
   await ui.unmount()
@@ -315,7 +337,6 @@ test('sem cor: nenhuma cor na árvore, a forma continua', async ($, on) => {
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} })
 
   const drawings = [
-    await $.ui.mount(band(75)),
     await $.ui.mount(toolUse()),
     await $.ui.mount(toolUse({ tool_use_id: 'toolu_2', isErrored: true })),
     await $.ui.mount({
@@ -335,17 +356,17 @@ test('sem cor: nenhuma cor na árvore, a forma continua', async ($, on) => {
   }
 
   // Dentro da célula a área invertida é a do mosaico: aqui só forma e negrito.
-  const [, bar, failed] = drawings
+  const [bar, failed] = drawings
   const approve = flatten(await bar!.drawn())
-  expect(approve.text).toStartWith('⏵ APPROVE  Bash: pnpm migrate')
+  expect(approve.text).toStartWith('⏵ Bash: pnpm migrate')
   expect(approve.props.some(props => props.inverse === true)).toBe(false)
   expect(approve.props[1]).toMatchObject({ bold: true })
   expect(flatten(await failed!.drawn()).text).toMatch(/^✖ Bash .* · failed$/)
   for (const ui of drawings) await ui.unmount()
 })
 
-test('largura 34: faixa e barra cabem na linha', async ($, on) => {
-  engine(on, { TESSERACT: '1', TESSERACT_CELL: 'api/claude-refactor-of-everything' })
+test('largura 34 fora do Tesseract: a faixa cabe na linha', OUTSIDE, async ($, on) => {
+  engine(on, {})
   await $.session.measure({
     context: { window: 200_000, tokens: 82_000, percent: 41 },
     rateLimits: [{ kind: 'five_hour', percentUsed: 23 }],
@@ -358,16 +379,19 @@ test('largura 34: faixa e barra cabem na linha', async ($, on) => {
   const top = await $.ui.mount(band(29))
   const text = flatten(await top.drawn()).text
   expect([...text].length).toBeLessThanOrEqual(29)
-  expect(text).toStartWith('⧉ api/')
-  expect(text).toEndWith('· ⬤ RESPONDED')
+  expect(text).toBe('⧉ api · ⬤ RESPONDED · 5h 23%')
   await top.unmount()
+})
 
+test('largura 34 dentro da célula: a linha de approve cabe', async ($, on) => {
+  engine(on)
+  await startTurn($)
   await $.tool.check({ tool: 'Bash', input: {}, tool_use_id: 'toolu_1' })
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: {} })
   const bar = await $.ui.mount(toolUse({}, NARROW))
   const line = flatten(await bar.drawn()).text
   expect([...line].length).toBe(33)
-  expect(line).toStartWith('⏵ APPROVE  Bash: pnpm migra')
+  expect(line).toStartWith('⏵ Bash: pnpm migra')
   await bar.unmount()
 })
 
@@ -394,7 +418,7 @@ test('dentro da célula o approve é forma e cor, sem área e sem pisca', async 
   await ui.redraw()
   const line = flatten(await ui.drawn())
   expect(line.text).toBe(
-    '⏵ APPROVE  Bash: pnpm migrate --name add_orders_table_and_backfill',
+    '⏵ Bash: pnpm migrate --name add_orders_table_and_backfill',
   )
   expect(line.props.some(props => props.backgroundColor !== undefined || props.inverse !== undefined)).toBe(false)
   expect(line.props[1]).toMatchObject({ color: '#FFB454', bold: true })
@@ -407,7 +431,7 @@ test('dentro da célula o approve é forma e cor, sem área e sem pisca', async 
 
   // Com espaço, a linha diz as teclas.
   const short = await $.ui.mount(toolUse({ input: { command: 'pnpm migrate' } }))
-  expect(flatten(await short.drawn()).text).toBe('⏵ APPROVE  Bash: pnpm migrate  Enter approves, Esc declines')
+  expect(flatten(await short.drawn()).text).toBe('⏵ Bash: pnpm migrate  Enter approves, Esc declines')
   await short.unmount()
 })
 
@@ -418,7 +442,7 @@ test('fila de aprovações: só a primeira pede, a segunda espera a vez', async 
   await ask($, 'toolu_2')
   const first = await $.ui.mount(toolUse())
   const second = await $.ui.mount(toolUse({ tool_use_id: 'toolu_2' }))
-  expect(flatten(await first.drawn()).text).toStartWith('⏵ APPROVE')
+  expect(flatten(await first.drawn()).text).toStartWith('⏵ Bash')
   expect(flatten(await second.drawn()).text).toStartWith('▸ Bash ')
 
   // A primeira foi aprovada e passou a rodar: a vez é da segunda.
@@ -426,7 +450,7 @@ test('fila de aprovações: só a primeira pede, a segunda espera a vez', async 
   expect(flatten(await first.drawn()).text).toStartWith('▸ Bash ')
   await clock.settle()
   await second.redraw()
-  expect(flatten(await second.drawn()).text).toStartWith('⏵ APPROVE')
+  expect(flatten(await second.drawn()).text).toStartWith('⏵ Bash')
   await first.unmount()
   await second.unmount()
 })
@@ -437,7 +461,7 @@ test('esperando aprovação o spinner não diz working, e o tempo de espera não
   const spinner = await mountOf($, 'Spinner', { word: 'Baking', message: null, suffix: '…', mode: 'tool-use' })
   await clock.advance(3000)
   await spinner.redraw()
-  expect(flatten(await spinner.drawn()).text).toBe('▸ WORKING · tool · 3s')
+  expect(flatten(await spinner.drawn()).text).toBe('▸ tool · 3s')
 
   await ask($)
   await clock.advance(50_000)
@@ -449,13 +473,13 @@ test('esperando aprovação o spinner não diz working, e o tempo de espera não
   await clock.settle()
   await clock.advance(1000)
   await spinner.redraw()
-  expect(flatten(await spinner.drawn()).text).toBe('▸ WORKING · tool · 4s')
+  expect(flatten(await spinner.drawn()).text).toBe('▸ tool · 4s')
   await row.unmount()
   await spinner.unmount()
 })
 
-test('faixa: o desfecho do turno cai quando a pessoa volta ao prompt', async ($, on) => {
-  engine(on)
+test('faixa: o desfecho do turno cai quando a pessoa volta ao prompt', OUTSIDE, async ($, on) => {
+  engine(on, {})
   await startTurn($)
   await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 1_000, isAborted: false, reason: 'answer' })
   const top = await $.ui.mount(band(75))
@@ -467,20 +491,20 @@ test('faixa: o desfecho do turno cai quando a pessoa volta ao prompt', async ($,
   await top.unmount()
 })
 
-test('faixa: recusar o diálogo ou interromper não é responded', async ($, on) => {
-  engine(on)
+test('faixa: recusar o diálogo ou interromper não é responded', OUTSIDE, async ($, on) => {
+  engine(on, {})
   const top = await $.ui.mount(band(75))
   await startTurn($)
   await ask($)
   // A recusa com Esc encerra o turno como "answer", sem texto.
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 1_000, isAborted: false, reason: 'answer' })
   await top.redraw()
-  expect(flatten(await top.drawn()).text).toBe('⧉ api · ○ INTERRUPTED')
+  expect(flatten(await top.drawn()).text).toBe('⧉ api · ◐ INTERRUPTED')
 
   await startTurn($)
   await $.turn.complete({ turnId: 't1', answer: 'meio', durationMs: 1_000, isAborted: true, reason: 'aborted' })
   await top.redraw()
-  expect(flatten(await top.drawn()).text).toBe('⧉ api · ○ INTERRUPTED')
+  expect(flatten(await top.drawn()).text).toBe('⧉ api · ◐ INTERRUPTED')
   await top.unmount()
 })
 
@@ -498,21 +522,21 @@ test('fim de turno: a linha diz o desfecho, e a antiga não muda com o turno seg
 
   // Linha de um turno que o mod não viu acabar (sessão retomada).
   const old = await row('d0')
-  expect(flatten(await old.drawn()).text).toBe('⬤ RESPONDED · 4s')
+  expect(flatten(await old.drawn()).text).toBe('⬤ 4s')
 
   await startTurn($)
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 4_000, isAborted: false, reason: 'answer' })
   await old.redraw()
-  expect(flatten(await old.drawn()).text).toBe('⬤ RESPONDED · 4s')
+  expect(flatten(await old.drawn()).text).toBe('⬤ 4s')
   const declined = await row('d1')
-  expect(flatten(await declined.drawn()).text).toBe('○ INTERRUPTED · 4s')
+  expect(flatten(await declined.drawn()).text).toBe('◐ 4s')
 
   await startTurn($)
   await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 4_000, isAborted: false, reason: 'answer' })
   const answered = await row('d2')
-  expect(flatten(await answered.drawn()).text).toBe('⬤ RESPONDED · 4s')
+  expect(flatten(await answered.drawn()).text).toBe('⬤ 4s')
   await declined.redraw()
-  expect(flatten(await declined.drawn()).text).toBe('○ INTERRUPTED · 4s')
+  expect(flatten(await declined.drawn()).text).toBe('◐ 4s')
 
   await startTurn($)
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 4_000, isAborted: false, reason: 'error' })
@@ -521,12 +545,28 @@ test('fim de turno: a linha diz o desfecho, e a antiga não muda com o turno seg
   const failed = await row('d3')
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 4_000, isAborted: false, reason: 'error' })
   await failed.redraw()
-  expect(flatten(await failed.drawn()).text).toBe('✖ FAILED · 4s')
+  expect(flatten(await failed.drawn()).text).toBe('✖ 4s')
   for (const ui of [old, declined, answered, failed]) await ui.unmount()
 })
 
-test('faixa: /clear recarrega a quota', async ($, on) => {
-  engine(on)
+test('fora do Tesseract as linhas do turno dizem o estado por extenso', OUTSIDE, async ($, on) => {
+  // Sem mosaico em volta ninguém mais diz o estado: glifo e palavra.
+  const clock = engine(on, {})
+  await startTurn($)
+  const spinner = await mountOf($, 'Spinner', { word: 'Baking', message: null, suffix: '…', mode: 'tool-use' })
+  await clock.advance(3000)
+  await spinner.redraw()
+  expect(flatten(await spinner.drawn()).text).toBe('▸ WORKING · tool · 3s')
+  await spinner.unmount()
+
+  await $.turn.complete({ turnId: 't1', answer: '', durationMs: 4_000, isAborted: true, reason: 'aborted' })
+  const end = await mountOf($, 'TurnDuration', { word: 'Baked', durationMs: 4_000 })
+  expect(flatten(await end.drawn()).text).toBe('◐ INTERRUPTED · 4s')
+  await end.unmount()
+})
+
+test('faixa: /clear recarrega a quota', OUTSIDE, async ($, on) => {
+  engine(on, {})
   const top = await $.ui.mount(band(75))
   expect(flatten(await top.drawn()).text).toBe('⧉ api')
   await $.classic.SessionStart({ source: 'clear', session_id: 's2' })
@@ -590,7 +630,7 @@ test('fora do mosaico, barra de approve: só enquanto o diálogo espera, pisca a
   // Fim do turno limpa a fila mesmo se a chamada não terminou.
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 1_000, isAborted: true, reason: 'aborted' })
   await ui.redraw({ ...toolUse().props, isInterrupted: true, isErrored: true, output: 'interrupted' })
-  expect(flatten(await ui.drawn()).text).toMatch(/^○ Bash .* · interrupted$/)
+  expect(flatten(await ui.drawn()).text).toMatch(/^◐ Bash .* · interrupted$/)
   await ui.unmount()
 })
 

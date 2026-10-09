@@ -15,8 +15,14 @@
     "quota": {
       "type": "boolean",
       "title": "Quota no mosaico",
-      "description": "Reporta o uso da janela de 5 horas ao engine a cada medição. Desligado, o selo de quota volta a depender do arquivo escrito pelo statusline.",
+      "description": "Reporta ao engine, a cada medição, o uso das janelas de 5 horas e de 7 dias e o preenchimento do contexto da conversa. Desligado, o selo de quota volta a depender do arquivo escrito pelo statusline.",
       "default": true
+    },
+    "summarize": {
+      "type": "boolean",
+      "title": "Resumo de uma linha",
+      "description": "Ao fim de cada turno, pede ao modelo mais barato (haiku) a resposta em até 60 caracteres; o resumo aparece no cabeçalho da célula, antes do glifo, e no aviso do sistema. Custa uma chamada curta por turno e segura o aviso por até 6 s. Exige \"Detalhe na notificação\".",
+      "default": false
     }
   }
 }

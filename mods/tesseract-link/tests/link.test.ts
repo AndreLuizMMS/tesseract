@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { answerOpening, describeAsk } from '../hooks/register'
+import { answerOpening, askKind, describeAsk, summaryLine } from '../hooks/register'
 
 type Report = Record<string, unknown>
 
@@ -110,7 +110,7 @@ test('diálogo de agente em segundo plano segura a espera depois do fim do turno
 test('turno interrompido não avisa que respondeu', async ($, on) => {
   const { reports } = world(on, CELL)
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: true, turnId: 't1', reason: 'aborted' })
-  expect(states(reports)).toEqual(['working'])
+  expect(states(reports)).toEqual(['interrupted'])
 })
 
 test('recusar o diálogo com Esc não é resposta e não deixa aviso', async ($, on) => {
@@ -121,13 +121,104 @@ test('recusar o diálogo com Esc não é resposta e não deixa aviso', async ($,
   await $.tool.call({ tool: 'Bash', command: 'rm -rf build', tool_use_id: 'tu1' })
   // A recusa encerra o turno como "answer", sem texto e sem marca de interrupção.
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
-  expect(states(reports)).toEqual(['working', 'approve|Bash: rm -rf build', 'working', 'working'])
+  expect(states(reports)).toEqual(['working', 'approve|Bash: rm -rf build', 'working', 'interrupted'])
+  // O turno seguinte tira a marca: interrompido é do turno que parou.
+  await $.turn.start({ text: 'então lista', turnId: 't2' })
+  await $.turn.complete({ answer: 'Listei.', durationMs: 1, isAborted: false, turnId: 't2', reason: 'answer' })
+  expect(states(reports).slice(-2)).toEqual(['working', 'answered|Listei.'])
+})
+
+test('o approve diz o que espera: só ferramenta se resolve do mosaico', async ($, on) => {
+  const { reports } = world(on, CELL)
+  await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'pnpm migrate' } })
+  await $.classic.PermissionRequest({ tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: 'A ou B?' }] } })
+  await $.classic.PermissionRequest({ tool_name: 'ExitPlanMode', tool_input: { plan: 'x' } })
+  expect(reports.map(r => r.ask)).toEqual(['tool', 'question', 'plan'])
+  expect(askKind('mcp__gh__issue')).toBe('tool')
+})
+
+test('linha atada: a sessão diz em que pé está, e parada no prompt é ociosa', async ($, on) => {
+  const { reports } = world(on, CELL, [JSON.stringify({ text: '', event: 'attached' })])
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  for (let turn = 0; turn < 500 && states(reports).length < 1; turn++) {
+    await $.session.measure({ context: { window: 1 }, rateLimits: [], changed: ['cost'] })
+  }
+  expect(states(reports)).toEqual(['idle'])
+})
+
+test('linha refeita com o diálogo aberto repete o que espera', async ($, on) => {
+  const { reports, clock } = world(on, CELL, [JSON.stringify({ text: '', event: 'attached' })])
+  await $.turn.start({ text: 'migra', turnId: 't1' })
+  await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'pnpm migrate' } })
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.settle()
+  for (let turn = 0; turn < 500 && states(reports).length < 3; turn++) {
+    await $.session.measure({ context: { window: 1 }, rateLimits: [], changed: ['cost'] })
+  }
+  expect(states(reports)).toEqual(['working', 'approve|Bash: pnpm migrate', 'approve|Bash: pnpm migrate'])
+  expect(reports.at(-1)?.ask).toBe('tool')
+})
+
+test('resumo ligado: a resposta vai em uma linha, do modelo mais barato', { options: { summarize: true } }, async ($, on) => {
+  const { reports } = world(on, CELL)
+  const asked: { model: string; prompt: string }[] = []
+  on('model.complete', (_$, e) => {
+    asked.push({ model: e.model, prompt: e.prompt })
+    return {
+      value: {
+        isAnswered: true as const,
+        text: '"Migrei as 3 tabelas e rodei os testes."\n',
+        usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      },
+    }
+  })
+  await $.turn.start({ text: 'migra', turnId: 't1' })
+  await $.turn.complete({ answer: 'Pronto.\nMigrei tudo.', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  expect(asked).toEqual([{ model: 'haiku', prompt: 'Pronto.\nMigrei tudo.' }])
+  expect(reports.at(-1)?.state).toBe('answered')
+  expect(reports.at(-1)?.detail).toBe('Pronto.')
+  expect(reports.at(-1)?.summary).toBe('Migrei as 3 tabelas e rodei os testes')
+
+  // Turno interrompido não tem o que resumir.
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: true, turnId: 't2', reason: 'aborted' })
+  expect(asked.length).toBe(1)
+})
+
+test('resumo que falha não segura nem muda o aviso', { options: { summarize: true } }, async ($, on) => {
+  const { reports } = world(on, CELL)
+  on('model.complete', () => ({
+    value: {
+      isAnswered: false as const,
+      reason: 'aborted' as const,
+      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+    },
+  }))
+  await $.turn.complete({ answer: 'Pronto.', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  expect(states(reports)).toEqual(['answered|Pronto.'])
+  expect(reports.at(-1)?.summary).toBe(undefined)
+})
+
+test('sem a opção nenhum modelo é chamado', async ($, on) => {
+  const { reports } = world(on, CELL)
+  let calls = 0
+  on('model.complete', () => {
+    calls++
+    throw new Error('not asked for')
+  })
+  await $.turn.complete({ answer: 'Pronto.', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  expect(calls).toBe(0)
+  expect(states(reports)).toEqual(['answered|Pronto.'])
+})
+
+test('o resumo sai limpo e no tamanho do cabeçalho', () => {
+  expect(summaryLine('  "Fixed the login\n redirect."  ')).toBe('Fixed the login redirect')
+  expect(summaryLine('x'.repeat(200)).length).toBe(60)
 })
 
 test('sem detalhe configurado, resposta vazia continua sem aviso', { options: { notifyDetail: false } }, async ($, on) => {
   const { reports } = world(on, CELL)
   await $.turn.complete({ answer: ' \n', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
-  expect(states(reports)).toEqual(['working'])
+  expect(states(reports)).toEqual(['interrupted'])
 })
 
 test('a linha com o engine é refeita sem desistir, com espera crescente e teto', async ($, on) => {
@@ -189,25 +280,33 @@ test('o id da conversa é reportado quando muda, e só quando muda', async ($, o
   await $.session.end({ reason: 'clear', sessionId: SESSION, resume: { id: SESSION } })
   await $.classic.SessionStart({ source: 'clear', session_id: other })
   expect(reports.filter(r => r.kind === 'session').map(r => r.session)).toEqual([SESSION, other])
-  // O /clear não deixa nada esperando; sair de vez encerra.
-  expect(states(reports)).toEqual(['working'])
+  // O /clear não deixa nada esperando, e a janela de contexto recomeça vazia;
+  // sair de vez encerra.
+  expect(states(reports)).toEqual(['idle'])
+  expect(reports.filter(r => r.kind === 'context').map(r => r.context)).toEqual([0])
   await $.session.end({ reason: 'prompt_input_exit', sessionId: other, resume: { id: other } })
   expect(states(reports).at(-1)).toBe('ended')
 })
 
-test('a quota reportada é a da janela de 5 horas', async ($, on) => {
+test('a medição leva as duas janelas e o contexto, este só quando muda', async ($, on) => {
   const { reports } = world(on, CELL)
-  await $.session.measure({
-    context: { window: 1000000 },
-    rateLimits: [
-      { kind: 'seven_day', percentUsed: 47 },
-      { kind: 'five_hour', percentUsed: 14.5, resetsAt: '2026-10-08T21:10:00.000Z' },
-    ],
-    changed: ['rateLimits'],
-  })
+  const measure = (percent: number | undefined) =>
+    $.session.measure({
+      context: { window: 1000000, percent },
+      rateLimits: [
+        { kind: 'seven_day', percentUsed: 47 },
+        { kind: 'five_hour', percentUsed: 14.5, resetsAt: '2026-10-08T21:10:00.000Z' },
+      ],
+      changed: ['rateLimits'],
+    })
+  await measure(undefined)
   expect(reports.map(({ at: _at, ...rest }) => rest)).toEqual([
-    { kind: 'quota', percent: 14.5, resetsAt: '2026-10-08T21:10:00.000Z' },
+    { kind: 'quota', percent: 14.5, resetsAt: '2026-10-08T21:10:00.000Z', weekly: 47 },
   ])
+  await measure(33.4)
+  await measure(33.1)
+  await measure(34)
+  expect(reports.filter(r => r.kind === 'context').map(r => r.context)).toEqual([33, 34])
 })
 
 test('quota desligada não reporta', { options: { quota: false } }, async ($, on) => {
@@ -259,8 +358,8 @@ test('sessão sem conversa na tela recusa a entrega em vez de engolir', async ($
   expect(reports.filter(r => r.kind === 'title')).toEqual([])
 })
 
-test('sessão de fundo do Claude Code herda o ambiente da célula e fica muda', async ($, on) => {
-  const { reports, prompts, link } = world(on, { ...CELL, CLAUDE_CODE_SESSION_KIND: 'bg' }, [
+test('reserva do serviço de fundo herda o ambiente da célula e fica muda', async ($, on) => {
+  const { reports, prompts, link } = world(on, { ...CELL, CLAUDE_CODE_SESSION_KIND: 'bg', CLAUDE_BG_SOURCE: 'spare' }, [
     JSON.stringify({ id: '1', text: 'não é para mim' }),
   ])
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
@@ -272,6 +371,28 @@ test('sessão de fundo do Claude Code herda o ambiente da célula e fica muda', 
   expect(reports).toEqual([])
   expect(link.opened).toBe(0)
   expect(prompts).toEqual([])
+})
+
+test('conversa mandada para o fundo com ← continua falando pela célula', async ($, on) => {
+  // ← faz um fork da conversa numa sessão do serviço de fundo, e esc traz
+  // esse fork para a tela da célula: é ele que roda os turnos dali em diante.
+  const { reports, prompts, link } = world(on, { ...CELL, CLAUDE_CODE_SESSION_KIND: 'bg', CLAUDE_BG_SOURCE: 'slash' }, [
+    JSON.stringify({ id: '1', text: 'agora é com você' }),
+  ])
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await $.turn.start({ text: 'oi', turnId: 't1' })
+  await $.turn.complete({ answer: 'mango', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  for (let turn = 0; turn < 500 && prompts.length < 1; turn++) {
+    await $.session.measure({ context: { window: 1 }, rateLimits: [], changed: ['cost'] })
+  }
+  // O id do fork é o que o engine guarda, o turno aparece e o prompt chega.
+  expect(reports.find(r => r.kind === 'session')?.session).toBe(SESSION)
+  expect(reports.some(r => r.state === 'answered' && r.detail === 'mango')).toBe(true)
+  expect(link.opened).toBe(1)
+  expect(prompts.length).toBe(1)
+  // Encerrada, ela sai da tela mas o processo da célula fica: nada de "ended".
+  await $.session.end({ reason: 'other', sessionId: SESSION })
+  expect(reports.at(-1)).toMatchObject({ kind: 'state', state: 'idle' })
 })
 
 test('o resumo do que espera cabe numa linha de aviso', () => {

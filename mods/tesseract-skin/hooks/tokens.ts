@@ -1,16 +1,16 @@
 // Único lugar do mod com cor e glifo. Espelha os tokens de
-// style/tesseract-brand-identity.html (:root e body.mono).
+// internal/theme/theme.go, que é quem desenha o mosaico em volta da sessão.
 //
-// O verde fósforo (#55FFA6) fica de fora de propósito: é posse do teclado, um
-// por tela, e quem o acende é o mosaico (borda da célula em TYPE). Um segundo
-// verde dentro da sessão quebraria a regra.
+// Duas cores do mosaico ficam de fora de propósito. O verde fósforo (#55FFA6)
+// é onde a digitação cai, um por tela, e quem o acende é o mosaico (a palavra
+// TYPE na célula). E o matiz do projeto é da borda da célula: aqui dentro só
+// existem a escada neutra e as cores de estado.
 
 const brand = {
   bgBase: '#070B0C',
   bgRaised: '#121C1F',
   fgFaint: '#3E534E',
   fgMuted: '#6C8076',
-  fluxCore: '#128C86',
   flux: '#22E0D0',
   stateWorking: '#6C8076',
   stateRead: '#7DB7E8',
@@ -28,6 +28,8 @@ export const glyph = {
   approve: '⏵',
   crashed: '✖',
   stopped: '○',
+  // Turno parado no meio: o círculo pela metade, como no cabeçalho da célula.
+  interrupted: '◐',
   done: '·',
 } as const
 
@@ -36,8 +38,10 @@ export const glyph = {
 // chaves de tema `subtle` e `inactive` não servem para fg.muted/fg.faint:
 // medidas no dark-ansi, as duas saem como ANSI 7, a cor do texto comum.
 const color = {
+  // O ciano é só a marca: o ⧉ da faixa, fora do Tesseract.
   structure: { color: brand.flux },
-  label: { color: brand.fluxCore },
+  // Nome de ferramenta, rótulo, modos: um degrau abaixo do texto comum.
+  label: { color: brand.fgMuted },
   working: { color: brand.stateWorking },
   responded: { color: brand.stateRead },
   crashed: { color: brand.stateDead },
@@ -59,7 +63,7 @@ const color = {
 // Dentro da célula essa área é a do mosaico; aqui a marca fica só em negrito.
 const mono = {
   structure: {},
-  label: {},
+  label: { dimColor: true },
   working: { dimColor: true },
   responded: {},
   crashed: { bold: true },

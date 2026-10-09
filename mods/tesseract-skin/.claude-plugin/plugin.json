@@ -1,7 +1,7 @@
 {
   "name": "tesseract-skin",
   "version": "0.1.0",
-  "description": "Identidade Tesseract Neon dentro da sessão: spinner, fim de turno, linhas de ferramenta, prompt e faixa ⧉ com estado e quota.",
+  "description": "Identidade Tesseract Neon dentro da sessão: spinner, fim de turno, linhas de ferramenta e prompt. Fora do Tesseract, também a faixa ⧉ com estado e quota.",
   "author": {
     "name": "André"
   },
@@ -16,7 +16,7 @@
     "band": {
       "type": "boolean",
       "title": "Faixa acima do prompt",
-      "description": "Linha ⧉ projeto/célula, desfecho do último turno e quota. O desfecho sai quando a pessoa volta ao prompt; a faixa some enquanto o diálogo de permissão está aberto.",
+      "description": "Só fora do Tesseract (com \"Usar fora do Tesseract\"): linha ⧉ pasta, desfecho do último turno e quota. Dentro de uma célula a faixa nunca é desenhada: o cabeçalho do mosaico já diz projeto, célula e estado.",
       "default": true
     },
     "blink": {
@@ -28,19 +28,19 @@
     "spinner": {
       "type": "boolean",
       "title": "Spinner",
-      "description": "Troca a linha animada por ▸ WORKING, fase e tempo decorrido; com o diálogo aberto diz que está bloqueado esperando a pessoa, e o tempo de espera não conta.",
+      "description": "Troca a linha animada por ▸, fase e tempo decorrido (fora do Tesseract, com a palavra WORKING); com o diálogo aberto diz que está bloqueado esperando a pessoa, e o tempo de espera não conta.",
       "default": true
     },
     "turn_end": {
       "type": "boolean",
       "title": "Fim de turno",
-      "description": "Troca a linha de duração pelo desfecho do turno (⬤ RESPONDED, ○ INTERRUPTED ou ✖ FAILED) e o tempo.",
+      "description": "Troca a linha de duração pelo glifo do desfecho do turno (⬤, ◐ ou ✖) e o tempo; fora do Tesseract o glifo vem com a palavra (RESPONDED, INTERRUPTED, FAILED).",
       "default": true
     },
     "tools": {
       "type": "boolean",
       "title": "Linhas de ferramenta",
-      "description": "Redesenha a chamada e o grupo de ferramentas com glifo de estado e rótulo em ciano; a chamada que espera a pessoa vira a linha ⏵ APPROVE.",
+      "description": "Redesenha a chamada e o grupo de ferramentas com glifo de estado e o nome em tom secundário; a chamada que espera a pessoa vira a linha ⏵ (fora do Tesseract, a barra ⏵ APPROVE).",
       "default": true
     },
     "user_message": {

@@ -32,7 +32,7 @@ type Environment = {
   hasMosaic: boolean
   noColor: boolean
   canBlink: boolean
-  // projeto/célula, ou a pasta da sessão.
+  // A pasta da sessão: o rótulo da faixa, que só existe fora do Tesseract.
   label: string
   cwd: string
 }
@@ -42,11 +42,10 @@ let environment: Promise<Environment> | undefined
 
 const loadEnvironment = ($: EngineInterface, options: PluginOptions): Promise<Environment> =>
   (environment ??= (async () => {
-    const [inside, noColor, noBlink, cell, cwd] = await Promise.all([
+    const [inside, noColor, noBlink, cwd] = await Promise.all([
       $.env.get('TESSERACT'),
       $.env.get('NO_COLOR'),
       $.env.get('TESSERACT_NO_BLINK'),
-      $.env.get('TESSERACT_CELL'),
       $.session.cwd(),
     ])
     const hasNoColor = noColor !== undefined && noColor !== ''
@@ -56,7 +55,7 @@ const loadEnvironment = ($: EngineInterface, options: PluginOptions): Promise<En
       hasMosaic: inside === '1',
       noColor: hasNoColor,
       canBlink: !hasNoColor && noBlink === undefined && options.blink !== false,
-      label: cell ?? cwd.split('/').filter(Boolean).pop() ?? cwd,
+      label: cwd.split('/').filter(Boolean).pop() ?? cwd,
       cwd,
     }
   })())
@@ -177,7 +176,7 @@ export const register: Register = (on, options) => {
 
   // O sinal de que a pessoa voltou à sessão é a primeira edição do prompt
   // depois do fim do turno (tecla, colagem ou movimento do cursor): a faixa
-  // para de afirmar o desfecho, como o cabeçalho do mosaico ao entrar na célula.
+  // para de afirmar o desfecho.
   on('prompt.edit', ($, e, next) => {
     // A tecla passa primeiro: este evento tem 50 ms, e limpar a faixa não
     // pode segurar o que a pessoa digita.
@@ -236,12 +235,18 @@ export const register: Register = (on, options) => {
   })
 
   // ----- faixa acima do prompt -----
+  //
+  // Só fora do Tesseract. Dentro de uma célula o cabeçalho do mosaico já diz
+  // projeto, célula e estado, e o topo do mosaico diz a quota: a faixa seria
+  // o mesmo dado pela segunda vez na mesma tela.
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || !(await isOn($, options, 'band'))) return next(e)
 
+    const { noColor, label, hasMosaic } = await loadEnvironment($, options)
+    if (hasMosaic) return next(e)
+
     const { Text } = $.ui.resolve(e)
-    const { noColor, label } = await loadEnvironment($, options)
     const style = styles(noColor)
     const width = Math.max(8, e.props.bodyColumns)
     const current = await read($, turn)
@@ -250,7 +255,7 @@ export const register: Register = (on, options) => {
       idle: undefined,
       working: { mark: `${glyph.working} WORKING`, style: style.working },
       responded: { mark: `${glyph.responded} RESPONDED`, style: style.responded },
-      interrupted: { mark: `${glyph.stopped} INTERRUPTED`, style: style.stopped },
+      interrupted: { mark: `${glyph.interrupted} INTERRUPTED`, style: style.stopped },
       failed: { mark: `${glyph.crashed} FAILED`, style: style.crashed },
     }[current.phase]
     const used = await read($, quota)
@@ -292,7 +297,8 @@ export const register: Register = (on, options) => {
     if (!(await isOn($, options, 'spinner'))) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
-    const style = styles((await loadEnvironment($, options)).noColor)
+    const { noColor, hasMosaic } = await loadEnvironment($, options)
+    const style = styles(noColor)
     // Com o diálogo aberto ninguém está trabalhando, e o tempo não conta.
     if ((await read($, asking)).length > 0) {
       return (
@@ -307,11 +313,16 @@ export const register: Register = (on, options) => {
     const current = await read($, turn)
     const elapsed = current.since === undefined ? '' : ` · ${duration((await read($, now)) - current.since)}`
 
+    // Dentro de uma célula o estado é o glifo, como no cabeçalho do mosaico: a
+    // palavra seria o mesmo dado pela segunda vez na mesma tela.
+    const word = hasMosaic ? '' : ' WORKING ·'
+
     // Working é apagado de propósito: quem chama atenção é responded e approve.
     return (
       <Box marginTop={1}>
         <Text {...style.working} wrap="truncate-end">
-          {glyph.working} WORKING · {e.props.message ?? PHASE[e.props.mode]}
+          {glyph.working}
+          {word} {e.props.message ?? PHASE[e.props.mode]}
           {elapsed}
         </Text>
       </Box>
@@ -322,7 +333,8 @@ export const register: Register = (on, options) => {
     if (!(await isOn($, options, 'turn_end'))) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
-    const style = styles((await loadEnvironment($, options)).noColor)
+    const { noColor, hasMosaic } = await loadEnvironment($, options)
+    const style = styles(noColor)
     // A linha não diz como o turno acabou: quem sabe é o turn.complete, que
     // deixa o desfecho para a primeira linha nova. Guardado por linha, para as
     // antigas não mudarem; linha de turno que o mod não viu acabar (sessão
@@ -335,18 +347,20 @@ export const register: Register = (on, options) => {
       fresh = undefined
       verdicts.set(e.requestId, verdict)
     }
-    const [mark, markStyle] =
+    const [mark, word, markStyle] =
       verdict === 'interrupted'
-        ? [`${glyph.stopped} INTERRUPTED`, style.stopped]
+        ? [glyph.interrupted, 'INTERRUPTED', style.stopped]
         : verdict === 'failed'
-          ? [`${glyph.crashed} FAILED`, style.crashed]
-          : [`${glyph.responded} RESPONDED`, style.responded]
+          ? [glyph.crashed, 'FAILED', style.crashed]
+          : [glyph.responded, 'RESPONDED', style.responded]
 
+    // Dentro de uma célula: glifo e duração, os mesmos glifos do cabeçalho do
+    // mosaico, sem a palavra que ele também não escreve.
     return (
       <Box marginTop={1}>
         <Text wrap="truncate-end">
-          <Text {...markStyle}>{mark}</Text>
-          <Text {...style.muted}> · {duration(e.props.durationMs)}</Text>
+          <Text {...markStyle}>{hasMosaic ? mark : `${mark} ${word}`}</Text>
+          <Text {...style.muted}>{hasMosaic ? ' ' : ' · '}{duration(e.props.durationMs)}</Text>
         </Text>
       </Box>
     )
@@ -380,11 +394,11 @@ export const register: Register = (on, options) => {
       const what = waiting.what
       const keys = `  ${waiting.keys}`
 
-      // Dentro da célula a área preenchida é a do cabeçalho do mosaico: aqui
-      // ficam a forma ⏵ e o âmbar, sobre fundo normal e sem piscar.
+      // Dentro da célula a barra e a palavra são as do cabeçalho do mosaico:
+      // aqui ficam a forma ⏵ e o âmbar, sobre fundo normal e sem piscar.
       if (hasMosaic) {
-        const mark = `${glyph.approve} APPROVE`
-        const head = `${mark}  ${what}`
+        const mark = glyph.approve
+        const head = `${mark} ${what}`
         const hasKeys = [...head].length + keys.length < width
 
         return (
@@ -416,7 +430,7 @@ export const register: Register = (on, options) => {
     const [mark, markStyle, outcome] = e.props.isRunning || (isUnresolved && !e.props.isErrored && !e.props.isInterrupted)
       ? [glyph.working, style.working, '']
       : e.props.isInterrupted
-        ? [glyph.stopped, style.stopped, ' · interrupted']
+        ? [glyph.interrupted, style.stopped, ' · interrupted']
         : e.props.isErrored
           ? [glyph.crashed, style.crashed, ' · failed']
           : [glyph.done, style.faint, '']

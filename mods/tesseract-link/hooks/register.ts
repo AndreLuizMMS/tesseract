@@ -5,7 +5,8 @@ import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 //
 //   mod → engine   `ts report <json>`, um processo por evento
 //   engine → mod   `ts link`, um processo que vive com a sessão e imprime
-//                  uma linha JSON por prompt mandado do mosaico
+//                  uma linha JSON por prompt mandado do mosaico (e uma
+//                  quando a linha é atada, para o mod dizer em que pé está)
 //
 // Nada sai da máquina: os dois caminhos terminam no socket local do engine.
 // Fora de uma célula (sem TESSERACT=1 e TESSERACT_CELL_ID) o mod não faz nada.
@@ -24,44 +25,73 @@ const REFUSAL_WAIT_MS = 250
 const LINK_RETRY_MS = 2000
 const LINK_RETRY_MAX_MS = 60_000
 const LINK_STABLE_MS = 10_000
+// O resumo de uma linha (opção `summarize`): tamanho que cabe no cabeçalho da
+// célula, quanto da resposta vai para o modelo e quanto o aviso espera por ele.
+const SUMMARY_LIMIT = 60
+const SUMMARY_INPUT_LIMIT = 4000
+const SUMMARY_TIMEOUT_MS = 6000
+// Como o Claude Code marca (CLAUDE_BG_SOURCE) a sessão de fundo que é a
+// conversa da célula mandada para trás; a reserva vem como "spare".
+const MOVED_FROM_CELL = 'slash'
 
 // Estado do módulo. Some num reload, e tudo bem: o próximo turno refaz.
 // asked são as chamadas de tool que o engine mandou perguntar e ainda não
 // terminaram; isWaiting diz que o diálogo chegou a ser mostrado à pessoa.
 const asked = new Set<string>()
 let isWaiting = false
-// isTurnRunning e unread dizem em que estado a célula fica quando ninguém
-// está esperando: trabalhando, ou com uma resposta ainda não avisada.
+// O que o último diálogo espera, para repetir ao engine se a linha for refeita
+// com ele ainda aberto.
+let waiting: Pick<Payload, 'detail' | 'ask'> = {}
+// isTurnRunning, unread e isStopped dizem em que estado a célula fica quando
+// ninguém está esperando: trabalhando, com uma resposta ainda não avisada,
+// interrompida pela pessoa, ou ociosa no prompt.
 let isTurnRunning = false
-let unread: string | undefined
+let unread: Pick<Payload, 'detail' | 'summary'> | undefined
+let isStopped = false
+// Último preenchimento de contexto mandado: só a mudança é reportada.
+let reportedContext: number | undefined
 let reportedSession = ''
 let cell: string | undefined
+// A sessão roda no serviço de fundo: o processo da célula é só o visor dela.
+let isBackground = false
 // A sessão acabou de vez: a linha com o engine não é refeita.
 let isOver = false
 
 type Payload = {
-  kind: 'state' | 'session' | 'quota' | 'title' | 'delivered'
+  kind: 'state' | 'session' | 'quota' | 'context' | 'title' | 'delivered'
   delivery?: string
   refused?: boolean
-  state?: 'working' | 'answered' | 'approve' | 'ended'
+  state?: 'working' | 'idle' | 'answered' | 'approve' | 'interrupted' | 'ended'
   detail?: string
+  // O que o approve espera: só "tool" se resolve do mosaico com Enter e Esc.
+  ask?: 'tool' | 'question' | 'plan'
+  summary?: string
   session?: string
   percent?: number
   resetsAt?: string
+  weekly?: number
+  context?: number
 }
 
-// inCell diz se a sessão é a que a célula do Tesseract mostra. O ambiente
-// não muda durante a sessão, então a resposta positiva é lida uma vez.
+// inCell diz se a sessão fala pela célula do Tesseract. O ambiente não muda
+// durante a sessão, então a resposta positiva é lida uma vez.
 //
-// Uma sessão de fundo do Claude Code (a conversa mandada para trás com ←, e a
-// reserva que o serviço de fundo deixa aquecida) nasce do processo da célula
-// e herda o ambiente e os mods dele, mas não é o que a célula mostra. Se ela
-// falasse, o engine trocaria o id da conversa da célula pelo dela e mandaria
-// para ela os prompts do mosaico: fica muda.
+// As sessões de fundo do Claude Code nascem do processo da célula e herdam o
+// ambiente e os mods dele. São duas espécies, e só uma é a conversa da célula:
+//
+//   - a conversa mandada para trás com ← (ou /bg) é um fork da que a célula
+//     mostrava, e é nela que a conversa continua: esc traz ela de volta para a
+//     tela e o processo da célula vira só o visor dela, sem evento nenhum.
+//     Essa fala, e o engine passa a guardar o id dela;
+//   - a reserva que o serviço de fundo deixa aquecida, e o que for despachado
+//     da lista de agentes, não são o que a célula mostra. Se falassem, o engine
+//     trocaria o id da conversa da célula pelo delas e mandaria para elas os
+//     prompts do mosaico: ficam mudas.
 async function inCell($: EngineInterface): Promise<boolean> {
   if (cell !== undefined) return true
   if ((await $.env.get('TESSERACT')) !== '1') return false
-  if ((await $.env.get('CLAUDE_CODE_SESSION_KIND')) === 'bg') return false
+  isBackground = (await $.env.get('CLAUDE_CODE_SESSION_KIND')) === 'bg'
+  if (isBackground && (await $.env.get('CLAUDE_BG_SOURCE')) !== MOVED_FROM_CELL) return false
   cell = (await $.env.get('TESSERACT_CELL_ID')) || undefined
   return cell !== undefined
 }
@@ -118,23 +148,82 @@ export function answerOpening(answer: string): string {
   return oneLine(answer.split('\n').find(line => line.trim() !== '') ?? '')
 }
 
+// askKind diz que tipo de espera é: a aprovação de uma ferramenta é um sim ou
+// não, que o mosaico resolve sem entrar na célula; pergunta com opções e plano
+// para revisar pedem a pessoa dentro dela.
+export function askKind(tool: string): 'tool' | 'question' | 'plan' {
+  return tool === 'AskUserQuestion' ? 'question' : tool === 'ExitPlanMode' ? 'plan' : 'tool'
+}
+
+// summaryLine limpa o que o modelo devolveu: uma linha, sem aspas nem ponto
+// final, no tamanho do cabeçalho.
+export function summaryLine(text: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim().replace(/^["'`]+|["'`.]+$/g, '')
+  return flat.length > SUMMARY_LIMIT ? `${flat.slice(0, SUMMARY_LIMIT - 1)}…` : flat
+}
+
+// summarize pede ao modelo mais barato a resposta em uma linha. Qualquer
+// falha (sem rede, modelo bloqueado, prazo) devolve undefined e o aviso sai
+// como sairia sem a opção.
+async function summarize($: EngineInterface, answer: string): Promise<string | undefined> {
+  try {
+    const reply = await $.model.complete({
+      model: 'haiku',
+      system: `Summarize the assistant message in one line of at most ${SUMMARY_LIMIT} characters: what was done or decided, in the message's own language. Reply with the line only.`,
+      prompt: answer.slice(0, SUMMARY_INPUT_LIMIT),
+      maxTokens: 60,
+      effort: 'low',
+      timeoutMs: SUMMARY_TIMEOUT_MS,
+    })
+    const line = reply.isAnswered ? summaryLine(reply.text) : ''
+    return line === '' ? undefined : line
+  } catch {
+    return undefined
+  }
+}
+
 // reportRest diz ao engine em que pé a sessão está fora de uma espera: no
-// meio de um turno, com uma resposta para ler, ou parada.
+// meio de um turno, com uma resposta para ler, interrompida, ou ociosa no
+// prompt. A resposta é avisada uma vez; o resto pode ser repetido.
 async function reportRest($: EngineInterface): Promise<void> {
-  if (isTurnRunning || unread === undefined) {
+  if (isTurnRunning) {
     await report($, { kind: 'state', state: 'working' })
     return
   }
-  const detail = unread
+  if (unread === undefined) {
+    await report($, { kind: 'state', state: isStopped ? 'interrupted' : 'idle' })
+    return
+  }
+  const said = unread
   unread = undefined
-  await report($, { kind: 'state', state: 'answered', detail })
+  await report($, { kind: 'state', state: 'answered', ...said })
 }
 
-// reportQuota manda a janela de 5 horas, que é a que o selo do mosaico mostra.
+// reportStanding repete o estado ao engine quando a linha é atada: os relatos
+// de estado só valem com ela de pé, e é assim que uma célula recém-criada,
+// parada no prompt, aparece ociosa em vez de trabalhando.
+async function reportStanding($: EngineInterface): Promise<void> {
+  if (isWaiting) await report($, { kind: 'state', state: 'approve', ...waiting })
+  else await reportRest($)
+}
+
+// reportQuota manda as janelas da assinatura: a de 5 horas, que é a do selo
+// do mosaico, e a de 7 dias junto.
 async function reportQuota($: EngineInterface, limits: readonly SessionRateLimit[]): Promise<void> {
   const window = limits.find(limit => limit.kind === 'five_hour')
   if (window === undefined) return
-  await report($, { kind: 'quota', percent: window.percentUsed, resetsAt: window.resetsAt })
+  const weekly = limits.find(limit => limit.kind === 'seven_day')?.percentUsed
+  await report($, { kind: 'quota', percent: window.percentUsed, resetsAt: window.resetsAt, weekly })
+}
+
+// reportContext manda o preenchimento da janela de contexto, que é da
+// conversa desta célula e de mais ninguém. Só a mudança de ponto inteiro.
+async function reportContext($: EngineInterface, percent: number | undefined): Promise<void> {
+  if (percent === undefined) return
+  const context = Math.round(percent)
+  if (context === reportedContext) return
+  reportedContext = context
+  await report($, { kind: 'context', context })
 }
 
 // accept recebe o que veio do mosaico e põe na fila da sessão. Uma linha que
@@ -150,13 +239,17 @@ async function reportQuota($: EngineInterface, limits: readonly SessionRateLimit
 // e aí o engine avisa a pessoa em vez de colar o texto numa tela que não é a
 // da conversa.
 async function accept($: EngineInterface, line: string): Promise<void> {
-  let delivery: { id?: unknown; text?: unknown; expires?: unknown }
+  let delivery: { id?: unknown; text?: unknown; expires?: unknown; event?: unknown }
   try {
     delivery = JSON.parse(line) as typeof delivery
   } catch {
     return
   }
   const { id, text, expires } = delivery
+  if (delivery.event === 'attached') {
+    await reportStanding($)
+    return
+  }
   if (typeof text !== 'string' || text.trim() === '') return
 
   const command = /^\/([\w:.-]+)(?:\s+([\s\S]*))?$/.exec(text.trim())
@@ -227,6 +320,8 @@ async function holdLink($: EngineInterface): Promise<void> {
 export const register: Register = (on, options) => {
   const withDetail = options.notifyDetail !== false
   const withQuota = options.quota !== false
+  // O resumo é texto da conversa: sem `notifyDetail` ele também não sai.
+  const withSummary = options.summarize === true && withDetail
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -243,6 +338,8 @@ export const register: Register = (on, options) => {
   on('classic.SessionStart', async ($, e, next) => {
     const result = await next(e)
     await reportSession($, e.session_id)
+    // Conversa nova, janela vazia: a próxima medição só vem depois de um turno.
+    if (withQuota && e.source === 'clear') await reportContext($, 0)
     return result
   })
 
@@ -250,18 +347,21 @@ export const register: Register = (on, options) => {
     asked.clear()
     isWaiting = false
     isTurnRunning = false
+    isStopped = false
     unread = undefined
     // Num /clear ou /resume a sessão continua com outra conversa: nada fica
-    // esperando. Nos outros casos o processo está indo embora.
+    // esperando. Nos outros casos o processo está indo embora — e o de uma
+    // sessão de fundo não é o da célula, que fica de pé na lista de agentes.
     const continues = e.reason === 'clear' || e.reason === 'resume'
     isOver = !continues
-    await report($, { kind: 'state', state: continues ? 'working' : 'ended' })
+    await report($, { kind: 'state', state: continues || isBackground ? 'idle' : 'ended' })
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
     const started = await next(e)
     isTurnRunning = true
+    isStopped = false
     if (await inCell($)) {
       await reportSession($, await $.session.id())
       // Um diálogo de um agente em segundo plano segue na tela: o turno novo
@@ -280,8 +380,20 @@ export const register: Register = (on, options) => {
     // Quem interrompeu está olhando para a célula: não há o que avisar. Recusar
     // o diálogo com Esc é o mesmo gesto, e chega como "answer" sem texto: um
     // turno sem nada para ler nunca vira "respondeu".
-    const isStopped = e.isAborted || e.reason === 'aborted' || detail === ''
-    unread = isStopped ? undefined : withDetail ? detail : ''
+    isStopped = e.isAborted || e.reason === 'aborted' || detail === ''
+    unread = isStopped ? undefined : { detail: withDetail ? detail : '' }
+    // O resumo custa uma chamada ao modelo e segura o aviso até ela voltar:
+    // só para resposta de verdade, e só com a opção ligada.
+    if (unread !== undefined && withSummary && e.reason === 'answer' && (await inCell($))) {
+      const summary = await summarize($, e.answer)
+      // A pessoa já mandou outro prompt enquanto o resumo vinha: o turno novo
+      // é o que vale, e esta resposta não fica para avisar depois.
+      if (isTurnRunning) {
+        unread = undefined
+        return done
+      }
+      unread = { ...unread, summary }
+    }
     // Um agente em segundo plano pode ter deixado um diálogo aberto depois
     // de o turno principal acabar. A espera vale mais que a resposta, que é
     // avisada quando o diálogo for resolvido.
@@ -306,8 +418,8 @@ export const register: Register = (on, options) => {
     // Um hook de settings que já decidiu dispensa o diálogo.
     if (result.decision === undefined) {
       isWaiting = true
-      const detail = withDetail ? describeAsk(e.tool_name, e.tool_input) : ''
-      await report($, { kind: 'state', state: 'approve', detail })
+      waiting = { detail: withDetail ? describeAsk(e.tool_name, e.tool_input) : '', ask: askKind(e.tool_name) }
+      await report($, { kind: 'state', state: 'approve', ...waiting })
     }
     return result
   })
@@ -328,7 +440,10 @@ export const register: Register = (on, options) => {
 
   on('session.measure', async ($, e, next) => {
     const echoed = await next(e)
-    if (withQuota) await reportQuota($, e.rateLimits)
+    if (withQuota) {
+      await reportQuota($, e.rateLimits)
+      await reportContext($, e.context.percent)
+    }
     return echoed
   })
 }
