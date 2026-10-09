@@ -127,14 +127,16 @@ func contains(text, piece string) bool {
 	return strings.Contains(text, piece)
 }
 
-// TestFooterHasShortText — a key that shows up in the footer needs a label
-// that fits in it.
-func TestFooterHasShortText(t *testing.T) {
-	for _, mode := range Modes() {
-		for _, shortcut := range Shortcuts(mode) {
-			if shortcut.Footer && shortcut.Short == "" {
-				t.Errorf("mode %s: key %q is in the footer with no short label", mode, shortcut.Key)
-			}
+// TestFormSaysHowToSettleIt — the dialogs that ask for an answer end in
+// the two keys that settle them, and those come from here.
+func TestFormSaysHowToSettleIt(t *testing.T) {
+	short := map[Action]string{}
+	for _, shortcut := range Shortcuts(Form) {
+		if shortcut.Short != "" {
+			short[shortcut.Action] = shortcut.Short
 		}
+	}
+	if short[Confirm] == "" || short[Cancel] == "" || len(short) != 2 {
+		t.Errorf("a dialog ends in confirm and cancel, got %v", short)
 	}
 }

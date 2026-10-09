@@ -10,8 +10,12 @@ import (
 // machine, wsl and windows alike, one pick away from opening the project.
 // While it's open, it owns the keyboard.
 type IDEPicker struct {
-	Project  string
-	Name     string
+	Project string
+	Name    string
+	// Cell is the focused cell and Edited the last file its agent changed,
+	// as "path:line"; empty when it hasn't changed any.
+	Cell     string
+	Edited   string
 	List     []protocol.IDE
 	Selected int
 	Error    string
@@ -20,8 +24,12 @@ type IDEPicker struct {
 }
 
 // NewIDEPicker opens the picker already asking the engine what's out there.
-func NewIDEPicker(projectID, name string) *IDEPicker {
-	return &IDEPicker{Project: projectID, Name: name, Loading: true}
+func NewIDEPicker(projectID, name string, focused *protocol.Cell) *IDEPicker {
+	picker := &IDEPicker{Project: projectID, Name: name, Loading: true}
+	if focused != nil {
+		picker.Cell, picker.Edited = focused.ID, focused.Edited
+	}
+	return picker
 }
 
 // Received gets the detected list from the engine.
@@ -38,17 +46,31 @@ func (p *IDEPicker) Spin() { p.frame = (p.frame + 1) % len(spinnerFrames) }
 // Key handles a key for the picker. Returns the request to send when an IDE
 // is chosen, and whether the picker stays open.
 func (p *IDEPicker) Key(key string) (request *protocol.Editor, open bool) {
-	switch keyboard.Lookup(keyboard.IDEPanel, key) {
+	action := keyboard.Lookup(keyboard.IDEPanel, key)
+	switch action {
 	case keyboard.Back:
 		return nil, false
 	case keyboard.PreviousIDE:
 		p.Selected = max(p.Selected-1, 0)
 	case keyboard.NextIDE:
-		p.Selected = min(p.Selected+1, max(len(p.List)-1, 0))
-	case keyboard.ChooseIDE:
+		p.Selected++
+		// While the machine is still being searched there's no list to stop
+		// at: the arrows are kept, and the list clamps them when it lands.
+		if !p.Loading {
+			p.Selected = min(p.Selected, max(len(p.List)-1, 0))
+		}
+	case keyboard.ChooseIDE, keyboard.ChooseFile:
+		request := protocol.Editor{Project: p.Project}
+		if action == keyboard.ChooseFile {
+			if p.Edited == "" {
+				break
+			}
+			request.Cell = p.Cell
+		}
 		if p.Selected < len(p.List) {
 			chosen := p.List[p.Selected]
-			return &protocol.Editor{Project: p.Project, ID: chosen.ID, Location: chosen.Location}, false
+			request.ID, request.Location = chosen.ID, chosen.Location
+			return &request, false
 		}
 	}
 	return nil, true
@@ -79,6 +101,14 @@ func (p *IDEPicker) Draw(width int) []string {
 	}
 	body = append(body, "")
 	for _, line := range keyboard.HelpLines(keyboard.IDEPanel) {
+		if keyboard.Lookup(keyboard.IDEPanel, line.Keys) == keyboard.ChooseFile {
+			// The file's own line only exists when there is a file, and it
+			// names it: the key opens that and nothing else.
+			if p.Edited == "" {
+				continue
+			}
+			line.Help = truncate("opens "+p.Edited+", the agent's last edit", max(inner-26, 1))
+		}
 		body = append(body, "  "+keyColor.Render(pad(line.Keys, 22))+mutedColor.Render(line.Help))
 	}
 	return floatingBox("OPEN IN · "+p.Name, body, inner)

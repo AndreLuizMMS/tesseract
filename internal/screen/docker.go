@@ -1,9 +1,10 @@
 package screen
 
 import (
-	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/andreluiz/tesseract/internal/docker"
 	"github.com/andreluiz/tesseract/internal/keyboard"
 	"github.com/andreluiz/tesseract/internal/protocol"
 	"github.com/andreluiz/tesseract/internal/theme"
@@ -148,8 +149,40 @@ func (p *DockerPanel) Draw(width int) []string {
 			nameColumn = min(n, 32)
 		}
 	}
+	// A column every service leaves empty says nothing: it's left out, and
+	// comes back with the first service that has something to put in it.
+	columns := []struct {
+		title string
+		width int
+		value func(protocol.Service) string
+	}{
+		{"PORT", 9, func(s protocol.Service) string { return s.Port }},
+		{"HEALTH", 12, func(s protocol.Service) string { return s.Health }},
+		{"UPTIME", 0, func(s protocol.Service) string { return s.Uptime }},
+	}
+	shown := columns[:0]
+	for _, column := range columns {
+		if slices.ContainsFunc(p.List, func(s protocol.Service) bool { return column.value(s) != "" }) {
+			shown = append(shown, column)
+		}
+	}
+	// rest is a service's line past its name and state, the last column
+	// left unpadded.
+	rest := func(text func(title string, value func(protocol.Service) string) string) string {
+		var line strings.Builder
+		for i, column := range shown {
+			cell := text(column.title, column.value)
+			if i < len(shown)-1 {
+				cell = pad(cell, column.width)
+			}
+			line.WriteString(cell)
+		}
+		return line.String()
+	}
+
 	body := []string{
-		"  " + borderColor.Render(pad("SERVICE", nameColumn)+pad("STATE", 16)+pad("PORT", 9)+pad("HEALTH", 12)+"UPTIME"),
+		"  " + faintColor.Render(pad("SERVICE", nameColumn)+pad("STATE", 16)+
+			rest(func(title string, _ func(protocol.Service) string) string { return title })),
 	}
 	switch {
 	case p.Working != "":
@@ -167,26 +200,22 @@ func (p *DockerPanel) Draw(width int) []string {
 	for i, service := range p.List {
 		found := serviceMarker(service.State)
 		dot, paint := found.symbol, found.tone()
+		others := rest(func(_ string, value func(protocol.Service) string) string { return orDash(value(service)) })
 		if i == p.Selected {
 			// The picked line is a raised row with a bar on its left, not a
 			// caret: a whole painted row is found by the eye without reading.
-			row := pad(service.Name, nameColumn) + pad(dot+" "+service.State, 16) +
-				pad(orDash(service.Port), 9) + pad(orDash(service.Health), 12) + orDash(service.Uptime)
+			row := pad(service.Name, nameColumn) + pad(dot+" "+service.State, 16) + others
 			body = append(body, selectedBar+selectedRowColor.Render(" "+pad(row, max(inner-5, 1))))
 			continue
 		}
 		body = append(body, "  "+
 			barColor.Render(pad(service.Name, nameColumn))+
 			paint.Render(pad(dot+" "+service.State, 16))+
-			mutedColor.Render(pad(orDash(service.Port), 9))+
-			mutedColor.Render(pad(orDash(service.Health), 12))+
-			mutedColor.Render(orDash(service.Uptime)))
+			mutedColor.Render(others))
 	}
 
-	body = append(body, "")
-	for _, line := range keyboard.HelpLines(keyboard.DockerPanel) {
-		body = append(body, "  "+keyColor.Render(pad(line.Keys, 22))+mutedColor.Render(line.Help))
-	}
+	// The keys, short and once: what each one does at length is in the help.
+	body = append(append(body, ""), dialogKeys(keyboard.DockerPanel, inner-4)...)
 	title := "DOCKER · " + p.Name
 	if p.File != "" {
 		title += " · " + fileName(p.File)
@@ -194,21 +223,14 @@ func (p *DockerPanel) Draw(width int) []string {
 	return floatingBox(title, body, inner)
 }
 
-// serviceMarker reads a service with the same alphabet as the cells, and as
-// the Docker mod inside a cell: up is a live process producing, one that
-// exited on an error is a dead process, anything else is stopped. No glyph
-// of its own, no color of its own.
+// serviceMarker reads a service with the same alphabet as the cells: up is a
+// live process producing, one that fell is a dead process, anything else is
+// stopped. No glyph of its own, no color of its own.
 func serviceMarker(state string) marker {
-	if strings.HasPrefix(state, "up") {
+	switch {
+	case strings.HasPrefix(state, "up"):
 		return markerFor("working")
-	}
-	var exit int
-	if _, err := fmt.Sscanf(state, "exited (%d)", &exit); err == nil {
-		// 137 and 143 are SIGKILL and SIGTERM: what a stop leaves behind.
-		if exit != 0 && exit != 137 && exit != 143 {
-			return markerFor("down")
-		}
-	} else if state == "dead" {
+	case docker.Fell(state):
 		return markerFor("down")
 	}
 	return markerFor("stopped")

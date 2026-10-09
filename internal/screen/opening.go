@@ -13,8 +13,9 @@ import (
 )
 
 // The opening is the only place in Tesseract where motion exists for its own
-// sake. It lasts about a second and runs while the engine is being looked
-// for, so its time is time that would pass anyway — no wait is invented.
+// sake. It lasts about three seconds, so it only runs over an empty grid —
+// the first run. Coming back to cells that were already there gets the static
+// banner: nobody waits on a drawing to reach work that's ready.
 //
 // The brand doesn't appear ready-made: it draws itself. The back square
 // first, the front one on top, each one stroke by stroke, with the pen tip

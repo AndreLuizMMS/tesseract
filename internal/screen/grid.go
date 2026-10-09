@@ -28,9 +28,9 @@ const (
 	// something. When projects don't fit in this, the screen opens another
 	// column instead of leaving a cell out of frame.
 	minProjectHeight = minCellHeight + 1
-	// minDividerName is how much of a project's name the divider keeps
-	// before it starts dropping what sits to its right.
-	minDividerName = 6
+	// contextWarnAt is how full a conversation's window gets, in percent,
+	// before its cell says so.
+	contextWarnAt = 80
 )
 
 // Focus is where the user is right now.
@@ -113,30 +113,30 @@ func Arrange(state protocol.State, focus Focus, width, height int) Layout {
 		item := focusedProject.Cells[focus.Cell]
 		inner := FullCellInner(width, height)
 		d.inners[item.ID] = inner
-		d.origins[item.ID] = [2]int{1, 3}
+		d.origins[item.ID] = [2]int{1, 1}
 		return d
 	}
 
-	body := height - barHeight - 1 // header and footer
+	body := height - 1 // the status line
 	d.columns = splitColumns(state, focus, width, body)
 
 	for _, c := range d.columns {
 		d.hidden += c.hidden
-		y := barHeight // header
+		y := 0
 		for _, r := range c.rows {
 			if r.opens {
 				y++
 			}
 			project := state.Projects[r.project]
 			x := c.x
-			for i, cellWidth := range splitWidth(len(r.cells), c.width) {
+			for i, cellWidth := range cellWidths(len(r.cells), c.width) {
 				item := project.Cells[r.cells[i]]
 				d.inners[item.ID] = Dims{
 					Cols: max(cellWidth-2, 1),
 					Rows: max(r.height-2, 1),
 				}
 				d.origins[item.ID] = [2]int{x + 1, y + 1}
-				x += cellWidth
+				x += cellWidth + 1
 			}
 			y += r.height
 		}
@@ -190,8 +190,13 @@ func columnCount(projects []protocol.Project, width, body int) int {
 			return how
 		}
 	}
+	// The height asks for a column when the projects don't fit stacked, but
+	// the width has the last word: a column narrower than a tight cell is a
+	// strip with no room for its own top line. Projects that fit neither way
+	// stay off screen, counted on the status line, and the list has them.
 	fitInHeight := max(body/minProjectHeight, 1)
-	return min(max((len(projects)+fitInHeight-1)/fitInHeight, 1), len(projects))
+	fitInWidth := max((width+1)/(tightCellWidth+1), 1)
+	return min(max((len(projects)+fitInHeight-1)/fitInHeight, 1), len(projects), fitInWidth)
 }
 
 // columnsFit says whether splitting the projects into this many columns
@@ -292,6 +297,18 @@ func rowOfFocus(rows []row, focus Focus) int {
 // rowWindow chooses which rows show up when not all of them fit, keeping the
 // focused one always visible.
 func rowWindow(rows []row, focused, body int) []row {
+	// Everything fits at its shortest: nothing to choose. Counted row by row,
+	// because only a project's first row spends a line on its name.
+	need := 0
+	for _, r := range rows {
+		need += minCellHeight
+		if r.opens {
+			need++
+		}
+	}
+	if need <= body {
+		return rows
+	}
 	fit := max(body/(minCellHeight+1), 1)
 	if fit >= len(rows) {
 		return rows
@@ -367,7 +384,7 @@ func Draw(state protocol.State, focus Focus, mode keyboard.Mode, width, height i
 	focus = Adjust(state, focus)
 	project := state.Projects[focus.Project]
 	if focus.Full && len(project.Cells) > 0 {
-		return DrawFull(state, project.Cells[focus.Cell], mode, width, height, err)
+		return DrawFull(state, project, project.Cells[focus.Cell], mode, width, height, err)
 	}
 
 	d := Arrange(state, focus, width, height)
@@ -375,13 +392,13 @@ func Draw(state protocol.State, focus Focus, mode keyboard.Mode, width, height i
 		return emptyScreen(state, mode, width, height, err)
 	}
 
-	body := height - barHeight - 1
+	body := height - 1
 	blocks := make([][]string, len(d.columns))
 	for i, c := range d.columns {
 		blocks[i] = columnBlock(state, c, focus, mode)
 	}
 
-	lines := titleBar(mode, width, countCalls(state), state.Quota)
+	lines := make([]string, 0, height)
 	for l := range body {
 		var line strings.Builder
 		for i, block := range blocks {
@@ -396,14 +413,11 @@ func Draw(state protocol.State, focus Focus, mode keyboard.Mode, width, height i
 		}
 		lines = append(lines, line.String())
 	}
-	if d.hidden > 0 && len(lines) > 1 {
-		lines[len(lines)-1] = markHidden(lines[len(lines)-1], d.hidden, width)
-	}
 	for len(lines) < height-1 {
 		lines = append(lines, strings.Repeat(" ", width))
 	}
 	lines = lines[:height-1]
-	return strings.Join(append(lines, footer(mode, width, err)), "\n")
+	return strings.Join(append(lines, footerFor(state, &project.Cells[focus.Cell], mode, width, err, d.hidden)), "\n")
 }
 
 // columnBlock draws a whole column: each project with its divider and its
@@ -413,107 +427,60 @@ func columnBlock(state protocol.State, c column, focus Focus, mode keyboard.Mode
 	for _, r := range c.rows {
 		project := state.Projects[r.project]
 		if r.opens {
-			lines = append(lines, projectDivider(project, r.project, c.width, mode, r.project == focus.Project))
+			lines = append(lines, projectDivider(project, c.width, mode, r.project == focus.Project))
 		}
 		lines = append(lines, cellRow(project, r, focus, mode, c.width)...)
 	}
 	return lines
 }
 
-// projectDivider is the line that separates one project from the next: its
-// number, the name, the path and who's calling from inside it. It's written
-// the way the brand writes a section heading — the number in cyan, the name
-// at the top of the text hierarchy, a rule running to the edge. The number is
-// the key that jumps straight to the project, so it only exists while there's
-// a key for it.
-func projectDivider(project protocol.Project, index, width int, mode keyboard.Mode, focused bool) string {
-	paintRule, paintName, paintNumber, paintPath := dimLineColor, mutedColor, borderColor, faintColor
-	mark := "──"
-	if focused {
-		// The stripe of the project the keys act on is green, and heavier:
-		// the weight is what's left of it with no color.
-		paintRule, paintName, paintNumber, mark = activeGridColor, titleColor, keyColor, "━━"
+// projectDivider is the line that opens a project: its name, in its hue,
+// and nothing else. No rule runs from it — the boxes under it already say
+// where the project ends. It stands over its cells' labels, vivid and heavy
+// on the project the keys act on.
+//
+// The one thing that may sit beside the name is a stack with a service that
+// fell: it's there only while it's true, in the dead state's glyph and color,
+// and it stays lit even while a cell has the keyboard.
+func projectDivider(project protocol.Project, width int, mode keyboard.Mode, focused bool) string {
+	paintName := projectHue(project).Line(focused)
+	if mode == keyboard.Type && !focused {
+		paintName = faintColor
 	}
-	silent := mode == keyboard.Type
-	if silent {
-		paintRule, paintName, paintNumber = dimLineColor, faintColor, faintColor
+	fallen := ""
+	if project.DockerDown {
+		fallen = "  " + errorColor.Render(theme.Do(theme.Down).Glyph+" docker")
 	}
+	name := truncate(project.Name, max(width-2-lipgloss.Width(fallen), 1))
+	return pad("  "+paintName.Render(name)+fallen, width)
+}
 
-	number := ""
-	if index < 9 {
-		number = strconv.Itoa(index+1) + " "
-	}
-	name := strings.ToUpper(project.Name)
+// projectHue is the hue the project was given when it was created.
+func projectHue(project protocol.Project) theme.Hue { return theme.ProjectHue(project.Color) }
 
-	// On the right, who's calling from this project, each count in its
-	// state's color, and the stack. Docker isn't a cell and has no state of
-	// its own in the alphabet: it's written out, with no glyph borrowed.
-	var signals []string
-	room := 0
-	add := func(paint lipgloss.Style, text string) {
-		if silent {
-			paint = faintColor
-		}
-		signals = append(signals, paint.Render(text))
-		room += lipgloss.Width(text) + 2
-	}
-	calls := countProjectCalls(project)
-	for _, state := range []string{"answered", "approve"} {
-		if calls[state] > 0 {
-			found := markerFor(state)
-			add(found.tone(), found.symbol+strconv.Itoa(calls[state]))
-		}
-	}
-	if project.HasCompose {
-		docker := project.Docker
-		if docker == "" {
-			docker = "stopped"
-		}
-		add(mutedColor, "docker "+docker)
-	}
-	lead := lipgloss.Width(mark) + 1 + len(number)
-	// In a column too narrow for everything, the name outlives the signals:
-	// the stack goes first, the calls after it — the cells below still say
-	// who's calling.
-	for len(signals) > 0 && lead+minDividerName+1+room > width {
-		last := len(signals) - 1
-		room -= lipgloss.Width(signals[last]) + 2
-		signals = signals[:last]
-	}
-	right := ""
-	if len(signals) > 0 {
-		right = " " + strings.Join(signals, "  ") + " "
-	}
-
-	path := " " + shortenPath(project.Path, max(width/3, 10)) + " "
-	if lead+lipgloss.Width(name)+1+lipgloss.Width(path)+room+4 > width {
-		path = ""
-	}
-	filler := width - lead - lipgloss.Width(name) - 1 - lipgloss.Width(path) - room
-	if filler < 0 {
-		name = truncate(name, max(width-lead-1-room, 1))
-		path, filler = "", max(width-lead-lipgloss.Width(name)-1-room, 0)
-	}
-
-	return truncate(paintRule.Render(mark)+" "+paintNumber.Render(number)+paintName.Render(name)+" "+
-		paintPath.Render(path)+
-		paintRule.Render(strings.Repeat("─", filler))+
-		right, width)
+// cellWidths splits a row's width among its cells, leaving one column of
+// breathing room between neighbors: two boxes of the same project touching
+// (`╮╭`) read as one box with a seam.
+func cellWidths(cells, width int) []int {
+	return splitWidth(cells, width-(cells-1))
 }
 
 // cellRow draws one row: the cells side by side, each with its own box.
 func cellRow(project protocol.Project, r row, focus Focus, mode keyboard.Mode, width int) []string {
-	widths := splitWidth(len(r.cells), width)
+	widths := cellWidths(len(r.cells), width)
 	boxes := make([][]string, len(r.cells))
 	for i, index := range r.cells {
 		focused := r.project == focus.Project && index == focus.Cell
-		boxes[i] = cellBox(project.Cells[index], mode, focused, widths[i], r.height)
+		boxes[i] = cellBox(project.Cells[index], projectHue(project), mode, focused, widths[i], r.height)
 	}
 
 	lines := make([]string, r.height)
 	for l := range lines {
 		var line strings.Builder
 		for i, box := range boxes {
+			if i > 0 {
+				line.WriteString(" ")
+			}
 			if l < len(box) {
 				line.WriteString(box[l])
 				continue
@@ -525,115 +492,126 @@ func cellRow(project protocol.Project, r row, focus Focus, mode keyboard.Mode, w
 	return lines
 }
 
-// markHidden reports, at the bottom of the grid, how many cells fell off
-// screen, and the key that shows them all. It hides the drawing, never the
-// count.
-func markHidden(line string, count, width int) string {
-	noun := "cells"
-	if count == 1 {
-		noun = "cell"
-	}
-	notice := keyColor.Render(" +"+strconv.Itoa(count)) +
-		mutedColor.Render(" "+noun+" off screen · ") +
-		hint("v lists them") + " "
-	cut := max(width-lipgloss.Width(notice), 0)
-	return truncate(line, cut) + notice
-}
-
-// cellBox draws one cell: name and marker on the header, content inside.
+// cellBox draws one cell: its tabs, its name and its state on the top line,
+// its content inside.
 //
-// The line says who commands. Single, with cyan corners, while you command
-// the application; the live green on the cell the keys act on; double and
-// phosphor once the cell commands the keyboard — and then every other cell
-// sinks into the dark with it.
-func cellBox(item protocol.Cell, mode keyboard.Mode, focused bool, width, height int) []string {
+// The line is the project's: every cell of a project wears its hue, dim, and
+// the one the keys act on wears it vivid, over a body one step above the
+// screen. Once that cell holds the keyboard nothing about its line changes —
+// it gains the mode's word on its bottom line, and every other cell sinks
+// into the dark, hue and all.
+func cellBox(item protocol.Cell, hue theme.Hue, mode keyboard.Mode, focused bool, width, height int) []string {
 	owns := focused && mode == keyboard.Type
 	// silent is every cell but the owner while a cell holds the keyboard.
 	silent := mode == keyboard.Type && !focused
 
-	dash := theme.Browse.Frame()
-	paintCorner, paintEdge := borderColor, lineColor
-	paintName, paintTabOn, paintTabOff := barColor, borderColor.Bold(true), faintColor
-	// The header is a raised band; the body sits on the surface.
-	raised := true
+	dash := theme.Frame
+	paintLine := hue.Line(focused)
+	paintName, paintTabOn, paintTabOff := mutedColor, mutedColor.Bold(true), faintColor
 	switch {
-	case owns:
-		dash = theme.Type.Frame()
-		paintCorner, paintEdge = typingColor, typingColor
-		paintName, paintTabOn, paintTabOff = typingColor.Bold(true), keyColor.Bold(true), mutedColor
 	case focused:
-		paintCorner, paintEdge = focusedBorderColor, focusedBorderColor
-		paintName, paintTabOn, paintTabOff = titleColor, keyColor.Bold(true), mutedColor
+		paintName, paintTabOn, paintTabOff = titleColor, barColor.Bold(true), mutedColor
 	case silent:
-		paintCorner, paintEdge = dimLineColor, dimLineColor
+		paintLine = dimLineColor
 		paintName, paintTabOn, paintTabOff = faintColor, faintColor.Bold(true), faintColor
-		raised = false
-	}
-	onHeader := func(paint lipgloss.Style) lipgloss.Style {
-		if !raised {
-			return paint
-		}
-		return theme.WithBackground(paint, theme.BgRaised)
 	}
 
 	marker := markerFor(item.State)
-	state := " " + marker.symbol + " " + marker.label + " "
-	paintState := onHeader(marker.tone()).Bold(true)
-	if marker.blocks {
-		paintState = marker.color()
-	}
-	if !item.Live {
-		// Reading the history isn't a state: it's a position, and positions
-		// are numbered in cyan.
-		state = " ▲ " + strconv.Itoa(item.Scroll) + " "
-		paintState = onHeader(keyColor).Bold(true)
-		if silent {
-			paintState = faintColor
+	// The state is its glyph, and the glyph is the last thing on the line:
+	// the same column on every cell, to be read down the screen. An idle
+	// agent has none. The answer in one line, when the agent wrote one, sits
+	// before it while there's room.
+	paintState, paintNote := marker.tone().Bold(true), mutedColor
+	glyph, note := "", ""
+	if marker.symbol != "" {
+		glyph = " " + marker.symbol + " "
+		if item.State == "answered" {
+			note = item.Detail
 		}
 	}
+	if !item.Live {
+		// Reading the history isn't a state: it's a position.
+		glyph, note = " ▲ "+strconv.Itoa(item.Scroll)+" ", ""
+		paintState = keyColor
+	}
 	// While another cell holds the keyboard every state goes quiet with the
-	// rest of the screen, the same way the list does it — except the one that
-	// blocks, which is a solid bar and can't wait for you to come back.
-	if silent && !marker.blocks {
-		paintState = faintColor
+	// rest of the screen — except the one that blocks, which is a solid bar
+	// and can't wait for you to come back.
+	if silent {
+		paintState, paintNote = faintColor, faintColor
 	}
 
 	// Urgency is a filled area, not a hue: the cell blocking work becomes a
-	// solid inverted bar across the whole header line. Only the sides stay
-	// out of it, and the cell holding the keyboard is spared — there green
-	// rules.
-	paintTop, paintFill := paintCorner, onHeader(paintEdge)
-	if marker.blocks && item.Live && !owns {
+	// solid bar across the whole top line, written out, and only the sides
+	// and the bottom keep the project's hue. It's the one state with a word.
+	paintTop, paintWarn := paintLine, warnColor.Bold(true)
+	if silent {
+		// The window's warning sinks with the rest: nobody can act on it
+		// from a cell that doesn't hold the keyboard.
+		paintWarn = faintColor
+	}
+	if marker.blocks && item.Live {
 		bar := marker.color()
-		paintTop, paintFill, paintState = bar, bar, bar
+		paintTop, paintState, paintNote, paintWarn = bar, bar, bar, bar
 		paintName, paintTabOn, paintTabOff = bar, bar, bar
-	} else {
-		paintName, paintTabOn, paintTabOff = onHeader(paintName), onHeader(paintTabOn), onHeader(paintTabOff)
+		glyph = " " + marker.symbol + " " + marker.label + " "
 	}
 	label := cellLabel(item, paintName, paintTabOn, paintTabOff)
 
 	inner := max(width-2, 1)
-	filler := inner - lipgloss.Width(label) - lipgloss.Width(state)
-	if filler < 0 {
-		state = " " + marker.symbol + " "
-		filler = inner - lipgloss.Width(label) - lipgloss.Width(state)
+	fits := func() bool { return lipgloss.Width(label)+lipgloss.Width(glyph) <= inner }
+	if !fits() && len(item.Tabs) > 1 {
+		// Too narrow for every tab: the name outlives the tabs that aren't
+		// showing, and the one that is stays.
+		alone := item
+		alone.Tabs = []string{item.Tab}
+		label = cellLabel(alone, paintName, paintTabOn, paintTabOff)
 	}
+	if !fits() && marker.blocks && item.Live {
+		// Too narrow for the word: the bar is still the bar.
+		glyph = " " + marker.symbol + " "
+	}
+	filler := inner - lipgloss.Width(label) - lipgloss.Width(glyph)
 	if filler < 0 {
-		label = truncate(label, max(inner-lipgloss.Width(state), 1))
-		filler = max(inner-lipgloss.Width(label)-lipgloss.Width(state), 0)
+		// A name cut short says it was: the last column becomes an ellipsis.
+		room := max(inner-lipgloss.Width(glyph), 1)
+		label = truncate(label, room)
+		if room >= 2 {
+			label = truncate(label, room-1) + paintName.Render("…")
+		}
+		filler = max(inner-lipgloss.Width(label)-lipgloss.Width(glyph), 0)
+	}
+	// A conversation about to run out of window is the one figure a cell
+	// carries on its own top line, and only then: below the line it's nothing
+	// anyone has to act on.
+	warning := ""
+	if text := " ctx " + strconv.Itoa(item.Context) + "%"; item.Context >= contextWarnAt && filler >= lipgloss.Width(text)+1 {
+		warning = text
+		filler -= lipgloss.Width(text)
+	}
+	if note != "" {
+		// One dash of the line always stays between the name and the answer.
+		if room := filler - 2; room >= 12 {
+			note = " " + shorten(note, room)
+			filler -= lipgloss.Width(note)
+		} else {
+			note = ""
+		}
 	}
 
 	lines := []string{
 		paintTop.Render(dash[0]) +
 			label +
-			paintFill.Render(strings.Repeat(dash[4], filler)) +
-			paintState.Render(state) +
+			paintTop.Render(strings.Repeat(dash[4], filler)) +
+			paintNote.Render(note) +
+			paintWarn.Render(warning) +
+			paintState.Render(glyph) +
 			paintTop.Render(dash[1]),
 	}
 	// The side is the same on every line of the box: painting it once and
 	// repeating costs far less than asking for the same drawing on every
 	// line, and a cell's content has dozens of them.
-	side := paintEdge.Render(dash[5])
+	side := paintLine.Render(dash[5])
 	for i := range max(height-2, 0) {
 		content := ""
 		if i < len(item.Lines) {
@@ -652,9 +630,23 @@ func cellBox(item protocol.Cell, mode keyboard.Mode, focused bool, width, height
 		lines = append(lines, side+content+side)
 	}
 	if height >= 2 {
-		lines = append(lines, paintCorner.Render(dash[2])+
-			paintEdge.Render(strings.Repeat(dash[4], inner))+
-			paintCorner.Render(dash[3]))
+		// The cell that holds the keyboard says so in a word, at the end of
+		// its bottom line: the one place the phosphor shows up, and the shape
+		// that still says it with no color.
+		tag := ""
+		if owns && inner >= len(theme.TypeTag)+3 {
+			tag = " " + theme.TypeTag + " "
+		}
+		rule := inner - len(tag)
+		tail := 0
+		if tag != "" {
+			tail = 1
+		}
+		bottom := paintLine.Render(dash[2] + strings.Repeat(dash[4], rule-tail))
+		if tag != "" {
+			bottom += typingColor.Render(tag)
+		}
+		lines = append(lines, bottom+paintLine.Render(strings.Repeat(dash[4], tail)+dash[3]))
 	}
 	return lines
 }

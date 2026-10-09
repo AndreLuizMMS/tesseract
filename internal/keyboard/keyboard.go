@@ -61,6 +61,7 @@ const (
 
 	// Keyboard and screen.
 	EnterType    Action = "enter-type"
+	EnterCell    Action = "enter-cell"
 	ExitType     Action = "exit-type"
 	Fullscreen   Action = "fullscreen"
 	SwitchScreen Action = "switch-screen"
@@ -77,6 +78,7 @@ const (
 	Prompt     Action = "prompt"
 	OpenDocker Action = "open-docker"
 	OpenEditor Action = "open-editor"
+	OpenDoc    Action = "open-doc"
 	SearchTerm Action = "search-term"
 	Back       Action = "back"
 	Help       Action = "help"
@@ -108,6 +110,7 @@ const (
 	PreviousIDE Action = "previous-ide"
 	NextIDE     Action = "next-ide"
 	ChooseIDE   Action = "choose-ide"
+	ChooseFile  Action = "choose-file"
 )
 
 // Shortcut is one line of the map: the key, what it does and the help text.
@@ -118,10 +121,9 @@ type Shortcut struct {
 	// Group groups in the help the keys that are the same idea (the
 	// arrows, the numbers). Empty when the key explains itself.
 	Group string
-	// Footer marks the handful of keys that fit in the bottom bar, and
-	// Short is how they show up there.
-	Footer bool
-	Short  string
+	// Short is how the key shows up on the last line of the dialog it acts
+	// on: two words at most, the full sentence is the help's.
+	Short string
 }
 
 // shortcuts is the whole keyboard. One key, one meaning, in any screen.
@@ -129,45 +131,47 @@ var shortcuts = map[Mode][]Shortcut{
 	Browse: {
 		// Navigation is exclusively directional: no letter moves through the
 		// grid.
-		{Key: "left", Action: CellPrevious, Help: "the arrow moves to the cell that's literally on that side of the grid, crossing projects", Group: "↑↓←→ cell", Footer: true, Short: "↑↓←→ cell"},
+		{Key: "left", Action: CellPrevious, Help: "the arrow moves to the cell that's literally on that side of the grid, crossing projects", Group: "↑↓←→ cell"},
 		{Key: "right", Action: CellNext, Help: "cell to the right", Group: "↑↓←→ cell"},
 		{Key: "up", Action: CellUp, Help: "cell in the row above", Group: "↑↓←→ cell"},
 		{Key: "down", Action: CellDown, Help: "cell in the row below", Group: "↑↓←→ cell"},
 		{Key: "space", Action: SkipToAlert, Help: "jumps to the next cell asking for attention, crossing projects"},
-		{Key: "tab", Action: NextTab, Help: "switches the cell's tab: claude, cursor, bash, md", Group: "tab · shift+tab", Footer: true, Short: "tab next tab"},
+		{Key: "tab", Action: NextTab, Help: "switches the cell's tab: claude, cursor, bash, md", Group: "tab · shift+tab"},
 		{Key: "shift+tab", Action: PreviousTab, Help: "previous tab", Group: "tab · shift+tab"},
 
-		{Key: "enter", Action: EnterType, Help: "enters TYPE on the focused cell", Footer: true, Short: "↵ type"},
+		{Key: "enter", Action: EnterType, Help: "enters TYPE on the focused cell — or approves, while the status line offers it"},
+		{Key: "ctrl+l", Action: EnterCell, Help: "enters TYPE whatever the cell is waiting on; the same key gives the keyboard back"},
 		{Key: "o", Action: Fullscreen, Help: "focused cell in fullscreen (toggles)"},
-		{Key: "v", Action: SwitchScreen, Help: "switches between grid and list", Footer: true, Short: "v grid/list"},
+		{Key: "v", Action: SwitchScreen, Help: "switches between grid and list"},
 
-		{Key: "n", Action: Create, Help: "create — asks for the project, then the cell", Footer: true, Short: "n create"},
+		{Key: "n", Action: Create, Help: "create — asks for the project, then the cell"},
 		{Key: "r", Action: Resume, Help: "resumes a stopped cell, or brings a dead cell back up"},
 		{Key: "D", Action: Kill, Help: "kills the focused cell — always confirms"},
 
 		{Key: "ctrl+r", Action: Rename, Help: "asks the agent to pick a name for the conversation and adopts that name for the cell"},
 
 		{Key: "p", Action: Prompt, Help: "sends a prompt to the focused cell without entering it"},
-		{Key: "d", Action: OpenDocker, Help: "opens the focused project's Docker panel", Footer: true, Short: "d docker"},
-		{Key: "ctrl+e", Action: OpenEditor, Help: "picks an IDE and opens the project's directory there"},
+		{Key: "d", Action: OpenDocker, Help: "opens the focused project's Docker panel"},
+		{Key: "ctrl+e", Action: OpenEditor, Help: "picks an IDE and opens the project's directory there, or the file the agent last edited"},
+		{Key: "m", Action: OpenDoc, Help: "reads the markdown the focused cell's agent just wrote, in the cell's md tab"},
 
 		{Key: "/", Action: SearchTerm, Help: "searches the focused cell's history"},
 		{Key: "pgup", Action: ScrollPageUp, Help: "scrolls the focused cell's history a page at a time", Group: "pgup/pgdn history"},
 		{Key: "pgdown", Action: ScrollPageDown, Help: "scrolls a page down", Group: "pgup/pgdn history"},
 		{Key: "home", Action: ScrollTop, Help: "jumps to the top of the focused cell's history"},
 		{Key: "end", Action: ScrollBottom, Help: "jumps back to the live end of the focused cell's history"},
-		{Key: "esc", Action: Back, Help: "exits scrolling and closes whatever is open"},
+		{Key: "esc", Action: Back, Help: "exits scrolling and closes whatever is open — or declines, while the status line offers it"},
 
-		{Key: "?", Action: Help, Help: "help", Footer: true, Short: "? help"},
+		{Key: "?", Action: Help, Help: "help"},
 		{Key: "q", Action: Close, Help: "closes the screen — the engine keeps running"},
 	},
 	Type: {
 		// The one reserved key. Everything else goes to the cell.
-		{Key: "ctrl+l", Action: ExitType, Help: "gives back the keyboard to the application", Footer: true, Short: "ctrl+l gives back the keyboard"},
+		{Key: "ctrl+l", Action: ExitType, Help: "gives back the keyboard to the application"},
 	},
 	Form: {
-		{Key: "enter", Action: Confirm, Help: "confirms", Footer: true, Short: "↵ confirm"},
-		{Key: "esc", Action: Cancel, Help: "cancels", Footer: true, Short: "esc cancel"},
+		{Key: "enter", Action: Confirm, Help: "confirms", Short: "↵ confirm"},
+		{Key: "esc", Action: Cancel, Help: "cancels", Short: "esc cancel"},
 		{Key: "tab", Action: Complete, Help: "enters the picked folder, or completes the markdown file"},
 		{Key: "up", Action: PreviousField, Help: "picks a folder from the list, and moves between fields once the list ends", Group: "↑↓ folder · field"},
 		{Key: "down", Action: NextField, Help: "next folder, then next field", Group: "↑↓ folder · field"},
@@ -175,24 +179,25 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "right", Action: NextOpt, Help: "enters the picked folder", Group: "←→ browse"},
 	},
 	DockerPanel: {
-		{Key: "up", Action: PreviousService, Help: "picks the service — picking doesn't execute anything", Group: "↑↓ pick service", Footer: true, Short: "↑↓ service"},
+		{Key: "up", Action: PreviousService, Help: "picks the service — picking doesn't execute anything", Group: "↑↓ pick service"},
 		{Key: "down", Action: NextService, Help: "next service", Group: "↑↓ pick service"},
-		{Key: "u", Action: UpService, Help: "brings up the picked service", Footer: true, Short: "u up"},
-		{Key: "s", Action: StopService, Help: "stops the picked service", Footer: true, Short: "s stop"},
-		{Key: "r", Action: RestartService, Help: "restarts the picked service", Footer: true, Short: "r restart"},
-		{Key: "b", Action: RebuildService, Help: "rebuilds the picked service"},
-		{Key: "l", Action: LogAsCell, Help: "opens the service's log as a cell", Footer: true, Short: "l log becomes cell"},
-		{Key: "a", Action: ShellAsCell, Help: "attaches a shell inside the picked service's container", Footer: true, Short: "a shell becomes cell"},
-		{Key: "U", Action: UpStack, Help: "brings up the whole stack"},
+		{Key: "u", Action: UpService, Help: "brings up the picked service", Short: "u up"},
+		{Key: "s", Action: StopService, Help: "stops the picked service", Short: "s stop"},
+		{Key: "r", Action: RestartService, Help: "restarts the picked service", Short: "r restart"},
+		{Key: "b", Action: RebuildService, Help: "rebuilds the picked service", Short: "b rebuild"},
+		{Key: "l", Action: LogAsCell, Help: "opens the service's log as a cell", Short: "l log"},
+		{Key: "a", Action: ShellAsCell, Help: "attaches a shell inside the picked service's container", Short: "a shell"},
+		{Key: "U", Action: UpStack, Help: "brings up the whole stack", Short: "U S R stack"},
 		{Key: "S", Action: StopStack, Help: "stops the whole stack"},
 		{Key: "R", Action: RestartStack, Help: "restarts the whole stack"},
-		{Key: "esc", Action: Back, Help: "closes the panel and gives back the keyboard", Footer: true, Short: "esc close"},
+		{Key: "esc", Action: Back, Help: "closes the panel and gives back the keyboard", Short: "esc close"},
 	},
 	IDEPanel: {
-		{Key: "up", Action: PreviousIDE, Help: "picks the IDE — picking doesn't open anything", Group: "↑↓ pick IDE", Footer: true, Short: "↑↓ IDE"},
+		{Key: "up", Action: PreviousIDE, Help: "picks the IDE — picking doesn't open anything", Group: "↑↓ pick IDE"},
 		{Key: "down", Action: NextIDE, Help: "next IDE", Group: "↑↓ pick IDE"},
-		{Key: "enter", Action: ChooseIDE, Help: "opens the project in the picked IDE", Footer: true, Short: "↵ open"},
-		{Key: "esc", Action: Back, Help: "closes the picker and gives back the keyboard", Footer: true, Short: "esc close"},
+		{Key: "enter", Action: ChooseIDE, Help: "opens the project in the picked IDE"},
+		{Key: "f", Action: ChooseFile, Help: "opens the file the agent last edited, at the line"},
+		{Key: "esc", Action: Back, Help: "closes the picker and gives back the keyboard"},
 	},
 }
 
@@ -221,7 +226,7 @@ func Lookup(mode Mode, key string) Action {
 	return None
 }
 
-// Shortcuts is the mode's map, for the help and the footer to draw.
+// Shortcuts is the mode's map, for the help and the dialogs to draw.
 func Shortcuts(mode Mode) []Shortcut {
 	copied := make([]Shortcut, len(shortcuts[mode]))
 	copy(copied, shortcuts[mode])

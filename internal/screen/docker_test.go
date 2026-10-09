@@ -1,8 +1,11 @@
 package screen
 
 import (
+	"encoding/json"
+	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/andreluiz/tesseract/internal/protocol"
 )
@@ -122,8 +125,8 @@ func TestPanelDrawsTheStackState(t *testing.T) {
 	}
 }
 
-// TestServiceMarkerSpeaksTheCellAlphabet — the panel and the Docker mod
-// inside a cell name a service's state with the same glyphs as a cell's.
+// TestServiceMarkerSpeaksTheCellAlphabet — the panel names a service's state
+// with the same glyphs as a cell's.
 func TestServiceMarkerSpeaksTheCellAlphabet(t *testing.T) {
 	for state, want := range map[string]string{
 		"up": "working", "up (healthy)": "working",
@@ -205,5 +208,97 @@ func TestPanelForOneServiceNamesIt(t *testing.T) {
 	drawing := noStyle(strings.Join(panel.Draw(90), "\n"))
 	if !strings.Contains(drawing, "restarting api") {
 		t.Errorf("the panel should say the service and the action:\n%s", drawing)
+	}
+}
+
+// TestOpenPanelReadsTheStackAgain — while the panel is open it asks the
+// engine how the stack is doing every few seconds, working or not, so a
+// service that falls shows up without reopening it. Closed, the clock stops:
+// a still grid asks for nothing.
+func TestOpenPanelReadsTheStackAgain(t *testing.T) {
+	here, there := net.Pipe()
+	defer here.Close()
+	defer there.Close()
+	asked := make(chan protocol.Docker, 16)
+	go func() {
+		decoder := json.NewDecoder(there)
+		for {
+			var envelope protocol.Message
+			if decoder.Decode(&envelope) != nil {
+				return
+			}
+			if request, err := protocol.Unpack[protocol.Docker](envelope); err == nil {
+				asked <- request
+			}
+		}
+	}()
+
+	m := NewModel(&Client{conn: here, encoder: json.NewEncoder(here)}, testGrid())
+	m.panel = NewDockerPanel("p1", "doxar-api")
+	m.panel.Received(protocol.Services{Action: "list"})
+	for count := range 2 * spinsPerIdleCheck {
+		if m.spinPanel(panelTick{count: count}) == nil {
+			t.Fatal("the clock runs for as long as the panel is open")
+		}
+	}
+	for range 2 {
+		select {
+		case request := <-asked:
+			if request.Action != "list" || request.Project != "p1" {
+				t.Fatalf("the panel should only read: %+v", request)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("an idle panel should have read the stack twice in that many frames")
+		}
+	}
+	select {
+	case request := <-asked:
+		t.Fatalf("one reading per interval, got an extra %+v", request)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	m.panel = nil
+	if m.spinPanel(panelTick{count: spinsPerIdleCheck - 1}) != nil {
+		t.Fatal("with the panel closed the clock stops")
+	}
+	select {
+	case request := <-asked:
+		t.Fatalf("a closed panel asked for %+v", request)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// TestPanelSaysOnlyWhatItHas — the keys are one short line, not a copy of
+// the help; and a column no service fills isn't drawn.
+func TestPanelSaysOnlyWhatItHas(t *testing.T) {
+	full := noStyle(strings.Join(testPanel().Draw(120), "\n"))
+	for _, want := range []string{"PORT", "HEALTH", "UPTIME", ":5432", "u up   s stop   r restart   b rebuild   l log   a shell   U S R stack   esc close"} {
+		if !strings.Contains(full, want) {
+			t.Errorf("the panel should show %q:\n%s", want, full)
+		}
+	}
+	if strings.Contains(full, "brings up the picked service") {
+		t.Errorf("the help's sentences don't belong in the panel:\n%s", full)
+	}
+	if lines := strings.Split(full, "\n"); len(lines) != 10 {
+		t.Errorf("three services make a box of 10 lines, got %d:\n%s", len(lines), full)
+	}
+
+	bare := NewDockerPanel("p1", "stack")
+	bare.Received(protocol.Services{Project: "p1", File: "/w/stack/compose.yml", List: []protocol.Service{
+		{Name: "cache", State: "exited (137)"}, {Name: "web", State: "up", Uptime: "46s"},
+	}})
+	drawn := noStyle(strings.Join(bare.Draw(120), "\n"))
+	if strings.Contains(drawn, "PORT") || strings.Contains(drawn, "HEALTH") || !strings.Contains(drawn, "UPTIME") {
+		t.Errorf("only the columns some service fills are drawn:\n%s", drawn)
+	}
+	if !strings.Contains(drawn, "○ exited (137)  —") || !strings.Contains(drawn, "▸ up            46s") {
+		t.Errorf("a service with nothing in a column that is drawn says so with a dash:\n%s", drawn)
+	}
+
+	// Too narrow for one line, the keys wrap between keys and all stay.
+	narrow := noStyle(strings.Join(testPanel().Draw(60), "\n"))
+	if !strings.Contains(narrow, "esc close") || !strings.Contains(narrow, "U S R stack") {
+		t.Errorf("a narrow panel keeps every key:\n%s", narrow)
 	}
 }

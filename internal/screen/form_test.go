@@ -310,3 +310,38 @@ func TestFormMovesBetweenFields(t *testing.T) {
 		t.Fatalf("↑ on the first field wraps around, it's at %d", f.current)
 	}
 }
+
+// TestFormSaysEachThingOnce — the form opens on the focused project's folder
+// and says it once: the list under the field doesn't repeat the path that's
+// already written in it. Only the field being written shows its hint, and
+// the keys that settle the form are on the box's last line alone.
+func TestFormSaysEachThingOnce(t *testing.T) {
+	form := NewForm([]string{"/work/cortz-web"}, "/work/doxar-api")
+	form.Pending()
+	form.Completed(protocol.Completed{Options: []string{"/work/doxar-api/"}, Count: 1})
+	drawn := noStyle(strings.Join(form.Draw(100), "\n"))
+	if got := strings.Count(drawn, "/work/doxar-api"); got != 1 {
+		t.Errorf("the folder should be written once, got %d:\n%s", got, drawn)
+	}
+	if got := strings.Count(drawn, "↵"); got != 1 {
+		t.Errorf("the key that confirms should be said once, got %d:\n%s", got, drawn)
+	}
+	if !strings.Contains(drawn, "→ enters") || strings.Contains(drawn, "automatic name") || strings.Contains(drawn, "optional") {
+		t.Errorf("only the field being written shows its hint:\n%s", drawn)
+	}
+
+	// The pick is still there: ↵ takes it and moves on, and the hint moves
+	// with the caret.
+	form.Key(keyboard.Confirm, "", false)
+	drawn = noStyle(strings.Join(form.Draw(100), "\n"))
+	if strings.Contains(drawn, "→ enters") || !strings.Contains(drawn, "automatic name") {
+		t.Errorf("the hint should follow the field in focus:\n%s", drawn)
+	}
+
+	// Folders that merely share the prefix are a choice, and are listed.
+	form = NewForm(nil, "/work/doxar")
+	form.Completed(protocol.Completed{Options: []string{"/work/doxar-api/", "/work/doxar-web/"}, Count: 2})
+	if drawn := noStyle(strings.Join(form.Draw(100), "\n")); !strings.Contains(drawn, "/work/doxar-web") {
+		t.Errorf("a list with more than the field's own folder is shown:\n%s", drawn)
+	}
+}

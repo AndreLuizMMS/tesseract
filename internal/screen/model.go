@@ -24,10 +24,15 @@ const linesPerPage = 20
 const spinCadence = 120 * time.Millisecond
 
 // spinsPerCheck is how many frames pass between the screen asking the engine
-// how the stack is doing, while Docker works. That way services turn green
-// one at a time on screen, instead of everything changing at once at the
-// end.
+// how the stack is doing, while Docker works. That way services come up one
+// at a time on screen, instead of everything changing at once at the end.
 const spinsPerCheck = 10
+
+// spinsPerIdleCheck is the same question while nothing is running: an open
+// panel is read again every three seconds, so a service that falls shows up
+// without closing and reopening it. The clock is the panel's own — closed,
+// nobody asks and the still grid stays still.
+const spinsPerIdleCheck = 25
 
 // The blocking state's status bar blinks every 2 seconds: 1.8s on, 200ms
 // off. It's the fourth signal for "approve", alongside the shape, the area
@@ -38,6 +43,16 @@ const (
 	warnOn  = 1800 * time.Millisecond
 	warnOff = 200 * time.Millisecond
 )
+
+// offerSettle is how long an approval has to sit on the status line before
+// enter and esc answer it. "Arrow, enter" is the gesture for entering a cell:
+// done in one burst onto a blocked cell, it would approve a command nobody
+// read. Until the offer has been on screen this long, the two keys do
+// nothing at all — neither approve nor enter.
+const offerSettle = 600 * time.Millisecond
+
+// clock is the time the offer is measured against; tests move it.
+var clock = time.Now
 
 const (
 	viewGrid = "grid"
@@ -95,6 +110,30 @@ type Model struct {
 	resultChosen int
 	// blinking prevents two blocking-status-bar clocks from running at once.
 	blinking bool
+	// offered is the cell whose approval the status line is showing, and
+	// since when: what View last drew, not what the state would allow.
+	offered      string
+	offeredSince time.Time
+}
+
+// noteOffer records whether the frame just drawn carries a cell's approval
+// offer on the status line. The line says it under the same conditions as
+// footerFor: no error over it, the application holding the keyboard.
+func (m *Model) noteOffer(mode keyboard.Mode, err string) {
+	item := m.focusedCell()
+	if err != "" || mode != keyboard.Browse || waitingOn(item) != "tool" {
+		m.offered = ""
+		return
+	}
+	if m.offered != item.ID {
+		m.offered, m.offeredSince = item.ID, clock()
+	}
+}
+
+// offerRead says whether the cell's approval has been on the status line
+// long enough to have been read.
+func (m *Model) offerRead(item *protocol.Cell) bool {
+	return item != nil && m.offered == item.ID && clock().Sub(m.offeredSince) >= offerSettle
 }
 
 // blinkWarning schedules the next frame of the blocking status bar, and
@@ -412,6 +451,17 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 		}
 
 	case keyboard.EnterType:
+		// On a cell blocked on a tool's permission dialog the footer says
+		// enter approves, and then it does. Everywhere else it takes the
+		// keyboard into the cell, as it always did.
+		if waitingOn(item) == "tool" {
+			if m.offerRead(item) {
+				m.send(protocol.TypeAnswer, protocol.Answer{Cell: item.ID, Approve: true})
+			}
+		} else if item != nil {
+			m.typing = true
+		}
+	case keyboard.EnterCell:
 		if item != nil {
 			m.typing = true
 		}
@@ -465,9 +515,13 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 			m.reportSizes()
 			return m, tickFrom(0)
 		}
+	case keyboard.OpenDoc:
+		if item != nil {
+			m.send(protocol.TypeOpenDoc, protocol.OpenDoc{Cell: item.ID})
+		}
 	case keyboard.OpenEditor:
 		if project != nil {
-			m.idePicker = NewIDEPicker(project.ID, project.Name)
+			m.idePicker = NewIDEPicker(project.ID, project.Name, item)
 			m.send(protocol.TypeListIDEs, protocol.ListIDEs{Project: project.ID})
 			// Same as the Docker panel: the picker animates while it's
 			// open, spinning until the list arrives and pulsing the
@@ -487,6 +541,12 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 	case keyboard.Back:
 		if m.selection != nil {
 			m.selection = nil
+			break
+		}
+		if waitingOn(item) == "tool" {
+			if m.offerRead(item) {
+				m.send(protocol.TypeAnswer, protocol.Answer{Cell: item.ID})
+			}
 			break
 		}
 		if m.focus.Full {
@@ -555,7 +615,11 @@ func (m *Model) spinPanel(tick panelTick) tea.Cmd {
 	}
 	if m.panel != nil {
 		m.panel.Spin()
-		if m.panel.IsWorking() && tick.count%spinsPerCheck == spinsPerCheck-1 {
+		every := spinsPerIdleCheck
+		if m.panel.IsWorking() {
+			every = spinsPerCheck
+		}
+		if tick.count%every == every-1 {
 			m.send(protocol.TypeDocker, protocol.Docker{Project: m.panel.Project, Action: "list"})
 		}
 	}
@@ -904,6 +968,12 @@ func (m *Model) View() tea.View {
 	}
 
 	mode := m.Mode()
+	// The help and the search's results don't take the keyboard's mode, but
+	// they list their own keys like any dialog: the status line under them
+	// is drawn as a dialog's, and says nothing.
+	if m.help || m.results != nil {
+		mode = keyboard.Form
+	}
 	state := m.state
 	if m.selection != nil {
 		if inner, has := m.visibleInners()[m.selection.Cell]; has {
@@ -935,13 +1005,14 @@ func (m *Model) View() tea.View {
 		drawing = overlay(drawing, resultsBox(*m.results, m.resultChosen, m.width), m.width, m.height)
 	}
 	view.SetContent(drawing)
+	m.noteOffer(mode, err)
 
 	// The cursor only shows up when the keyboard belongs to the cell and the
 	// reading is live — a blinking cursor over scrolled-back history would
 	// be a lie.
 	if item := m.focusedCell(); m.typing && item != nil && item.Live && item.CursorX >= 0 {
 		if x, y, has := m.cellOrigin(item.ID); has {
-			// Phosphor, like every cursor the brand draws. The terminal's own
+			// Phosphor: it's where the typing lands. The terminal's own
 			// color comes back as soon as the cursor leaves the view — on
 			// ctrl+l, and when the screen closes.
 			cursor := tea.NewCursor(x+item.CursorX, y+item.CursorY)
@@ -994,10 +1065,10 @@ func (m *Model) visibleInners() map[string]Dims {
 // in the right spot.
 func (m *Model) cellOrigin(id string) (int, int, bool) {
 	if !m.showingGrid() {
-		return indexWidth + 2, 4, true
+		return indexWidth + 2, 1, true
 	}
 	if m.focus.Full {
-		return 1, 3, true
+		return 1, 1, true
 	}
 	return OriginInGrid(m.state, m.focus, m.width, m.height, id)
 }
@@ -1033,7 +1104,7 @@ func killConfirmation(project protocol.Project, item protocol.Cell) *Confirmatio
 	lines := []string{"Kill " + item.Type + " · " + item.Name + "?"}
 	if len(project.Cells) == 1 {
 		lines = append(lines, "",
-			warnColor.Render("Last cell of "+strings.ToUpper(project.Name)+":"),
+			warnColor.Render("Last cell of "+project.Name+":"),
 			warnColor.Render("the project leaves the screen."),
 			mutedColor.Render("The directory on disk stays untouched."))
 	}

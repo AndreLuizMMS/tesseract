@@ -1,25 +1,108 @@
 package theme
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 )
 
-// greensAndCyans are the colors that must NOT become state. Green is
-// keyboard ownership, cyan is structure.
-var greensAndCyans = []string{
-	BrandDeep, BrandCore, BrandLive, BrandPhosphor,
-	FluxDeep, FluxCore, Flux,
+// spokenFor are the colors that must NOT become state: the greens, of which
+// the phosphor is where the typing lands, the brand mark's cyans, and every
+// project hue in both strengths.
+func spokenFor() []string {
+	colors := []string{
+		BrandDeep, BrandCore, BrandLive, BrandPhosphor,
+		FluxDeep, FluxCore, Flux,
+	}
+	for _, hue := range hues {
+		colors = append(colors, hue.Vivid, hue.Dim)
+	}
+	return colors
 }
 
-func TestStateNeverUsesGreenOrCyan(t *testing.T) {
+func TestStateNeverUsesAProjectHueOrThePhosphor(t *testing.T) {
 	for state, m := range stateMarkers {
-		for _, forbidden := range greensAndCyans {
+		for _, forbidden := range spokenFor() {
 			if m.Color == forbidden {
-				t.Fatalf("state %q uses %s, which belongs to the keyboard or structure", state, forbidden)
+				t.Fatalf("state %q uses %s, which belongs to a project, the keyboard or the brand mark", state, forbidden)
 			}
+		}
+	}
+}
+
+// TestProjectHuesStayApart — a hue is whose cell it is, so no two of them
+// may come out the same, in any strength, on any terminal: in full color,
+// once the renderer has rounded them to 256, and on the six plain slots of
+// ANSI 16. And none of them may come out as a state's color.
+func TestProjectHuesStayApart(t *testing.T) {
+	if len(hues) != HueCount {
+		t.Fatalf("HueCount says %d and there are %d hues", HueCount, len(hues))
+	}
+	states := map[string]bool{}
+	// The neutral ladder counts too: a hue that rounds to the gray of the
+	// text beside it is a hue nobody sees.
+	for _, token := range []string{StateRead, StateBlock, StateBlockDim, StateDead, BrandPhosphor, FgFaint, FgMuted, FgDefault, FgBright, LineDim} {
+		states[token] = true
+		states[indexed256(token)] = true
+	}
+	seen := map[string]string{}
+	seen16 := map[string]bool{}
+	for _, hue := range hues {
+		for _, token := range []string{hue.Vivid, hue.Dim} {
+			for _, shade := range []string{token, indexed256(token)} {
+				if other, repeated := seen[shade]; repeated && other != token {
+					t.Errorf("%s and %s come out as the same color (%s)", token, other, shade)
+				}
+				if states[shade] {
+					t.Errorf("%s comes out as a state's color or as a neutral (%s)", token, shade)
+				}
+				seen[shade] = token
+			}
+		}
+		slot := ansi16[hue.Vivid]
+		if slot == "" || slot != ansi16[hue.Dim] {
+			t.Errorf("%s: both strengths land on one ANSI 16 slot, got %q and %q", hue.Vivid, slot, ansi16[hue.Dim])
+		}
+		if seen16[slot] {
+			t.Errorf("two hues land on ANSI %s", slot)
+		}
+		seen16[slot] = true
+		// The plain half of the table is the projects'; the bright half is
+		// state and the phosphor.
+		if n, _ := strconv.Atoi(slot); n < 1 || n > 6 {
+			t.Errorf("%s lands on ANSI %s, outside the six plain slots", hue.Vivid, slot)
+		}
+	}
+	if ProjectHue(HueCount) != ProjectHue(0) || ProjectHue(-1) != ProjectHue(HueCount-1) {
+		t.Error("a color number past the last hue wraps around")
+	}
+}
+
+// indexed256 is the color a 256-color terminal gets for a token, as the
+// renderer rounds it.
+func indexed256(token string) string {
+	return fmt.Sprint(colorprofile.ANSI256.Convert(lipgloss.Color(token)))
+}
+
+// TestFocusIsWeightWhereThereIsNoShade — with sixteen colors both strengths
+// of a hue are one index, and with none there is no hue: what tells the
+// focused cell's line apart there is that it is heavy.
+func TestFocusIsWeightWhereThereIsNoShade(t *testing.T) {
+	previous := Current
+	defer func() { Current = previous }()
+	for _, profile := range []Profile{FullColor, Color16, NoColor} {
+		Current = profile
+		hue := ProjectHue(0)
+		on, off := hue.Line(true).Render("x"), hue.Line(false).Render("x")
+		if on == off {
+			t.Errorf("profile %d: the focused line reads the same as the others", profile)
+		}
+		if !strings.Contains(on, "\x1b[1") {
+			t.Errorf("profile %d: the focused line should be heavy: %q", profile, on)
 		}
 	}
 }
@@ -47,8 +130,9 @@ func TestNoColorDoesNotEmitColorEscape(t *testing.T) {
 	Current = NoColor
 	defer func() { Current = previous }()
 
-	out := Do(Approve).Line(20) + Do(Answered).Line(0) + Mode(Type).Badge()
-	if strings.Contains(out, "38;2;") || strings.Contains(out, "48;2;") {
+	out := Do(Approve).Style().Render("⏵") + Do(Answered).Style().Render("⬤") +
+		Typing().Render(TypeTag) + ProjectHue(0).Line(true).Render("─") + Paint(FgFaint, "").Render("x")
+	if strings.Contains(out, "38;") || strings.Contains(out, "48;") {
 		t.Fatalf("NO_COLOR: a color escape leaked out in %q", out)
 	}
 	if !strings.Contains(out, "⏵") || !strings.Contains(out, "⬤") {
@@ -167,7 +251,7 @@ func TestTokensAreTheBrandSheets(t *testing.T) {
 		{BrandDeep, "#0B3322"}, {BrandCore, "#1F7A4C"}, {BrandLive, "#35C27A"}, {BrandPhosphor, "#55FFA6"},
 		{FluxDeep, "#082F31"}, {FluxCore, "#128C86"}, {Flux, "#22E0D0"},
 		{StateWorking, "#6C8076"}, {StateRead, "#7DB7E8"}, {StateBlock, "#FFB454"},
-		{StateDead, "#FF3B47"}, {StateOff, "#3E534E"}, {StateOrphan, "#C77DFF"},
+		{StateDead, "#FF3B47"}, {StateOff, "#3E534E"},
 		{AnsiRed, "#C22F38"}, {AnsiYellow, "#C9A227"}, {AnsiBlue, "#3E7FA8"}, {AnsiMagenta, "#8B4FC4"},
 	}
 	for _, pair := range sheet {
@@ -186,7 +270,7 @@ func TestAnsi16FollowsTheBrandTable(t *testing.T) {
 		"0": BgBase, "1": AnsiRed, "2": BrandCore, "3": AnsiYellow,
 		"4": AnsiBlue, "5": AnsiMagenta, "6": FluxCore, "7": FgDefault,
 		"8": FgFaint, "9": StateDead, "10": BrandPhosphor, "11": StateBlock,
-		"12": StateRead, "13": StateOrphan, "14": Flux, "15": FgBright,
+		"12": StateRead, "14": Flux, "15": FgBright,
 	}
 	for index, token := range table {
 		if ansi16[token] != index {
@@ -201,10 +285,12 @@ func TestAnsi16FollowsTheBrandTable(t *testing.T) {
 	if ansi16[BgRaised] == ansi16[FgFaint] || ansi16[BgRaised] == ansi16[FgMuted] {
 		t.Error("a raised background on the faint text's index swallows the text")
 	}
-	// Green is keyboard ownership: the line of a cell that doesn't hold the
-	// keyboard can't land on it.
-	if ansi16[LineActive] != ansi16[FluxCore] {
-		t.Errorf("the grid's line is structure and lands on cyan, not on %q", ansi16[LineActive])
+	// The phosphor is where the typing lands: no project's line lands on its
+	// index.
+	for _, hue := range hues {
+		if ansi16[hue.Vivid] == ansi16[BrandPhosphor] {
+			t.Errorf("%s lands on the phosphor's index", hue.Vivid)
+		}
 	}
 }
 
@@ -261,39 +347,60 @@ func TestScreenBackgroundFollowsTheMode(t *testing.T) {
 	}
 }
 
-// TestModeFrames — single line while you command the application, double
-// once the cell commands the keyboard. Never a rounded corner.
-func TestModeFrames(t *testing.T) {
-	if got := Browse.Frame(); got != [6]string{"┌", "┐", "└", "┘", "─", "│"} {
-		t.Errorf("BROWSE draws a single line, got %q", got)
-	}
-	if got := Type.Frame(); got != [6]string{"╔", "╗", "╚", "╝", "═", "║"} {
-		t.Errorf("TYPE draws a double line, got %q", got)
+// TestOneFrameForEveryBox — a thin line with rounded corners, whoever holds
+// the keyboard. The mode is said by a word, not by a second kind of line.
+func TestOneFrameForEveryBox(t *testing.T) {
+	if Frame != [6]string{"╭", "╮", "╰", "╯", "─", "│"} {
+		t.Errorf("every box is a thin line with rounded corners, got %q", Frame)
 	}
 }
 
 // TestNoColorLeavesApproveAsTheOnlySolidArea — with no color at all, the
-// approve bar is the one thing in reverse video. The mode's badge keeps its
-// blocks and its weight, not a filled background.
+// approve bar is the one thing in reverse video. The word of the cell that
+// holds the keyboard keeps its weight, not a filled background.
 func TestNoColorLeavesApproveAsTheOnlySolidArea(t *testing.T) {
 	previous := Current
 	Current = NoColor
 	defer func() { Current = previous }()
 
-	if bar := Do(Approve).Line(20); !strings.Contains(bar, "\x1b[1;7m") && !strings.Contains(bar, "\x1b[7;1m") {
+	if bar := Do(Approve).Style().Render("x"); !strings.Contains(bar, "\x1b[1;7m") && !strings.Contains(bar, "\x1b[7;1m") {
 		t.Errorf("the approve bar should be in reverse video: %q", bar)
 	}
 	for name, out := range map[string]string{
-		"badge":    Type.Badge(),
-		"answered": Do(Answered).Line(0),
-		"down":     Do(Down).Line(0),
+		"type":     Typing().Render(TypeTag),
+		"answered": Do(Answered).Style().Render("x"),
+		"down":     Do(Down).Style().Render("x"),
+		"line":     ProjectHue(0).Line(true).Render("x"),
 	} {
 		if strings.Contains(out, "7m") {
 			t.Errorf("%s is in reverse video, and only approve may be: %q", name, out)
 		}
 	}
-	if !strings.Contains(Type.Badge(), TypeBadge) {
-		t.Error("the badge still has to say TYPE")
+	if !strings.Contains(Typing().Render(TypeTag), "\x1b[1m") {
+		t.Error("the word of the cell that holds the keyboard stays heavy")
+	}
+	// What the palette writes in its darkest shade is what's off: with no
+	// color the terminal's own faint says it.
+	for _, token := range []string{FgFaint, FgMuted, LineDim, ProjectHue(3).Dim} {
+		if !strings.Contains(Paint(token, "").Render("x"), "\x1b[2m") {
+			t.Errorf("%s is what isn't the focus: with no color it stays faint", token)
+		}
+	}
+	for _, token := range []string{FgDefault, FgBright, ProjectHue(3).Vivid, StateRead} {
+		if strings.Contains(Paint(token, "").Render("x"), "\x1b[2m") {
+			t.Errorf("%s is lit, and with no color it came out faint", token)
+		}
+	}
+}
+
+// TestInFullColorTheTypingMarkIsNotAnArea — the phosphor is a word, never a
+// filled badge: the approve bar is the only solid thing on the screen.
+func TestInFullColorTheTypingMarkIsNotAnArea(t *testing.T) {
+	previous := Current
+	Current = FullColor
+	defer func() { Current = previous }()
+	if out := Typing().Render(TypeTag); strings.Contains(out, "48;") {
+		t.Errorf("the TYPE word has a background: %q", out)
 	}
 }
 

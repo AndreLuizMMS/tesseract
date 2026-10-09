@@ -3,19 +3,22 @@
 // token by name, and this package is the one that decides what goes out to
 // the terminal.
 //
-// Three rules govern the palette and none of them is aesthetic:
+// Four rules govern the palette and none of them is aesthetic:
 //
-//   - green is KEYBOARD OWNERSHIP. Never state. #55FFA6 (BrandPhosphor)
-//     shows up at most once per screen — on the cell that holds its
-//     keyboard, and nowhere else.
-//   - cyan is STRUCTURE. Never state. Grid, corners, numbering, labels.
-//   - state never uses green or cyan, and urgency is filled area, not hue:
-//     "approve" comes out as a solid, inverted bar across the whole line,
-//     while "answered" is just a glyph.
+//   - a PROJECT has a hue of its own. It paints the project's name and the
+//     line of its cells — vivid on the focused cell, dim on the others — and
+//     it never means state.
+//   - STATE is a glyph in a state color. It never paints a line, and urgency
+//     is filled area, not hue: "approve" comes out as a solid bar across the
+//     whole header, the only solid area on the screen.
+//   - phosphor green is WHERE THE TYPING LANDS: the mark of the cell in TYPE,
+//     the caret of a field, the cursor. At most once per screen.
+//   - everything else is the neutral ladder. Cyan is left to the brand's own
+//     mark — the symbol and its glyph — and structures nothing.
 //
-// No glow, no scanline, no chromatic aberration: those effects exist on the
-// brand surface (README, site, banner), never inside the terminal. No
-// ligature, no emoji, no rounded corner.
+// No glow, no scanline, no gradient: those effects exist on the brand
+// surface (README, site, banner), never inside the terminal. No ligature, no
+// emoji. Boxes are a thin line with rounded corners.
 package theme
 
 import (
@@ -36,30 +39,50 @@ const (
 	BgBase     = "#070B0C" // default background
 	BgSurface  = "#0C1315" // cell body
 	BgRaised   = "#121C1F" // header, selection
-	LineDim    = "#16282A" // unfocused grid
-	LineActive = "#205047" // grid of the focused project
+	LineDim    = "#16282A" // every line but the owner's, while a cell has the keyboard
+	LineActive = "#205047" // brand token; the product's lines are the project's hue
 	FgFaint    = "#3E534E" // off, shortcuts
 	FgMuted    = "#6C8076" // secondary text
 	FgDefault  = "#BFD1C6" // primary text
 	FgBright   = "#E8F4EC" // titles
 )
 
-// Green neon: keyboard ownership. Never state.
+// Green neon. Only the phosphor has a role on the screen: where the typing
+// lands. The others are the brand's, and the symbol's front square.
 const (
 	BrandDeep     = "#0B3322"
-	BrandCore     = "#1F7A4C" // grid of the active project, logo
-	BrandLive     = "#35C27A" // focused cell
-	BrandPhosphor = "#55FFA6" // keyboard owner — one per screen, always
+	BrandCore     = "#1F7A4C" // the symbol's front square
+	BrandLive     = "#35C27A"
+	BrandPhosphor = "#55FFA6" // where the typing lands — one per screen, always
 )
 
-// Cyan neon: structure. Never state.
+// Cyan neon: the brand's own mark, and nothing else on the screen.
 const (
 	FluxDeep = "#082F31"
-	FluxCore = "#128C86" // grid, corners, labels
-	Flux     = "#22E0D0" // glyph, numbering, second dimension
+	FluxCore = "#128C86"
+	Flux     = "#22E0D0" // the glyph, the symbol's back square
 )
 
-// States: no green, no cyan.
+// Project hues: one per project, vivid on the focused cell and dim on the
+// rest. Six, because ANSI 16 has six chromatic slots and each hue lands on
+// one of them; every one sits at least 28° of hue away from a state color
+// and from the phosphor.
+const (
+	ProjectTeal      = "#49D4CF"
+	ProjectTealDim   = "#2B807D"
+	ProjectPink      = "#FC88CB"
+	ProjectPinkDim   = "#A85487"
+	ProjectLime      = "#94DA62"
+	ProjectLimeDim   = "#5B8240"
+	ProjectIndigo    = "#8F96FF"
+	ProjectIndigoDim = "#646AB9"
+	ProjectLemon     = "#E1E561"
+	ProjectLemonDim  = "#7B7D3B"
+	ProjectPurple    = "#DA97FC"
+	ProjectPurpleDim = "#985FB4"
+)
+
+// States: never a project hue, never the phosphor.
 const (
 	StateWorking = "#6C8076" // ▸ working
 	StateRead    = "#7DB7E8" // ⬤ answered
@@ -70,13 +93,10 @@ const (
 	StateBlockDim = "#835F30"
 	StateDead     = "#FF3B47" // ✖ down
 	StateOff      = "#3E534E" // ○ stopped
-	StateOrphan   = "#C77DFF" // ⚠ orphan
 )
 
-// The four ANSI 16 colors that have no role of their own in the palette.
-// They exist for the handful of places that need more distinct hues than the
-// roles offer — the project color band, for example — without falling back
-// on green or cyan, which are spoken for.
+// The four ANSI 16 colors with no token of their own: on a 16-color terminal
+// they are where four of the project hues land.
 const (
 	AnsiRed     = "#C22F38" // ANSI 1
 	AnsiYellow  = "#C9A227" // ANSI 3
@@ -117,8 +137,9 @@ var symbolMask = []string{
 
 // SymbolColor is the style of the symbol's character at that position: the
 // back square in flux, the front one in brand.core, the tessera in
-// brand.phosphor — on a 16-color terminal, color14, color2 and color10. The second return says whether there's a drawing there —
-// an empty position doesn't get painted.
+// brand.phosphor — on a 16-color terminal, color14, color2 and color10. The
+// second return says whether there's a drawing there — an empty position
+// doesn't get painted.
 func SymbolColor(row, col int) (lipgloss.Style, bool) {
 	if row < 0 || row >= len(symbolMask) {
 		return lipgloss.NewStyle(), false
@@ -187,10 +208,12 @@ const (
 // ansi16 is the destination of each token when the terminal only has 16
 // colors.
 //
-// It follows the brand sheet's ANSI 16 table (// 10) index by index. Two
-// pairs collide on purpose, because ANSI 16 has no in-between shade:
-// StateWorking and StateOff both land on 8. That's why the glyph (▸ against
-// ○) is mandatory: the state alphabet has to read fine with no color at all.
+// It follows the brand sheet's ANSI 16 table (// 10) index by index, and the
+// table splits in two: the plain indexes 1 to 6 are the six project hues,
+// the bright ones are state and the phosphor. A project's line can share a
+// hue's name with a state there, never its index. StateWorking and StateOff
+// both land on 8 — that's why the glyph (▸ against ○) is mandatory: the
+// state alphabet has to read fine with no color at all.
 var ansi16 = map[string]string{
 	BgVoid:    "0",
 	BgBase:    "0",
@@ -199,10 +222,8 @@ var ansi16 = map[string]string{
 	// already uses: a raised background on 8 would swallow every faint
 	// letter written on top of it. Raised falls flat there, and what marks a
 	// header or a selection is the glyph and the weight.
-	BgRaised: "0",
-	LineDim:  "8",
-	// The grid's line is structure, so it lands on cyan. On green it would
-	// say "keyboard ownership" on every cell that doesn't have the keyboard.
+	BgRaised:   "0",
+	LineDim:    "8",
 	LineActive: "6",
 	FgFaint:    "8",
 	FgMuted:    "8",
@@ -224,7 +245,15 @@ var ansi16 = map[string]string{
 	// in both frames of the blink.
 	StateBlockDim: "3",
 	StateDead:     "9",
-	StateOrphan:   "13",
+
+	// Both strengths of a hue land on the same plain index: what tells the
+	// focused cell apart there is the weight of the line.
+	ProjectTeal: "6", ProjectTealDim: "6",
+	ProjectPink: "1", ProjectPinkDim: "1",
+	ProjectLime: "2", ProjectLimeDim: "2",
+	ProjectIndigo: "4", ProjectIndigoDim: "4",
+	ProjectLemon: "3", ProjectLemonDim: "3",
+	ProjectPurple: "5", ProjectPurpleDim: "5",
 
 	AnsiRed:     "1",
 	AnsiYellow:  "3",
@@ -343,6 +372,14 @@ func Paint(fg, bg string) lipgloss.Style {
 	e := lipgloss.NewStyle()
 	switch Current {
 	case NoColor:
+		// What the palette writes in its quiet shades is what isn't the
+		// focus, and the terminal has an attribute for that with no color at
+		// all: it's what still tells the focused cell from the others, and
+		// what still sinks the rest of the screen when a cell takes the
+		// keyboard.
+		if quiet[fg] {
+			return e.Faint(true)
+		}
 		return e
 	case Color16:
 		if c, ok := ansi16[fg]; ok {
@@ -367,7 +404,7 @@ func Paint(fg, bg string) lipgloss.Style {
 // follows the mode: BgBase while the application has the keyboard, BgVoid
 // once a cell takes it — the whole screen sinking is the first sign that the
 // application went silent. CursorColor is the cursor of the cell that holds
-// the keyboard: phosphor, like every cursor the brand draws.
+// the keyboard: phosphor, the color of where the typing lands.
 //
 // Only a 24-bit terminal has them imposed. With NO_COLOR nothing is, and on
 // 16 colors the brand defines indexes, not shades: black and white there are
@@ -410,6 +447,54 @@ func WithBackground(e lipgloss.Style, bg string) lipgloss.Style {
 }
 
 // ---------------------------------------------------------------------------
+// Project hues.
+// ---------------------------------------------------------------------------
+
+// Hue is a project's color in its two strengths.
+type Hue struct{ Vivid, Dim string }
+
+// hues is the order the hues are handed out in: each one as far as the wheel
+// allows from the one before it, so the first projects on a screen never look
+// alike.
+var hues = []Hue{
+	{ProjectTeal, ProjectTealDim},
+	{ProjectPink, ProjectPinkDim},
+	{ProjectLime, ProjectLimeDim},
+	{ProjectIndigo, ProjectIndigoDim},
+	{ProjectLemon, ProjectLemonDim},
+	{ProjectPurple, ProjectPurpleDim},
+}
+
+// quiet are the tokens that, with no color, come out faint: secondary and
+// off text, the dim line, and the dim strength of every hue.
+var quiet = func() map[string]bool {
+	tokens := map[string]bool{FgFaint: true, FgMuted: true, LineDim: true}
+	for _, hue := range hues {
+		tokens[hue.Dim] = true
+	}
+	return tokens
+}()
+
+// HueCount is how many hues there are. The engine hands a project the one
+// the fewest others are using.
+const HueCount = 6
+
+// ProjectHue is the hue of the project that carries this color number.
+func ProjectHue(color int) Hue {
+	return hues[((color%len(hues))+len(hues))%len(hues)]
+}
+
+// Line is the stroke of what belongs to the project — a cell's border, the
+// project's name. Vivid and heavy on what has the focus, dim on the rest;
+// the weight is what's left of the difference with sixteen colors or none.
+func (h Hue) Line(focused bool) lipgloss.Style {
+	if focused {
+		return Paint(h.Vivid, "").Bold(true)
+	}
+	return Paint(h.Dim, "")
+}
+
+// ---------------------------------------------------------------------------
 // State alphabet.
 // ---------------------------------------------------------------------------
 
@@ -423,11 +508,21 @@ const (
 	Down     State = "down"
 	Stopped  State = "stopped"
 	Orphan   State = "orphan"
+	// Idle is an agent at its prompt with nothing to read: it has no marker,
+	// because nothing there is happening or asking. Interrupted is a turn the
+	// user stopped halfway: the half-filled circle.
+	Idle        State = "idle"
+	Interrupted State = "interrupted"
+	// Background is an agent whose conversation left its own screen: the
+	// dotted outline — nothing of it is here.
+	Background State = "background"
 )
 
-// Marker is how a state shows itself: a glyph, a label, a color and a
-// style. Inverted marks the state that fills the whole line instead of just
-// becoming a little sign.
+// Marker is how a state shows itself: a glyph, a color and a style. The
+// glyph alone is what a cell wears; the label is the state's word, for the
+// one bar that is written out, the help's legend and the notices. Inverted
+// marks the state that fills the whole line instead of just becoming a
+// little sign.
 type Marker struct {
 	Glyph    string
 	Label    string
@@ -439,19 +534,34 @@ type Marker struct {
 }
 
 // >>> state-map
-// No color in this map may be green or cyan — scripts/check-theme.sh fails
-// the build if someone tries. Green is keyboard ownership, cyan is
-// structure.
+// No color in this map may be a project hue or the phosphor —
+// scripts/check-theme.sh fails the build if someone tries. A hue is whose
+// cell it is, the phosphor is where the typing lands.
+//
+// Every state has a glyph of its own, because the glyph is all a cell
+// wears. The four that say "nothing is running here" are one family, the
+// circle: empty for a stopped process, half for a turn stopped halfway,
+// dotted for a conversation that isn't on this screen. An orphan is a
+// warning, and wears the warning's amber — never as a bar.
 var stateMarkers = map[State]Marker{
-	Working:  {Glyph: "▸", Label: "WORKING", Color: StateWorking},
-	Answered: {Glyph: "⬤", Label: "RESPONDED", Color: StateRead},
-	Approve:  {Glyph: "⏵", Label: "APPROVE", Color: StateBlock, Inverted: true},
-	Down:     {Glyph: "✖", Label: "CRASHED", Color: StateDead},
-	Stopped:  {Glyph: "○", Label: "STOPPED", Color: StateOff, Dim: true},
-	Orphan:   {Glyph: "⚠", Label: "ORPHANED", Color: StateOrphan},
+	Working:     {Glyph: "▸", Label: "WORKING", Color: StateWorking},
+	Answered:    {Glyph: "⬤", Label: "RESPONDED", Color: StateRead},
+	Approve:     {Glyph: "⏵", Label: "APPROVE", Color: StateBlock, Inverted: true},
+	Down:        {Glyph: "✖", Label: "CRASHED", Color: StateDead},
+	Stopped:     {Glyph: "○", Label: "STOPPED", Color: StateOff, Dim: true},
+	Interrupted: {Glyph: "◐", Label: "INTERRUPTED", Color: StateOff, Dim: true},
+	Background:  {Glyph: "◌", Label: "BACKGROUND", Color: StateOff, Dim: true},
+	Orphan:      {Glyph: "⚠", Label: "ORPHANED", Color: StateBlock},
+	Idle:        {Color: StateOff, Dim: true},
 }
 
 // <<< state-map
+
+// States lists the alphabet in the order the help's legend reads it: what
+// calls you first.
+func States() []State {
+	return []State{Approve, Answered, Working, Interrupted, Background, Stopped, Down, Orphan}
+}
 
 // Do returns the marker for the state. An unknown state falls back to
 // Stopped, which is the most harmless state: nothing happening.
@@ -502,17 +612,6 @@ func (m Marker) Style() lipgloss.Style {
 	return e
 }
 
-// Line draws the marker. The blocking state fills the whole width, because
-// urgency here is filled area, not hue; the others are just the glyph and
-// the label. Width less than or equal to zero returns the short version.
-func (m Marker) Line(width int) string {
-	text := m.Glyph + " " + m.Label
-	if m.Inverted && width > 0 {
-		return m.Style().Width(width).Render(" " + text + " ")
-	}
-	return m.Style().Render(text)
-}
-
 // ---------------------------------------------------------------------------
 // The two modes.
 // ---------------------------------------------------------------------------
@@ -521,26 +620,28 @@ func (m Marker) Line(width int) string {
 type Mode int
 
 const (
-	// Browse: every key belongs to the application. Simple border.
+	// Browse: every key belongs to the application.
 	Browse Mode = iota
-	// Type: every key belongs to the cell. Double border, deeper
-	// background and a badge.
+	// Type: every key belongs to the cell. Its line stays lit, everything
+	// else on the screen sinks, and the cell wears the mode's word.
 	Type
 )
 
-// TypeBadge is the inverted badge that only shows up in TYPE mode.
-const TypeBadge = "▓ TYPE ▓"
+// Frame is the one line every box is drawn with: thin, with rounded
+// corners. The six strokes come in drawing order — the four corners from the
+// top left, then the horizontal and the vertical. The mode never changes the
+// stroke: what says a cell has the keyboard is its word and the dark around
+// it.
+var Frame = [6]string{"╭", "╮", "╰", "╯", "─", "│"}
 
-// Frame is the mode's line: single while you command the application, double
-// once the cell commands the keyboard. No rounded corner anywhere. The six
-// strokes come in drawing order — the four corners from the top left, then
-// the horizontal and the vertical.
-func (m Mode) Frame() [6]string {
-	if m == Type {
-		return [6]string{"╔", "╗", "╚", "╝", "═", "║"}
-	}
-	return [6]string{"┌", "┐", "└", "┘", "─", "│"}
-}
+// TypeTag is the word the cell that holds the keyboard wears on its bottom
+// line. With no color it's the shape that says so: no other cell has it.
+const TypeTag = "TYPE"
+
+// Typing is the paint of where the typing lands: the TYPE word, the caret of
+// a field. Never a filled area — the approve bar is the only solid thing on
+// the screen.
+func Typing() lipgloss.Style { return Paint(BrandPhosphor, "").Bold(true) }
 
 // Background is the mode's background. TYPE mode darkens the whole screen:
 // it's the first sign that the application went silent.
@@ -550,23 +651,3 @@ func (m Mode) Background() string {
 	}
 	return BgBase
 }
-
-// Badge returns the mode's badge already painted. In BROWSE there's no
-// badge. With no color it is not inverted: the blocks on either side of the
-// word already make it a badge, and the approve bar has to remain the only
-// solid area on the screen.
-func (m Mode) Badge() string {
-	if m != Type {
-		return ""
-	}
-	if Current == NoColor {
-		return lipgloss.NewStyle().Bold(true).Render(" " + TypeBadge + " ")
-	}
-	return Paint(BgVoid, BrandPhosphor).Bold(true).Render(" " + TypeBadge + " ")
-}
-
-// Structure is everything that's frame and label: cyan, always.
-func Structure() lipgloss.Style { return Paint(FluxCore, "") }
-
-// Numbering is the grid's second dimension — project index, cell counter.
-func Numbering() lipgloss.Style { return Paint(Flux, "") }

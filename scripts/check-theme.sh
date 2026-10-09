@@ -3,14 +3,17 @@
 #
 # Guards the three rules that don't get negotiated:
 #
-#   1. no green or cyan from the palette may appear in the state map
-#      — green belongs to keyboard ownership, cyan belongs to structure;
+#   1. no project hue, no green and no cyan may appear in the state map — a
+#      hue is whose cell it is, the phosphor is where the typing lands, cyan
+#      is the brand's own mark;
 #   2. no hand-written color outside the theme file — neither a hex nor a
 #      color escape code typed by hand;
 #   3. the whole palette gets printed as ANSI blocks, for a visual check.
 #
-# The palette printed here is the brand sheet's, token by token:
-# style/tesseract-brand-identity.html, sections // 04 and // 10.
+# The base, the greens, the cyans and the states printed here are the brand
+# sheet's, token by token: style/tesseract-brand-identity.html, sections
+# // 04 and // 10. The project hues are the product's own — docs/tema.md says
+# where the two part ways.
 #
 # Exits 1 if any rule breaks.
 
@@ -35,8 +38,18 @@ ok() {
 }
 
 # ---------------------------------------------------------------------------
-# Rule 1 — state is never green nor cyan.
+# Rule 1 — state is never a project hue, nor green, nor cyan.
 # ---------------------------------------------------------------------------
+
+# Vivid and dim, in the order the theme hands them out.
+MATIZES=(
+	'#49D4CF' '#2B807D' 'ProjectTeal'
+	'#FC88CB' '#A85487' 'ProjectPink'
+	'#94DA62' '#5B8240' 'ProjectLime'
+	'#8F96FF' '#646AB9' 'ProjectIndigo'
+	'#E1E561' '#7B7D3B' 'ProjectLemon'
+	'#DA97FC' '#985FB4' 'ProjectPurple'
+)
 
 VERDES_E_CIANOS=(
 	'#0B3322' '#1F7A4C' '#35C27A' '#55FFA6'
@@ -49,6 +62,18 @@ TOKENS_PROIBIDOS=(
 	'FluxDeep' 'FluxCore' 'Flux'
 )
 
+for ((i = 0; i < ${#MATIZES[@]}; i += 3)); do
+	VERDES_E_CIANOS+=("${MATIZES[i]}" "${MATIZES[i + 1]}")
+	TOKENS_PROIBIDOS+=("${MATIZES[i + 2]}" "${MATIZES[i + 2]}Dim")
+	# The list above is this script's copy of the theme's: a hue that
+	# changed there and not here would print a palette nobody draws with.
+	for token in "${MATIZES[i + 2]}:${MATIZES[i]}" "${MATIZES[i + 2]}Dim:${MATIZES[i + 1]}"; do
+		if ! grep -qE "^[[:space:]]*${token%%:*}[[:space:]]*= \"${token##*:}\"" "$ARQ_TEMA"; then
+			erro "the theme doesn't define ${token%%:*} as ${token##*:} — update the hues in this script"
+		fi
+	done
+done
+
 if [ ! -f "$ARQ_TEMA" ]; then
 	erro "theme file not found: $ARQ_TEMA"
 else
@@ -59,19 +84,19 @@ else
 	else
 		for cor in "${VERDES_E_CIANOS[@]}"; do
 			if grep -qiF "$cor" <<<"$mapa"; then
-				erro "the state map uses $cor — green and cyan have an owner and aren't state"
+				erro "the state map uses $cor — a hue, the green and the cyan have an owner and aren't state"
 			fi
 		done
 
 		for token in "${TOKENS_PROIBIDOS[@]}"; do
 			# \b so 'Flux' doesn't match twice inside 'FluxCore'.
 			if grep -qE "\b${token}\b" <<<"$mapa"; then
-				erro "the state map uses the token ${token} — green and cyan aren't state"
+				erro "the state map uses the token ${token} — a hue, the green and the cyan aren't state"
 			fi
 		done
 
 		if [ "$falhas" -eq 0 ]; then
-			ok "state map clean of green and cyan"
+			ok "state map clean of project hues, green and cyan"
 		fi
 	fi
 fi
@@ -150,43 +175,48 @@ printf '\n'
 titulo 'BASE'
 bloco '#030507' 'BgVoid' 'TYPE mode background'
 bloco '#070B0C' 'BgBase' 'default background'
-bloco '#0C1315' 'BgSurface' 'cell body'
-bloco '#121C1F' 'BgRaised' 'header, selection'
-bloco '#16282A' 'LineDim' 'unfocused grid, everything in TYPE'
-bloco '#205047' 'LineActive' 'cell lines'
-bloco '#3E534E' 'FgFaint' 'off, shortcuts'
+bloco '#0C1315' 'BgSurface' 'body of the focused cell, of a dialog'
+bloco '#121C1F' 'BgRaised' 'selected row, marked text'
+bloco '#16282A' 'LineDim' 'every line but the owner in TYPE'
+bloco '#205047' 'LineActive' 'rule of the markdown reader'
+bloco '#3E534E' 'FgFaint' 'off: tabs not showing, everything in TYPE'
 bloco '#6C8076' 'FgMuted' 'secondary text'
 bloco '#BFD1C6' 'FgDefault' 'primary text'
 bloco '#E8F4EC' 'FgBright' 'titles'
 
-titulo 'NEON GREEN — keyboard ownership'
-bloco '#0B3322' 'BrandDeep' 'background green'
-bloco '#1F7A4C' 'BrandCore' 'active project grid, front square'
-bloco '#35C27A' 'BrandLive' 'focused cell'
-bloco '#55FFA6' 'BrandPhosphor' 'keyboard owner — 1 per screen'
+titulo 'PROJECT HUES — one per project: its name and the line of its cells'
+for ((i = 0; i < ${#MATIZES[@]}; i += 3)); do
+	bloco "${MATIZES[i]}" "${MATIZES[i + 2]}" 'vivid — the focused cell, the focused project'
+	bloco "${MATIZES[i + 1]}" "${MATIZES[i + 2]}Dim" 'dim — every other cell of the project'
+done
 
-titulo 'NEON CYAN — structure'
-bloco '#082F31' 'FluxDeep' 'background cyan'
-bloco '#128C86' 'FluxCore' 'grid, corners, labels'
-bloco '#22E0D0' 'Flux' 'glyph, numbering'
+titulo 'NEON GREEN — only the phosphor is on the screen: where the typing lands'
+bloco '#0B3322' 'BrandDeep' 'brand token'
+bloco '#1F7A4C' 'BrandCore' "the symbol's front square"
+bloco '#35C27A' 'BrandLive' 'brand token'
+bloco '#55FFA6' 'BrandPhosphor' 'TYPE word, caret, cursor — 1 per screen'
 
-titulo 'STATES — no green, no cyan'
+titulo "NEON CYAN — the brand's own mark, and the markdown reader's ink"
+bloco '#082F31' 'FluxDeep' 'brand token'
+bloco '#128C86' 'FluxCore' 'markdown: sections, code'
+bloco '#22E0D0' 'Flux' "the symbol's back square; markdown: headings, links"
+
+titulo 'STATES — a glyph in its color; never a hue, never the phosphor'
 bloco '#6C8076' 'StateWorking' '▸ working'
 bloco '#7DB7E8' 'StateRead' '⬤ responded'
-bloco '#FFB454' 'StateBlock' '⏵ approve'
+bloco '#FFB454' 'StateBlock' '⏵ approve (the one solid bar) · ⚠ orphaned'
 bloco '#835F30' 'StateBlockDim' '⏵ approve, dim frame of the blink'
 bloco '#FF3B47' 'StateDead' '✖ crashed'
-bloco '#3E534E' 'StateOff' '○ stopped'
-bloco '#C77DFF' 'StateOrphan' '⚠ orphaned'
+bloco '#3E534E' 'StateOff' '○ stopped · ◐ interrupted · ◌ background'
 
 titulo 'ANSI 16'
 bloco '#070B0C' '0  black' ''
-bloco '#C22F38' '1  red' ''
-bloco '#1F7A4C' '2  green' ''
-bloco '#C9A227' '3  yellow' ''
-bloco '#3E7FA8' '4  blue' ''
-bloco '#8B4FC4' '5  magenta' ''
-bloco '#128C86' '6  cyan' ''
+bloco '#C22F38' '1  red' 'project: pink'
+bloco '#1F7A4C' '2  green' 'project: lime'
+bloco '#C9A227' '3  yellow' 'project: lemon'
+bloco '#3E7FA8' '4  blue' 'project: indigo'
+bloco '#8B4FC4' '5  magenta' 'project: purple'
+bloco '#128C86' '6  cyan' 'project: teal'
 bloco '#BFD1C6' '7  white' ''
 bloco '#3E534E' '8  black+' ''
 bloco '#FF3B47' '9  red+' ''
@@ -206,7 +236,7 @@ bloco '#121C1F' 'selection' ''
 
 titulo 'STATE ALPHABET — the no-color test'
 printf '  Cover the color with your hand: the glyph and shape have to be enough.\n\n'
-printf '    ▸ WORKING   ⬤ RESPONDED   ✖ CRASHED   ○ STOPPED   ⚠ ORPHANED\n'
+printf '    ▸ working   ⬤ responded   ✖ crashed   ○ stopped   ◐ interrupted   ◌ background   ⚠ orphaned\n'
 if [ -n "${NO_COLOR:-}" ]; then
 	printf '    %s\n' "$(printf '\033[7m⏵ APPROVE — solid bar, whole line\033[0m')"
 else

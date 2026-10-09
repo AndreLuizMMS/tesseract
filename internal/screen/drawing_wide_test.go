@@ -32,8 +32,8 @@ func TestTruncateCountsColumnsNotLetters(t *testing.T) {
 }
 
 // TestOverlayKeepsWideLinesAligned — a dialog over a line with wide letters
-// keeps its border in the same column as on every other line, and the right
-// side of the line stays where it was.
+// keeps its border in the same column as on every other line, the row keeps
+// the screen's width, and nothing of the line behind is left beside it.
 func TestOverlayKeepsWideLinesAligned(t *testing.T) {
 	const width = 40
 	row := func(text string) string { return "│" + pad(text, width-2) + "│" }
@@ -50,12 +50,30 @@ func TestOverlayKeepsWideLinesAligned(t *testing.T) {
 			t.Errorf("line %d came out %d columns wide, want %d: %q", i, got, width, line)
 		}
 		flat := plain(line)
-		if !strings.HasSuffix(flat, "│") {
-			t.Errorf("line %d lost its right border: %q", i, flat)
+		if strings.TrimSpace(flat) != box[i] {
+			t.Errorf("line %d kept a slice of what was behind the dialog: %q", i, flat)
 		}
 		left := flat[:strings.Index(flat, box[i])]
 		if got := lipgloss.Width(left); got != (width-12)/2 {
 			t.Errorf("line %d: the dialog starts at column %d, want %d: %q", i, got, (width-12)/2, flat)
 		}
+	}
+}
+
+// TestPlainDropsHyperlinks — a cell out of focus is drawn in one tone, from
+// its letters alone. A hyperlink (OSC 8, ended by BEL or by ST) is not
+// letters: its address used to leak into the cell as text.
+func TestPlainDropsHyperlinks(t *testing.T) {
+	for name, text := range map[string]string{
+		"ended by ST":  "see \x1b]8;id=zaxmda;https://code.claude.com/docs/en/security\x1b\\\x1b[4mSecurity guide\x1b[24m\x1b]8;;\x1b\\ first",
+		"ended by BEL": "see \x1b]8;;https://code.claude.com/docs/en/security\x07Security guide\x1b]8;;\x07 first",
+		"a title too":  "\x1b]0;window\x07see \x1b[38;2;1;2;3mSecurity guide\x1b[m first",
+	} {
+		if got := plain(text); got != "see Security guide first" {
+			t.Errorf("%s: plain left %q", name, got)
+		}
+	}
+	if got := plain("日本 ✖ plain"); got != "日本 ✖ plain" {
+		t.Errorf("text with no escape comes back untouched, got %q", got)
 	}
 }

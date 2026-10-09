@@ -66,7 +66,7 @@ func NewForm(recents []string, current string) *Form {
 		current = strings.TrimSuffix(home(), "/") + "/"
 	}
 	f.fields = []*field{
-		{label: "PROJECT", value: current, hint: "↑↓ picks · → enters · ← goes up · ↵ confirms", browses: true},
+		{label: "PROJECT", value: current, hint: "↑↓ picks · → enters · ← goes up", browses: true},
 		{label: "NAME", hint: "(empty → automatic name)"},
 		{label: "MD", hint: "(optional — opens a markdown file to read)", completes: true},
 		{label: "PROMPT", hint: "(optional — comes up already working)"},
@@ -287,22 +287,34 @@ func (f *Form) Draw(width int) []string {
 		if i == f.current {
 			mark, cursor = selectedBar+" ", caret
 		}
-		body = append(body, mark+borderColor.Render(pad(c.label, 8))+c.value+cursor)
+		body = append(body, mark+mutedColor.Render(pad(c.label, 8))+c.value+cursor)
+		// A field at rest is its label and its value. The hint belongs to
+		// the one being written, and the keys that settle the form are on
+		// the box's last line, once.
+		if i != f.current {
+			continue
+		}
 		body = append(body, hintLines(c.hint, inner)...)
-		if c.browses && i == f.current {
+		if c.browses {
 			body = append(body, f.folders(inner)...)
 		}
 	}
 	if f.warning != "" {
 		body = append(body, "", "  "+warnColor.Render(f.warning))
 	}
-	return floatingBox("NEW", body, inner)
+	return floatingBox("NEW", append(body, "", formKeys()), inner)
 }
 
 // folders draws the live list under the project field: the folders opened
 // recently while nothing is typed, what's on disk once a path is.
 func (f *Form) folders(inner int) []string {
 	room := max(inner-6, 1)
+	// The one folder on the list is the one already written in the field:
+	// drawing it again says the same path twice. It's still the pick — ↵
+	// takes it and → walks into it.
+	if len(f.options) == 1 && strings.TrimSuffix(f.options[0], "/") == strings.TrimSuffix(strings.TrimSpace(f.fields[0].value), "/") {
+		return nil
+	}
 	if len(f.options) == 0 {
 		if strings.Contains(f.fields[0].value, "/") {
 			return []string{"    " + mutedColor.Render("No folders in here. ") + hint("← goes up.")}
@@ -338,34 +350,28 @@ func shortenHome(path string) string {
 	return "~" + strings.TrimPrefix(path, h)
 }
 
-// caret is the cursor of the field being written. Phosphor, like every
-// cursor the brand draws: it's where the keyboard is.
+// caret is the cursor of the field being written. Phosphor: it's where the
+// typing lands.
 var caret = typingColor.Render("▏")
 
-// The dialog's header is a raised band, like a cell's.
-var (
-	boxTitleColor = theme.WithBackground(titleColor, theme.BgRaised)
-	boxRuleColor  = theme.WithBackground(focusedBorderColor, theme.BgRaised)
-)
-
-// floatingBox draws a box with a title, at the requested size. A dialog
-// holds the keyboard while it's open, so its line is the live green; its
-// body sits on the surface, like a cell's.
+// floatingBox draws a box with a title, at the requested size: the same thin
+// line with rounded corners a cell has, in the brightest neutral — a dialog
+// belongs to no project — over a body one step above the screen.
 func floatingBox(title string, body []string, width int) []string {
-	side := focusedBorderColor.Render("│")
+	dash := theme.Frame
+	side := boxLineColor.Render(dash[5])
 	row := func(line string) string {
 		return side + surfaceInk.Under(pad(line, width-2)) + side
 	}
-	lines := []string{focusedBorderColor.Render("┌") +
-		boxTitleColor.Render(" "+title+" ") +
-		boxRuleColor.Render(strings.Repeat("─", max(width-len([]rune(title))-4, 0))) +
-		focusedBorderColor.Render("┐")}
+	lines := []string{boxLineColor.Render(dash[0]) +
+		titleColor.Render(" "+title+" ") +
+		boxLineColor.Render(strings.Repeat(dash[4], max(width-len([]rune(title))-4, 0))+dash[1])}
 	lines = append(lines, row(""))
 	for _, line := range body {
 		lines = append(lines, row(line))
 	}
 	lines = append(lines, row(""))
-	lines = append(lines, focusedBorderColor.Render("└"+strings.Repeat("─", width-2)+"┘"))
+	lines = append(lines, boxLineColor.Render(dash[2]+strings.Repeat(dash[4], width-2)+dash[3]))
 	return lines
 }
 
