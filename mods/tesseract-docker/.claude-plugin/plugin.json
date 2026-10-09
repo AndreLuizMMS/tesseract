@@ -1,7 +1,6 @@
 {
   "name": "tesseract-docker",
   "version": "0.1.0",
-  "description": "Painel do Docker Compose do projeto, cauda de log, tool para o Claude e guarda contra comando destrutivo",
-  "author": { "name": "André" },
-  "types": "./types/index.d.ts"
+  "description": "Guarda contra Docker destrutivo no Bash, tools para o Claude listar e reiniciar serviço, e /dlog: log de um serviço para o prompt",
+  "author": { "name": "André" }
 }

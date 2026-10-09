@@ -1,66 +1,41 @@
 # tesseract-docker
 
-Mod do Claude Code: o Docker Compose do projeto dentro da sessão. Feito para
-rodar em célula do Tesseract (80 colunas, sem mouse), mas funciona em
-qualquer `claude`.
+Mod do Claude Code: o que só um mod consegue fazer pelo Docker Compose do
+projeto. Não tem painel: o painel é o do mosaico do Tesseract (tecla `d`),
+alcançável de qualquer célula. Funciona em célula e em qualquer `claude`.
 
 ## O que faz
 
-- **`/docker`** abre o painel: serviços do compose do projeto, estado, porta,
-  health e uptime. Relê a cada 3 s enquanto está aberto.
-- **Ações que nunca apagam nada**: subir, parar e reiniciar, por serviço e
-  pela stack. Só rodam pela tecla delas; o foco não passa por elas.
-- **Cauda de log** de um serviço dentro do painel, e `p` manda as últimas 20
-  linhas ao prompt, sem enviar.
-- **Tools para o Claude**: `services` (lista) e `restart` (reinicia um
-  serviço que o compose listou). Só existem em projeto com compose.
 - **Guarda no Bash**: nega o que apaga volume, imagem ou cache, com mensagem
   que diz o que usar no lugar em cada caso. Se a guarda falhar, o comando não
   roda.
-- **Faixa de aviso**, só quando um serviço quebrou ou adoeceu:
-  `✖ 1 CRASHED · db · /docker`. Stack saudável ou parada não desenha nada, e
-  a faixa some com o painel aberto. O resumo (`2/3`) fica no cabeçalho do
-  painel: a linha de status do host desenha qualquer texto como aviso
-  (`⚠ plugin: …` em amarelo), então o mod não a usa.
+- **Tools para o Claude**: `services` (lista serviços com estado, porta,
+  health e uptime) e `restart` (reinicia um serviço que o compose listou). Só
+  existem em projeto com compose.
+- **`/dlog <serviço>`**: põe as últimas 20 linhas do log do serviço no
+  prompt, sem enviar, sem cor nem caractere de controle. Você completa a
+  frase e manda. Só aceita nome que o compose listou.
+- **`/dlog`** sem argumento lista os serviços como texto.
 
-## Teclas do painel
+Exemplo: `/dlog api` deixa no prompt
 
-| Tecla | Efeito |
-|---|---|
-| `↑` `↓` / `Tab` | escolhe o serviço; a lista rola com o foco |
-| `PgUp` `PgDn` | anda uma janela |
-| `Enter` | cauda do log do serviço escolhido (no log: volta) |
-| `u` `s` `r` | sobe, para, reinicia o serviço escolhido |
-| `l` | cauda do log (some da linha de teclas em célula estreita; `Enter` faz o mesmo) |
-| `1` `2` `3` | sobe, para, reinicia a stack inteira |
-| `p` (no log) | manda o trecho ao prompt |
-| `b` (no log) | volta à lista |
-| `Esc` | fecha |
+````
+Log of the `api` service, last 20 lines:
+```
+…
+```
+````
 
-Enter nunca muda estado: numa linha abre o log, no log volta. O host guarda
-o anel de foco pela posição do elemento, não pela chave; por isso toda tela
-do painel começa com 12 paradas inofensivas (as linhas e, no que sobra,
-botões vazios) e as ações vêm depois, e o mod recusa o foco em qualquer ação.
+e avisa `Not sent: 20 log lines of api are in the prompt.`
 
-Tecla sem ação: o host não deixa um painel consumir teclas, só dar tecla a
-um botão, e uma tecla que nenhum botão tem devolve o teclado ao prompt e é
-escrita lá. Por isso cada tela do painel tem um botão invisível e inerte para
-toda letra e dígito sem uso. Pontuação e espaço não podem ser tecla de
-botão: esses ainda vazam para o prompt.
+## O que foi para o mosaico
 
-## Célula baixa ou estreita
-
-O painel desenha só o que cabe nas linhas que a célula dá (numa célula de 16
-linhas sobram 3 de corpo): a lista primeiro, uma linha de teclas sempre à
-vista, e cabeçalho, nomes de coluna e dica extra só quando sobra linha. `▴` e
-`▾` na borda da lista dizem que há mais acima ou abaixo.
-
-Abaixo de 68 colunas as teclas da stack vão para uma segunda linha; se nem
-essa linha existe (corpo com menos de 5 linhas), ficam só as do serviço, e
-`1` `2` `3` voltam quando a célula crescer.
-
-Sem leitura válida (Docker fora do ar, compose com erro) o painel mostra só
-o erro e o que fazer, nunca a lista da leitura anterior.
+Subir, parar, reiniciar e reconstruir serviço ou stack, log ao vivo (vira
+célula) e shell no contêiner: painel `d` do mosaico
+(`internal/screen/docker.go`). O comando `/docker`, o painel e a faixa de
+aviso deste mod deixaram de existir. O arquivo de compose é escolhido pela
+mesma regra dos dois lados: raiz primeiro, depois pastas de primeiro nível,
+nunca um arquivo de produção.
 
 ## Como a guarda julga
 
@@ -110,19 +85,11 @@ Limites conhecidos (é uma rede contra o engano comum, não uma sandbox):
 - Falso positivo aceito: um `echo "<docker destrutivo>"` no mesmo comando de
   um `| sh` é negado mesmo que não seja ele quem alimenta o shell.
 
-## Desenhado pelo host
-
-Fora do alcance do mod, e por isso fora da identidade Tesseract: o anel de
-foco invertido do botão, a letra da tecla (`u:`) e os links de markdown em
-azul ANSI 12, e a moldura do painel na cor padrão do terminal.
-
 ## Arquivos
 
-- `hooks/register.tsx`: comando, painel, faixa de aviso, tools, guarda no `tool.call`.
+- `hooks/register.ts`: guarda no `tool.call`, tools, `/dlog`.
 - `hooks/guard.ts`: parser do comando de shell e a regra destrutiva.
-- `hooks/compose.ts`: escolha do arquivo, leitura dos serviços, ações.
-- `hooks/list.ts`: janela da lista que rola com o foco e contas de largura.
-- `hooks/tokens.ts`: cores e glifos da identidade Tesseract; respeita `NO_COLOR`.
+- `hooks/compose.ts`: escolha do arquivo e leitura dos serviços.
 - `tests/`: `claude plugin test .`
 
 ## Rodar

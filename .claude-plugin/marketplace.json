@@ -8,12 +8,12 @@
     {
       "name": "tesseract-docker",
       "source": "./mods/tesseract-docker",
-      "description": "Painel do Docker Compose do projeto, cauda de log, tool para o Claude e guarda contra comando destrutivo"
+      "description": "Guarda contra Docker destrutivo no Bash, tools para o Claude listar e reiniciar serviço, e /dlog: log de um serviço para o prompt"
     },
     {
       "name": "tesseract-ide",
       "source": "./mods/tesseract-ide",
-      "description": "Abre o projeto, ou o último arquivo que o Claude editou na linha, no IDE detectado (WSL e Windows)"
+      "description": "Conta ao Tesseract o último arquivo que o Claude editou e a linha: o seletor de IDE do mosaico abre ali"
     },
     {
       "name": "tesseract-link",
@@ -23,12 +23,12 @@
     {
       "name": "tesseract-md",
       "source": "./mods/tesseract-md",
-      "description": "Leitor de markdown do projeto: lista com filtro, leitura que recarrega e links entre docs"
+      "description": "Avisa o Tesseract quando o Claude escreve um markdown: o mosaico oferece a tecla que o abre no leitor"
     },
     {
       "name": "tesseract-roster",
       "source": "./mods/tesseract-roster",
-      "description": "Mostra quantas outras sessões estão chamando, busca nas mensagens da sessão e dá as dicas dos comandos Tesseract"
+      "description": "Para o claude fora do Tesseract: quantas outras sessões estão chamando, busca nas mensagens da sessão e as dicas dos comandos"
     },
     {
       "name": "tesseract-skin",

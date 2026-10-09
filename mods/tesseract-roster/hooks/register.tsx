@@ -1,4 +1,6 @@
 // tesseract-roster: quem está chamando, a busca na conversa e as dicas.
+// Para o `claude` solto: dentro de uma célula do Tesseract o mosaico já
+// mostra quem chama, e o engine não carrega este mod.
 //
 // - Cada sessão grava seu estado (trabalhando, respondeu, esperando
 //   aprovação) no `$.store` do plugin, que é um arquivo só para todas as
@@ -21,8 +23,9 @@ import { GLYPH, ink, setMono } from './tokens'
 
 const PANE = 'tesseract-find'
 const TICK_MS = 3_000
-// Comandos dos mods Tesseract que a dica anuncia, quando estão carregados.
-const KNOWN_COMMANDS = ['docker', 'md', 'open', 'find']
+// Comandos dos mods Tesseract que a dica anuncia, quando estão carregados:
+// `/dlog` é do tesseract-docker, `/find` é daqui.
+const KNOWN_COMMANDS = ['dlog', 'find']
 const BODY_CHARS = 4_000
 
 const NO_FIND: RosterFind = { term: '', matches: [], total: 0, expanded: 0, body: '', selected: 0, top: 0, ring: '', bodyTop: 0 }
@@ -215,7 +218,7 @@ export const register: Register = on => {
         'Tesseract commands in this session:',
         ...helpLines(loaded, e.presentation.columns),
         ...helpLines(
-          [{ name: 'keys', description: 'In a panel: arrows move, Enter picks, the letter or digit before a colon presses it, Esc closes.' }],
+          [{ name: 'keys', description: 'In the /find panel: arrows move, Enter picks, the letter or digit before a colon presses it, Esc closes.' }],
           e.presentation.columns,
         ).map(line => line.replace('/keys', 'keys ')),
       ].join('\n'),

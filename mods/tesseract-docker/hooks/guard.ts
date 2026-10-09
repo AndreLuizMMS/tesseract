@@ -1,7 +1,7 @@
 // Guarda contra Docker destrutivo em comandos de shell.
 //
-// Mesma regra do painel Go (internal/docker/docker.go): nada que apague
-// volume entra. Aqui a regra vale para o que o Claude manda pelo Bash.
+// Mesma regra do painel do mosaico (internal/docker/docker.go): nada que
+// apague volume entra. Aqui a regra vale para o que o Claude manda pelo Bash.
 //
 // O comando é quebrado em comandos simples (argv) e só o argv é julgado:
 // `echo "docker compose down -v"` e `grep 'system prune'` passam, porque o

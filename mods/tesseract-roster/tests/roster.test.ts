@@ -104,16 +104,17 @@ test('busca: plural do contador', () => {
 test('ajuda: descrição longa dobra com recuo, nunca na coluna zero', () => {
   const lines = helpLines(
     [
-      { name: 'docker', description: 'Docker Compose panel: services, start, stop, restart, log tail' },
-      { name: 'md', description: 'Markdown reader' },
+      { name: 'dlog', description: 'Puts the last 20 log lines of a Compose service in the prompt, unsent' },
+      { name: 'find', description: 'Search the session' },
     ],
     40,
   )
   expect(lines).toEqual([
-    '/docker  Docker Compose panel:',
-    '         services, start, stop,',
-    '         restart, log tail',
-    '/md      Markdown reader',
+    '/dlog    Puts the last 20 log',
+    '         lines of a Compose',
+    '         service in the prompt,',
+    '         unsent',
+    '/find    Search the session',
   ])
   // Sobram as 5 colunas do recuo que o host põe na saída do comando.
   expect(lines.every(line => line.length <= 40 - 5)).toBe(true)

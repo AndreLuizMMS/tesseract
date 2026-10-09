@@ -1,9 +1,16 @@
-// Leitura do Docker Compose do projeto: achar o arquivo, ler os serviços e
-// montar as ações. Porte de internal/docker/docker.go, sem nada destrutivo.
+// Leitura do Docker Compose do projeto: achar o arquivo e ler os serviços.
+// Porte de internal/docker/docker.go.
 
-import type { Service } from '../types'
-import type { Token } from './tokens'
-import { GLYPH } from './tokens'
+export type Service = {
+  name: string
+  // up, exited (1), created…
+  state: string
+  // Vazio quando o serviço não publica porta.
+  port: string
+  // Vazio quando não há healthcheck.
+  health: string
+  uptime: string
+}
 
 // Pastas que nunca entram na busca do compose: pesadas e sem stack.
 export const IGNORED_DIRS = new Set([
@@ -13,8 +20,6 @@ export const IGNORED_DIRS = new Set([
 
 // Arquivo com cara de produção nunca é escolhido sozinho.
 const FORBIDDEN = ['prod', 'production', 'staging', 'homolog']
-
-export type Action = 'up' | 'stop' | 'restart'
 
 // Pontua um candidato a arquivo de compose; zero desqualifica. Nome canônico
 // vence variante, raiz vence subpasta.
@@ -119,59 +124,10 @@ export function parseServices(out: string): Service[] {
     })
 }
 
-// O que a linha de status mostra: quantos serviços estão de pé.
-export function summary(services: readonly Service[]): string {
-  const up = services.filter(service => service.state.startsWith('up')).length
-
-  return up === 0 ? 'stopped' : `${up}/${services.length}`
-}
-
-// Os serviços que pedem atenção: quebrados (saíram com erro) e doentes
-// (healthcheck falhando). Parado de propósito não entra.
-export function attention(services: readonly Service[]): { crashed: Service[]; unhealthy: Service[] } {
-  return {
-    crashed: services.filter(service => markOf(service).token === 'dead'),
-    unhealthy: services.filter(service => markOf(service).token === 'orphan'),
-  }
-}
-
-// Glifo e cor de um serviço. Forma antes de cor, nunca verde nem ciano.
-export function markOf(service: Service): { glyph: string; token: Token } {
-  if (service.health === 'unhealthy') return { glyph: GLYPH.orphan, token: 'orphan' }
-  // De pé é processo vivo produzindo: `▸`, como a célula e como o painel do
-  // mosaico. `⬤` fica para "respondeu, tem algo para ler".
-  if (service.state.startsWith('up')) return { glyph: GLYPH.working, token: 'working' }
-  if (service.state === 'restarting' || service.health === 'starting') {
-    return { glyph: GLYPH.working, token: 'working' }
-  }
-  const exit = /^exited \((\d+)\)$/.exec(service.state)?.[1]
-  // 137 e 143 são SIGKILL e SIGTERM: o que um `stop` deixa. Parado, não quebrado.
-  const isStopped = exit === '0' || exit === '137' || exit === '143'
-  if (service.state === 'dead' || (exit !== undefined && !isStopped)) {
-    return { glyph: GLYPH.dead, token: 'dead' }
-  }
-
-  return { glyph: GLYPH.off, token: 'off' }
-}
-
-// A primeira linha da reclamação do Docker, sem o prefixo do comando: o
-// painel tem uma linha estreita e o motivo precisa caber nela.
+// A primeira linha da reclamação do Docker, sem o prefixo do comando: é o
+// motivo, e cabe numa linha.
 export function firstLine(text: string): string {
   return text.trim().split('\n')[0]?.trim() ?? ''
-}
-
-// Os argumentos do compose para uma ação. Só existem estas três: é assim
-// que nada destrutivo entra. Serviço vazio = a stack inteira.
-export function actionArgs(action: Action, service: string): string[] {
-  const verb = action === 'up' ? ['up', '-d'] : [action]
-
-  return service === '' ? verb : [...verb, service]
-}
-
-export const describeAction = (action: Action, service: string): string => {
-  const verb = action === 'up' ? 'bringing up' : action === 'stop' ? 'stopping' : 'restarting'
-
-  return `${verb} ${service === '' ? 'the whole stack' : service}`
 }
 
 // As últimas `count` linhas não vazias de um log.

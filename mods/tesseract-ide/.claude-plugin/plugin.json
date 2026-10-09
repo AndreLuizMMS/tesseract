@@ -1,7 +1,6 @@
 {
   "name": "tesseract-ide",
   "version": "0.1.0",
-  "description": "Abre o projeto, ou o último arquivo que o Claude editou na linha, no IDE detectado (WSL e Windows)",
-  "author": { "name": "André" },
-  "types": "./types/index.d.ts"
+  "description": "Conta ao Tesseract o último arquivo que o Claude editou e a linha: o seletor de IDE do mosaico abre ali",
+  "author": { "name": "André" }
 }

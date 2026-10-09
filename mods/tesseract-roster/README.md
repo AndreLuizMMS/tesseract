@@ -1,7 +1,10 @@
 # tesseract-roster
 
 Mod do Claude Code: quem está chamando, busca na conversa e as dicas dos
-comandos Tesseract. Funciona em célula do Tesseract e em `claude` solto.
+comandos Tesseract. É para o `claude` solto: dentro de uma célula do
+Tesseract o mosaico já mostra quem chama, e o engine não carrega este mod.
+Lá, os comandos que sobraram aparecem no menu de `/` com a própria descrição
+e na ajuda `?` do mosaico.
 
 ## O que faz
 
@@ -21,8 +24,10 @@ comandos Tesseract. Funciona em célula do Tesseract e em `claude` solto.
   sem diferenciar maiúsculas. Resultado em painel; Enter numa linha abre a
   mensagem inteira no lugar da lista, `b` ou Enter volta.
 - **Dicas**: a linha de dica do prompt ganha os comandos Tesseract que estão
-  carregados (`/docker /md /open /find`), acrescentados ao que já havia, e
-  **`/ts-help`** descreve cada um, dobrando na largura da célula.
+  carregados (`/dlog /find`), acrescentados ao que já havia, e
+  **`/ts-help`** descreve cada um, dobrando na largura do terminal. `/dlog`
+  vem do `tesseract-docker`; os painéis `/docker`, `/md` e `/open` deixaram de
+  existir (são do mosaico: `d`, a aba md e `ctrl+e`).
 
 ## De onde vem o estado
 

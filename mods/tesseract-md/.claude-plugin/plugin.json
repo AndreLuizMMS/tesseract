@@ -1,7 +1,6 @@
 {
   "name": "tesseract-md",
   "version": "0.1.0",
-  "description": "Leitor de markdown do projeto: lista com filtro, leitura que recarrega e links entre docs",
-  "author": { "name": "André" },
-  "types": "./types/index.d.ts"
+  "description": "Avisa o Tesseract quando o Claude escreve um markdown: o mosaico oferece a tecla que o abre no leitor",
+  "author": { "name": "André" }
 }

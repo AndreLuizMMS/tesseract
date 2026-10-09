@@ -1,7 +1,7 @@
 {
   "name": "tesseract-roster",
   "version": "0.1.0",
-  "description": "Mostra quantas outras sessões estão chamando, busca nas mensagens da sessão e dá as dicas dos comandos Tesseract",
+  "description": "Para o claude fora do Tesseract: quantas outras sessões estão chamando, busca nas mensagens da sessão e as dicas dos comandos",
   "author": { "name": "André" },
   "types": "./types/index.d.ts"
 }
