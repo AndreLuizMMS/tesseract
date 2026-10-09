@@ -627,12 +627,15 @@ const (
 	Type
 )
 
-// Frame is the one line every box is drawn with: thin, with rounded
-// corners. The six strokes come in drawing order — the four corners from the
-// top left, then the horizontal and the vertical. The mode never changes the
-// stroke: what says a cell has the keyboard is its word and the dark around
-// it.
+// Frame is the line every box is drawn with: thin, with rounded corners. The
+// six strokes come in drawing order — the four corners from the top left,
+// then the horizontal and the vertical.
 var Frame = [6]string{"╭", "╮", "╰", "╯", "─", "│"}
+
+// FrameHeavy is the one exception: the cell that holds the keyboard. A
+// thicker stroke is a shape, so it still says who owns the keys with no
+// color at all.
+var FrameHeavy = [6]string{"┏", "┓", "┗", "┛", "━", "┃"}
 
 // TypeTag is the word the cell that holds the keyboard wears on its bottom
 // line. With no color it's the shape that says so: no other cell has it.

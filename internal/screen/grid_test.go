@@ -285,8 +285,8 @@ func TestTabsShowUpInsteadOfType(t *testing.T) {
 
 // TestGridInTypeDimsTheRest — a cell holding the keyboard is said three
 // ways that need no color: its own bottom line wears the mode's word, the
-// status line is down to the one key that isn't the cell's, and nothing about
-// the line's stroke changes.
+// status line is down to the one key that isn't the cell's, and its line —
+// and only its line — is drawn heavy.
 func TestGridInTypeDimsTheRest(t *testing.T) {
 	state := testGrid()
 	drawing := noStyle(Draw(state, Focus{Project: 0, Cell: 1}, keyboard.Type, 120, 30, ""))
@@ -295,7 +295,13 @@ func TestGridInTypeDimsTheRest(t *testing.T) {
 		t.Fatalf("the keyboard has one owner: the word shows up once, and it's there %d times", got)
 	}
 	if strings.ContainsAny(drawing, "╔║═┌┐") {
-		t.Error("every box is the same thin line with rounded corners, in any mode")
+		t.Error("no box is drawn with a double or a square thin line")
+	}
+	if got := strings.Count(drawing, "┏"); got != 1 {
+		t.Errorf("the heavy line is the owner's alone, and %d boxes wear it", got)
+	}
+	if browse := noStyle(Draw(state, Focus{Project: 0, Cell: 1}, keyboard.Browse, 120, 30, "")); strings.ContainsAny(browse, "┏┓┗┛━┃") {
+		t.Error("with the keyboard on the application, every box is the thin line")
 	}
 	if last := strings.TrimSpace(lines[len(lines)-1]); !strings.HasPrefix(last, "ctrl+l") || strings.Contains(last, "?") {
 		t.Errorf("in TYPE the status line names the one key that isn't the cell's: %q", last)
@@ -303,7 +309,7 @@ func TestGridInTypeDimsTheRest(t *testing.T) {
 	// The word is on the bottom line of the cell that owns the keyboard.
 	for i, line := range lines {
 		if strings.Contains(line, " TYPE ") {
-			if !strings.Contains(strings.Join(lines[:i], "\n"), "testes") || !strings.HasPrefix(strings.TrimSpace(line), "╰") {
+			if !strings.Contains(strings.Join(lines[:i], "\n"), "testes") || !strings.HasPrefix(strings.TrimSpace(line), "┗") {
 				t.Errorf("the word belongs on the owner's bottom line: %q", line)
 			}
 		}
@@ -362,9 +368,10 @@ func codeOf(token string, background bool) string {
 	return strings.TrimSuffix(strings.SplitN(style.Render("x"), "x", 2)[0], "m")[2:]
 }
 
-// TestPhosphorIsWhereTheTypingLands — once per screen at most: the word on
-// the cell in TYPE, and nothing while the application has the keyboard. It
-// is never a filled area, and neither is anything else but the approve bar.
+// TestPhosphorIsWhereTheTypingLands — one cell per screen at most: the line
+// and the word of the cell in TYPE, and nothing while the application has
+// the keyboard. It is never a filled area, and neither is anything else but
+// the approve bar.
 func TestPhosphorIsWhereTheTypingLands(t *testing.T) {
 	inFullColor(t)
 	state := testGrid()
@@ -382,8 +389,14 @@ func TestPhosphorIsWhereTheTypingLands(t *testing.T) {
 		t.Error("in BROWSE no cell holds the keyboard: there's no phosphor on the screen")
 	}
 	typing := Draw(state, Focus{}, keyboard.Type, 120, 30, "")
-	if got := strings.Count(typing, phosphor); got != 1 {
-		t.Errorf("in TYPE the owner's word is the one phosphor on the screen, and there are %d", got)
+	if !strings.Contains(typing, phosphor) {
+		t.Error("in TYPE the owner's line and word are phosphor")
+	}
+	for _, line := range strings.Split(typing, "\n") {
+		// Every phosphor run on the screen is a piece of the owner's box.
+		if strings.Contains(line, phosphor) && !strings.ContainsAny(noStyle(line), "┏┓┗┛┃") {
+			t.Errorf("phosphor outside the cell that holds the keyboard: %q", noStyle(line))
+		}
 	}
 	if strings.Contains(typing, codeOf(theme.BrandPhosphor, true)) {
 		t.Error("the mode's word is a word, not a filled badge")
@@ -694,7 +707,7 @@ func TestModeWordEndsTheOwnersBottomLine(t *testing.T) {
 		box := cellBox(item, hue, mode, focused, width, 4)
 		return noStyle(box[len(box)-1])
 	}
-	if got := bottom(keyboard.Type, true, 30); got != "╰"+strings.Repeat("─", 21)+" TYPE ─╯" {
+	if got := bottom(keyboard.Type, true, 30); got != "┗"+strings.Repeat("━", 21)+" TYPE ━┛" {
 		t.Errorf("the owner's bottom line ends in the word: %q", got)
 	}
 	plainLine := "╰" + strings.Repeat("─", 28) + "╯"
@@ -942,10 +955,14 @@ func TestNarrowScreenKeepsWholeCells(t *testing.T) {
 					t.Fatalf("at %d columns a line is %d wide: %q", width, widthOf(line), line)
 				}
 			}
-			if top := lines[1]; !strings.HasPrefix(top, "╭ claude  session 1 ") || !strings.HasSuffix(top, " ▸ ╮") {
+			open, shut, corner := "╭", "╮", "─╯"
+			if mode == keyboard.Type {
+				open, shut, corner = "┏", "┓", "━┛"
+			}
+			if top := lines[1]; !strings.HasPrefix(top, open+" claude  session 1 ") || !(strings.HasSuffix(top, " ▸ ╮") || strings.HasSuffix(top, " ▸ "+shut)) {
 				t.Errorf("at %d columns the cell's top line should be whole: %q", width, top)
 			}
-			if mode == keyboard.Type && !strings.Contains(lines[len(lines)-2], " TYPE ─╯") {
+			if mode == keyboard.Type && !strings.Contains(lines[len(lines)-2], " TYPE "+corner) {
 				t.Errorf("at %d columns the cell with the keyboard keeps its word: %q", width, lines[len(lines)-2])
 			}
 		}

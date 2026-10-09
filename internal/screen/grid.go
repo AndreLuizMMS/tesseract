@@ -497,8 +497,8 @@ func cellRow(project protocol.Project, r row, focus Focus, mode keyboard.Mode, w
 //
 // The line is the project's: every cell of a project wears its hue, dim, and
 // the one the keys act on wears it vivid, over a body one step above the
-// screen. Once that cell holds the keyboard nothing about its line changes —
-// it gains the mode's word on its bottom line, and every other cell sinks
+// screen. Once that cell holds the keyboard its line turns heavy and phosphor
+// and gains the mode's word on its bottom line, and every other cell sinks
 // into the dark, hue and all.
 func cellBox(item protocol.Cell, hue theme.Hue, mode keyboard.Mode, focused bool, width, height int) []string {
 	owns := focused && mode == keyboard.Type
@@ -509,6 +509,10 @@ func cellBox(item protocol.Cell, hue theme.Hue, mode keyboard.Mode, focused bool
 	paintLine := hue.Line(focused)
 	paintName, paintTabOn, paintTabOff := mutedColor, mutedColor.Bold(true), faintColor
 	switch {
+	case owns:
+		// The cell being written in: heavy stroke, in the phosphor.
+		dash, paintLine = theme.FrameHeavy, typingColor
+		paintName, paintTabOn, paintTabOff = titleColor, barColor.Bold(true), mutedColor
 	case focused:
 		paintName, paintTabOn, paintTabOff = titleColor, barColor.Bold(true), mutedColor
 	case silent:

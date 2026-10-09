@@ -164,12 +164,12 @@ or a color escape code typed by hand.
 
 ## Who has the keyboard
 
-The stroke of a box never changes. A cell that takes the keyboard is said three ways at
-once, and two of them need no color:
+Every box is a thin line, except one: the cell that takes the keyboard. It is said four
+ways at once, and three of them need no color:
 
 | | The application has the keyboard | A cell has it (TYPE) |
 |---|---|---|
-| The focused cell | vivid line, body on `bg.surface` | the same, plus the word ` TYPE ` at the end of its bottom line, in phosphor |
+| The focused cell | vivid thin line in the project's hue, body on `bg.surface` | heavy line (`┏━┓`) in phosphor, plus the word ` TYPE ` at the end of its bottom line |
 | Every other cell | its project's hue, dim | no hue: `line.dim` and faint text, `ctx 86%` included — the bar of a blocked cell is the one thing that doesn't sink |
 | Other projects' names | their hue, dim | faint; a fallen stack's `✖ docker` stays lit |
 | Screen background | `bg.base` | `bg.void` |
@@ -309,7 +309,7 @@ brought back:
 | One vivid color: phosphor green, for keyboard ownership | Six project hues are vivid too; the phosphor is narrowed to *where the typing lands* (the `TYPE` word, caret, cursor) and no longer paints a border |
 | Cyan is structure: rule, corners, labels, numbering, keys | Structure is the project's hue (lines) and the neutral ladder (labels, keys). Cyan is only the brand's mark and the markdown reader's typography |
 | Focused cell: live green line (`brand.live`); focused project: `brand.core` | Focused cell: its project's vivid hue. `brand.live` and `brand.deep` are unused on the screen |
-| TYPE: double line (`╔═╗`), `▓ TYPE ▓` inverted badge in the top-right corner | TYPE: same thin line, the word ` TYPE ` on the owner's bottom line, everything else dimmed |
+| TYPE: double line (`╔═╗`), `▓ TYPE ▓` inverted badge in the top-right corner | TYPE: heavy single line (`┏━┓`) in phosphor on the owner, the word ` TYPE ` on its bottom line, everything else dimmed |
 | No rounded corner inside the terminal | Every box has rounded corners; only the symbol keeps square ones |
 | Each state is a glyph **and its word** (`▸ WORKING`, `⬤ RESPONDED`, …) | A glyph alone; only `⏵ APPROVE` is written out. The words live in the help, the notices and `ts status` |
 | `○` for stopped, interrupted and background, told apart by the word | Three glyphs: `○`, `◐`, `◌` |

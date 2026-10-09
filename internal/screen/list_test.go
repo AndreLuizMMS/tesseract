@@ -75,10 +75,10 @@ func TestListPreviewIsTheCell(t *testing.T) {
 	state := testGrid()
 	const width, height = 100, 16
 	lines := strings.Split(noStyle(DrawList(state, Focus{Project: 0, Cell: 1}, keyboard.Type, width, height, "")), "\n")
-	if !strings.Contains(lines[0], "╭ claude  cursor  bash  testes") || !strings.HasSuffix(lines[0], " ▸ ╮") {
+	if !strings.Contains(lines[0], "┏ claude  cursor  bash  testes") || !strings.HasSuffix(lines[0], " ▸ ┓") {
 		t.Errorf("the preview opens with the cell's own top line: %q", lines[0])
 	}
-	if !strings.HasSuffix(lines[height-2], " TYPE ─╯") {
+	if !strings.HasSuffix(lines[height-2], " TYPE ━┛") {
 		t.Errorf("the preview wears the word once it holds the keyboard: %q", lines[height-2])
 	}
 	inner := PreviewInner(width, height)

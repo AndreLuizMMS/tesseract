@@ -347,11 +347,14 @@ func TestScreenBackgroundFollowsTheMode(t *testing.T) {
 	}
 }
 
-// TestOneFrameForEveryBox — a thin line with rounded corners, whoever holds
-// the keyboard. The mode is said by a word, not by a second kind of line.
+// TestOneFrameForEveryBox — a thin line with rounded corners for every box,
+// and one heavy line for the cell that holds the keyboard.
 func TestOneFrameForEveryBox(t *testing.T) {
 	if Frame != [6]string{"╭", "╮", "╰", "╯", "─", "│"} {
 		t.Errorf("every box is a thin line with rounded corners, got %q", Frame)
+	}
+	if FrameHeavy != [6]string{"┏", "┓", "┗", "┛", "━", "┃"} {
+		t.Errorf("the keyboard's owner is a heavy line, got %q", FrameHeavy)
 	}
 }
 
