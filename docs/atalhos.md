@@ -18,7 +18,8 @@ The whole map comes straight from the code: no key that doesn't exist shows up h
 | Key | Action |
 |---|---|
 | `↵` | enters TYPE mode on the focused cell. While the status line offers a tool approval (`Enter approves`), approves it instead, without entering |
-| `ctrl+l` | in TYPE, gives the keyboard back to the app; in BROWSE, enters TYPE whatever the cell is waiting on |
+| `ctrl+l` | in TYPE, gives the keyboard back to the app; in BROWSE it does nothing |
+| `i` | enters TYPE whatever the cell is waiting on, approval included |
 | `o` | focused cell in full screen (toggles on and off) |
 | `v` | switches mosaic ↔ list |
 

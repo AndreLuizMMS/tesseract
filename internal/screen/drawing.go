@@ -286,7 +286,7 @@ func footerFor(state protocol.State, item *protocol.Cell, mode keyboard.Mode, wi
 	case ask != "":
 		keys := hint("↵ enters the cell to answer")
 		if ask == "tool" {
-			keys = hints("Enter approves", "Esc declines", "ctrl+l enters")
+			keys = hints("Enter approves", "Esc declines", "i enters")
 		}
 		what := " " + theme.Do(theme.Approve).Glyph + " " + item.Detail
 		// What the cell is waiting for gives way to the keys, never the

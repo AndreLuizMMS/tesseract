@@ -26,14 +26,14 @@ func TestStatusLineOffersTheApproval(t *testing.T) {
 	var none protocol.State
 	tool := blockedCell("tool")
 	line := noStyle(footerFor(none, &tool, keyboard.Browse, 140, "", 0))
-	for _, want := range []string{"⏵ Bash: pnpm migrate", "Enter approves", "Esc declines", "ctrl+l enters"} {
+	for _, want := range []string{"⏵ Bash: pnpm migrate", "Enter approves", "Esc declines", "i enters"} {
 		if !strings.Contains(line, want) {
 			t.Errorf("the status line should say %q: %q", want, line)
 		}
 	}
 	// Narrow, what waits is cut — and says it was — and the keys stay whole.
 	narrow := footerFor(none, &tool, keyboard.Browse, 56, "", 0)
-	if got := noStyle(narrow); !strings.Contains(got, "ctrl+l enters") || !strings.Contains(got, "⏵ Bash") || !strings.Contains(got, "…") {
+	if got := noStyle(narrow); !strings.Contains(got, "i enters") || !strings.Contains(got, "⏵ Bash") || !strings.Contains(got, "…") {
 		t.Errorf("a narrow status line keeps what waits and the keys: %q", got)
 	}
 	if widthOf(narrow) != 56 {
@@ -106,7 +106,8 @@ func TestStatusLineSaysEachThingOnce(t *testing.T) {
 }
 
 // TestEnterOnABlockedCellStaysOutOfIt — the key that enters a cell doesn't
-// enter one whose footer offers the approval; ctrl+l always does.
+// enter one whose footer offers the approval; i always does, and ctrl+l —
+// the key that gives the keyboard back — never takes it.
 func TestEnterOnABlockedCellStaysOutOfIt(t *testing.T) {
 	grid := func(item protocol.Cell) protocol.State {
 		return protocol.State{Projects: []protocol.Project{{ID: "p", Name: "p", Cells: []protocol.Cell{item}}}}
@@ -121,8 +122,12 @@ func TestEnterOnABlockedCellStaysOutOfIt(t *testing.T) {
 		t.Fatal("enter on a tool approval entered the cell")
 	}
 	press(m, 'l', tea.ModCtrl)
+	if m.typing {
+		t.Fatal("ctrl+l gives the keyboard back; it never takes it into a cell")
+	}
+	press(m, 'i', 0)
 	if !m.typing {
-		t.Fatal("ctrl+l should take the keyboard into the cell whatever it waits on")
+		t.Fatal("i should take the keyboard into the cell whatever it waits on")
 	}
 
 	for _, ask := range []string{"question", "plan", ""} {

@@ -140,7 +140,7 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "shift+tab", Action: PreviousTab, Help: "previous tab", Group: "tab · shift+tab"},
 
 		{Key: "enter", Action: EnterType, Help: "enters TYPE on the focused cell — or approves, while the status line offers it"},
-		{Key: "ctrl+l", Action: EnterCell, Help: "enters TYPE whatever the cell is waiting on; the same key gives the keyboard back"},
+		{Key: "i", Action: EnterCell, Help: "enters TYPE whatever the cell is waiting on, approval included"},
 		{Key: "o", Action: Fullscreen, Help: "focused cell in fullscreen (toggles)"},
 		{Key: "v", Action: SwitchScreen, Help: "switches between grid and list"},
 

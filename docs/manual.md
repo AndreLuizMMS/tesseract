@@ -91,7 +91,7 @@ last line of the screen, which at rest is just `?` — says what is waiting and 
 do:
 
 ```
- ⏵ Bash: pnpm migrate   Enter approves   Esc declines   ctrl+l enters
+ ⏵ Bash: pnpm migrate   Enter approves   Esc declines   i enters
 ```
 
 While that line is on screen — and only then — `Enter` approves and `Esc` declines, from
@@ -107,8 +107,9 @@ the mosaic, without TYPE. The rule has no surprise in it:
   cell to answer`, and `Enter` enters the cell as usual.
 - An approve read off the screen (no mod: cursor, the folder-trust question, `mods` off)
   keeps the usual status line and the usual `Enter`. Nobody said what that one is asking.
-- `ctrl+l` enters TYPE whatever the cell is waiting on — to pick "yes, and don't ask
-  again", or to tell the agent what to do instead. The same key gives the keyboard back.
+- `i` enters TYPE whatever the cell is waiting on — to pick "yes, and don't ask
+  again", or to tell the agent what to do instead. `ctrl+l` only gives the keyboard back;
+  in BROWSE it does nothing.
 - Scrolled back into the cell's history, the line goes away and `Esc` returns to the live
   end first.
 - The engine checks again when the key arrives: if the dialog is already gone, nothing is
@@ -192,9 +193,10 @@ structurally impossible. And the mode is impossible to get wrong, because it cha
    phosphor green on the screen;
 4. the status line changes from `?` to `ctrl+l`, the one key that isn't the cell's.
 
-The line around the cell doesn't change shape: every box is the same thin line with rounded
-corners. With `NO_COLOR=1` signal 1 disappears and the others stay — the word and the key
-are text, and the dimming becomes the terminal's own faint.
+The line around that cell also turns heavy (`┏━┓`) and phosphor; every other box stays a
+thin line with rounded corners. With `NO_COLOR=1` the colors disappear and the rest stays —
+the heavy stroke, the word and the key are shapes and text, and the dimming becomes the
+terminal's own faint.
 
 ## Copying what the agent wrote
 
