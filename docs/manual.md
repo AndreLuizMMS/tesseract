@@ -141,7 +141,7 @@ first-level folders — because a real project keeps its stack in `docker/`, `in
 the like — and **a production file is never chosen**. The panel lists the services with
 state, port, health and uptime (a column no service fills isn't drawn), and its keys on one
 short line — what each does at length is in the help (`?`); brings up, stops, restarts and rebuilds a service or the
-whole stack; and turns a service's log into a mosaic cell.
+whole stack; and turns a service's log — or, with `L`, the whole stack's — into a mosaic cell.
 
 While Docker is working, the panel says what it's doing and keeps updating the list — the
 services flip to `▸ up` one at a time instead of everything changing at once at the end. A

@@ -19,7 +19,8 @@ func init() {
 // isn't up again.
 const reattachInterval = 3 * time.Second
 
-// Logs is the live log of a compose service. Read-only.
+// Logs is the live log of a compose service, or of the whole stack when no
+// service is given. Read-only.
 type Logs struct {
 	Process
 	file    string
@@ -30,9 +31,6 @@ type Logs struct {
 }
 
 func (l *Logs) Spawn(cfg Config) error {
-	if cfg.Target == "" {
-		return fmt.Errorf("The logs cell needs a service. d opens the Docker panel to pick one.")
-	}
 	l.file = docker.Detect(cfg.Directory)
 	if l.file == "" {
 		return fmt.Errorf("No compose file at the root of this project.")

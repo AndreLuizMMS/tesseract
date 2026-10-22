@@ -109,7 +109,11 @@ func (p *DockerPanel) Key(key string) (request *protocol.Docker, open bool) {
 	case keyboard.RebuildService:
 		return p.request("rebuild", chosen), true
 	case keyboard.LogAsCell:
-		// The log becomes a cell in the grid, so the panel closes.
+		// The log becomes a cell in the grid, so the panel closes. No service
+		// picked is no log: the whole stack's is L, never a fallback.
+		if chosen == "" {
+			return nil, false
+		}
 		return p.request("log", chosen), false
 	case keyboard.ShellAsCell:
 		// Same as the log: the shell becomes a cell, and the panel gives the
@@ -124,6 +128,8 @@ func (p *DockerPanel) Key(key string) (request *protocol.Docker, open bool) {
 		return p.request("down", ""), true
 	case keyboard.RestartStack:
 		return p.request("restart", ""), true
+	case keyboard.LogStackAsCell:
+		return p.request("log", ""), false
 	}
 	return nil, true
 }
@@ -132,7 +138,7 @@ func (p *DockerPanel) request(action, service string) *protocol.Docker {
 	if action != "up" && action != "down" && action != "restart" && action != "rebuild" && action != "log" && action != "shell" {
 		return nil
 	}
-	if service == "" && (action == "log" || action == "shell") {
+	if service == "" && action == "shell" {
 		return nil
 	}
 	return &protocol.Docker{Project: p.Project, Action: action, Service: service}

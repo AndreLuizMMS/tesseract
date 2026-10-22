@@ -105,6 +105,7 @@ const (
 	UpStack         Action = "up-stack"
 	StopStack       Action = "stop-stack"
 	RestartStack    Action = "restart-stack"
+	LogStackAsCell  Action = "log-stack-as-cell"
 
 	// IDE picker.
 	PreviousIDE Action = "previous-ide"
@@ -187,9 +188,10 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "b", Action: RebuildService, Help: "rebuilds the picked service", Short: "b rebuild"},
 		{Key: "l", Action: LogAsCell, Help: "opens the service's log as a cell", Short: "l log"},
 		{Key: "a", Action: ShellAsCell, Help: "attaches a shell inside the picked service's container", Short: "a shell"},
-		{Key: "U", Action: UpStack, Help: "brings up the whole stack", Short: "U S R stack"},
+		{Key: "U", Action: UpStack, Help: "brings up the whole stack", Short: "U S R L stack"},
 		{Key: "S", Action: StopStack, Help: "stops the whole stack"},
 		{Key: "R", Action: RestartStack, Help: "restarts the whole stack"},
+		{Key: "L", Action: LogStackAsCell, Help: "opens the log of every service in the stack as a cell"},
 		{Key: "esc", Action: Back, Help: "closes the panel and gives back the keyboard", Short: "esc close"},
 	},
 	IDEPanel: {

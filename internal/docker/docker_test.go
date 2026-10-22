@@ -3,6 +3,7 @@ package docker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -262,6 +263,15 @@ func TestLogCommandDoesNotFollowAnotherService(t *testing.T) {
 	want := "compose --file /dev/cortz/docker-compose.yml logs --follow --tail 200 worker "
 	if joined != want {
 		t.Fatalf("command came %q, expected %q", joined, want)
+	}
+}
+
+// TestLogCommandWithoutServiceFollowsTheStack — no service name, every
+// service of the compose file.
+func TestLogCommandWithoutServiceFollowsTheStack(t *testing.T) {
+	_, args := LogCommand("/dev/cortz/docker-compose.yml", "")
+	if got := strings.Join(args, " "); got != "compose --file /dev/cortz/docker-compose.yml logs --follow --tail 200" {
+		t.Fatalf("command came %q", got)
 	}
 }
 

@@ -564,17 +564,21 @@ func (e *Engine) Docker(request protocol.Docker) (protocol.Services, error) {
 	switch request.Action {
 	case "list":
 	case "log", "shell":
-		if request.Service == "" {
+		// The log of the whole stack is a log too; a shell needs a container.
+		if request.Service == "" && request.Action == "shell" {
 			return response, fmt.Errorf("No service picked. ↑↓ picks one.")
 		}
-		kind, label := "logs", "logs "
+		kind, label := "logs", "logs "+request.Service
+		if request.Service == "" {
+			label = "logs compose"
+		}
 		if request.Action == "shell" {
-			kind, label = "shell", "shell "
+			kind, label = "shell", "shell "+request.Service
 		}
 		_, err := e.Create(protocol.Create{
 			Path:   target.path,
 			Type:   kind,
-			Name:   label + request.Service,
+			Name:   label,
 			Target: request.Service,
 		})
 		return response, err

@@ -86,6 +86,17 @@ func TestPanelLogBecomesACell(t *testing.T) {
 	}
 }
 
+// TestPanelStackLogBecomesACell — L asks for the log of every service.
+func TestPanelStackLogBecomesACell(t *testing.T) {
+	request, open := testPanel().Key("L")
+	if request == nil || request.Action != "log" || request.Service != "" {
+		t.Fatalf("stack log request came out %#v", request)
+	}
+	if open {
+		t.Fatal("the stack log becomes a cell in the grid, so the panel closes")
+	}
+}
+
 // TestPanelEscGivesBackTheKeyboard.
 func TestPanelEscGivesBackTheKeyboard(t *testing.T) {
 	panel := testPanel()
@@ -272,7 +283,7 @@ func TestOpenPanelReadsTheStackAgain(t *testing.T) {
 // the help; and a column no service fills isn't drawn.
 func TestPanelSaysOnlyWhatItHas(t *testing.T) {
 	full := noStyle(strings.Join(testPanel().Draw(120), "\n"))
-	for _, want := range []string{"PORT", "HEALTH", "UPTIME", ":5432", "u up   s stop   r restart   b rebuild   l log   a shell   U S R stack   esc close"} {
+	for _, want := range []string{"PORT", "HEALTH", "UPTIME", ":5432", "u up   s stop   r restart   b rebuild   l log   a shell   U S R L stack   esc close"} {
 		if !strings.Contains(full, want) {
 			t.Errorf("the panel should show %q:\n%s", want, full)
 		}
@@ -298,7 +309,7 @@ func TestPanelSaysOnlyWhatItHas(t *testing.T) {
 
 	// Too narrow for one line, the keys wrap between keys and all stay.
 	narrow := noStyle(strings.Join(testPanel().Draw(60), "\n"))
-	if !strings.Contains(narrow, "esc close") || !strings.Contains(narrow, "U S R stack") {
+	if !strings.Contains(narrow, "esc close") || !strings.Contains(narrow, "U S R L stack") {
 		t.Errorf("a narrow panel keeps every key:\n%s", narrow)
 	}
 }

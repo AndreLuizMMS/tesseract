@@ -229,8 +229,14 @@ func Act(dir, file, action, service string) error {
 
 // LogCommand is the command that a log cell runs to follow a service. It
 // lives here so the panel and the cell never disagree.
+// An empty service follows the whole stack, every line prefixed by the
+// service that wrote it.
 func LogCommand(file, service string) (string, []string) {
-	return "docker", []string{"compose", "--file", file, "logs", "--follow", "--tail", "200", service}
+	args := []string{"compose", "--file", file, "logs", "--follow", "--tail", "200"}
+	if service != "" {
+		args = append(args, service)
+	}
+	return "docker", args
 }
 
 // ShellCommand is the command that opens a shell inside a service's running

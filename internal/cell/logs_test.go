@@ -81,16 +81,17 @@ func TestLogsWithoutComposeFailsClearly(t *testing.T) {
 	}
 }
 
-// TestLogsWithoutServiceFailsClearly — log of which service?
-func TestLogsWithoutServiceFailsClearly(t *testing.T) {
+// TestLogsWithoutServiceFollowsTheStack — no service means every service.
+func TestLogsWithoutServiceFollowsTheStack(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "docker-compose.yml"), []byte("services: {}\n"), 0o644); err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
 	item, _ := New("logs")
-	if err := item.Spawn(Config{ID: "c1", Directory: dir, Columns: 60, Lines: 12}); err == nil {
-		t.Fatal("without a service, the logs cell can't spawn")
+	if err := item.Spawn(Config{ID: "c1", Directory: dir, Columns: 60, Lines: 12}); err != nil {
+		t.Fatalf("without a service, the logs cell follows the whole stack: %v", err)
 	}
+	defer item.Kill()
 }
 
 // TestLogsIsReadOnly — a keystroke typed into a logs cell goes nowhere.
