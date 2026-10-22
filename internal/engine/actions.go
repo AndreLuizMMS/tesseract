@@ -93,7 +93,7 @@ func (e *Engine) Prompt(cellID, text string) error {
 
 // AutoRename asks the agent to pick and write the conversation's own name.
 // The name doesn't exist yet: the watcher is what applies it to the cell,
-// when the turn ends (see AdoptAgentName).
+// once it reaches the transcript (see AdoptAgentName).
 func (e *Engine) AutoRename(cellID string) error {
 	c := e.findCell(cellID)
 	if c == nil || c.proc == nil {
@@ -103,34 +103,49 @@ func (e *Engine) AutoRename(cellID string) error {
 	if !ok {
 		return fmt.Errorf("%s has no conversation to name. ctrl+r works on an agent's cell.", c.name)
 	}
+	// Armed before sending: the mod can report the rename done before the
+	// delivery's receipt returns here.
+	before, _ := withConversation.ConversationName()
+	e.mu.Lock()
+	c.pendingRename, c.renameFrom, c.renameUntil = true, before, time.Now().Add(renameWait)
+	e.mu.Unlock()
 	if err := withConversation.RequestAutoName(); err != nil {
+		e.mu.Lock()
+		c.pendingRename = false
+		e.mu.Unlock()
 		return err
 	}
-	e.mu.Lock()
-	c.pendingRename = true
-	e.mu.Unlock()
 	return nil
 }
 
 // AdoptAgentName pulls into the cell the name the agent gave the
-// conversation and disarms the wait, whether it succeeds or not — retrying on
-// its own doesn't help.
+// conversation. While a /rename is waiting it only takes a title other than
+// the one from before — the transcript can lag behind the command — and
+// gives up when the wait is over, adopting whatever name is there.
 func (e *Engine) AdoptAgentName(cellID string) error {
 	c := e.findCell(cellID)
 	if c == nil || c.proc == nil {
 		return fmt.Errorf("cell %s does not exist", cellID)
 	}
-	e.mu.Lock()
-	c.pendingRename = false
-	e.mu.Unlock()
-
 	withConversation, ok := c.proc.(cell.WithConversation)
 	if !ok {
 		return fmt.Errorf("%s has no conversation to name. ctrl+r works on an agent's cell.", c.name)
 	}
 	name, err := withConversation.ConversationName()
+
+	e.mu.Lock()
+	fresh := err == nil && name != c.renameFrom
+	over := !c.pendingRename || time.Now().After(c.renameUntil)
+	if fresh || over {
+		c.pendingRename = false
+	}
+	e.mu.Unlock()
+
 	if err != nil {
 		return err
+	}
+	if !fresh && !over {
+		return nil
 	}
 	return e.Rename(cellID, name)
 }

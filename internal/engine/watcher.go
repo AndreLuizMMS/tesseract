@@ -16,6 +16,12 @@ const (
 	// ticksBetweenDiskChecks spaces out checking that the projects'
 	// directories still exist.
 	ticksBetweenDiskChecks = 20
+	// ticksBetweenRenameChecks spaces out reading the transcript of a cell
+	// waiting for its /rename: the file can be tens of megabytes.
+	ticksBetweenRenameChecks = 4
+	// renameWait is how long that wait lasts. A /rename sent mid-turn only
+	// runs when the turn ends.
+	renameWait = 10 * time.Minute
 	// ticksBetweenDockerChecks spaces out reading each project's stack
 	// state, which is what the strip shows.
 	ticksBetweenDockerChecks = 40
@@ -48,6 +54,9 @@ func (e *Engine) Watch() {
 // the disk, Docker and the heartbeat each come around on their own count.
 func (e *Engine) watchTick(tick int) {
 	changed := e.checkStates()
+	if tick%ticksBetweenRenameChecks == 0 {
+		e.checkRenames()
+	}
 	if tick%ticksBetweenDiskChecks == 0 {
 		changed = e.checkDirectories() || changed
 	}
@@ -72,7 +81,6 @@ func (e *Engine) stopWatcher() {
 func (e *Engine) checkStates() bool {
 	type notice struct{ text string }
 	var notices []notice
-	var toAdoptName []string
 	changed := false
 
 	e.mu.Lock()
@@ -113,9 +121,6 @@ func (e *Engine) checkStates() bool {
 			switch state {
 			case cell.Replied:
 				say(withDetail(c.name+" · "+projectName+" responded", c.takeDetail()))
-				if c.pendingRename {
-					toAdoptName = append(toAdoptName, c.id)
-				}
 			case cell.Approve:
 				say(withDetail(c.name+" · "+projectName+" approve", c.takeDetail()))
 			case cell.Crashed:
@@ -130,12 +135,30 @@ func (e *Engine) checkStates() bool {
 	for _, n := range notices {
 		e.announce(n.text)
 	}
+	return changed
+}
+
+// checkRenames looks for the title of each /rename still waiting. The turn
+// ending can't be the cue: /rename is a local command, runs without a turn,
+// and an idle agent never leaves the replied state for the watcher to see it
+// come back. The title on disk is the only word that always comes.
+func (e *Engine) checkRenames() {
+	e.mu.Lock()
+	var pending []string
+	for _, p := range e.projects {
+		for _, c := range p.cells {
+			if c.pendingRename {
+				pending = append(pending, c.id)
+			}
+		}
+	}
+	e.mu.Unlock()
+
 	// Outside the lock: adopting the name calls Rename, which locks the
 	// mutex again.
-	for _, id := range toAdoptName {
+	for _, id := range pending {
 		_ = e.AdoptAgentName(id)
 	}
-	return changed
 }
 
 // checkDirectories marks as orphaned the project whose directory has

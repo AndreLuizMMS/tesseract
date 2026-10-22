@@ -101,6 +101,55 @@ func TestAutoRenameSendsThePureCommand(t *testing.T) {
 	}
 }
 
+// TestAutoRenameAdoptsTheTitleWithoutATurn — /rename is a local command: on
+// an idle agent no turn starts or ends, and the title shows up only on disk.
+// The cell still has to take it.
+func TestAutoRenameAdoptsTheTitleWithoutATurn(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	stateDir := t.TempDir()
+	projectDir := t.TempDir()
+	program := agentThatLogsWhatItReceives(t, projectDir, filepath.Join(t.TempDir(), "junk.txt"))
+
+	m := New(stateDir, configWithFakeAgent(program))
+	if err := m.Start(); err != nil {
+		t.Fatalf("starting: %v", err)
+	}
+	defer m.Shutdown()
+	go m.Watch()
+
+	id, err := m.Create(protocol.Create{Path: projectDir, Type: "claude"})
+	if err != nil {
+		t.Fatalf("creating: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	saved, err := Load(StatePath(stateDir))
+	if err != nil {
+		t.Fatalf("loading: %v", err)
+	}
+	conversation := saved.Projects[0].Cells[0].Conversations["claude"]
+
+	if err := m.AutoRename(id); err != nil {
+		t.Fatalf("auto rename: %v", err)
+	}
+	// The agent writes the title the way Claude Code does, with no turn
+	// around it.
+	alias := strings.NewReplacer("/", "-", ".", "-").Replace(projectDir)
+	folder := filepath.Join(os.Getenv("HOME"), ".claude", "projects", alias)
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	line := `{"type":"custom-title","customTitle":"fix-login-flow","sessionId":"` + conversation + `"}` + "\n"
+	if err := os.WriteFile(filepath.Join(folder, conversation+".jsonl"), []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if !waitFor(t, 5*time.Second, func() bool {
+		return m.Snapshot().Projects[0].Cells[0].Name == "fix-login-flow"
+	}) {
+		t.Fatalf("the title was not adopted, cell is %q", m.Snapshot().Projects[0].Cells[0].Name)
+	}
+}
+
 // TestAutoRenameOnACellWithoutConversationFailsClearly — bash, logs and md
 // have no named conversation, so there's nothing to ask.
 func TestAutoRenameOnACellWithoutConversationFailsClearly(t *testing.T) {

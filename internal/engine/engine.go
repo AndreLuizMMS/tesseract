@@ -78,8 +78,12 @@ type liveCell struct {
 	// lastTab is the tab that state was read from, on a cell with tabs.
 	lastTab string
 	// pendingRename marks that an automatic /rename was sent and the watcher
-	// needs to adopt the name as soon as the turn ends.
+	// needs to adopt the name as soon as it reaches the transcript.
+	// renameFrom is the title the conversation had before — the new one is
+	// whatever differs — and renameUntil is when the wait gives up.
 	pendingRename bool
+	renameFrom    string
+	renameUntil   time.Time
 	// detail is what the cell's mod said about the state it last reported —
 	// the command waiting for approval, the opening of the answer — and
 	// detailTab is the tab it spoke for. The watcher puts it in the notice.
