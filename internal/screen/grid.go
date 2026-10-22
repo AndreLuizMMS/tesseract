@@ -21,6 +21,9 @@ const (
 	// minCellHeight is a top border, three lines of content and a bottom
 	// border.
 	minCellHeight = 5
+	// glyphAspect is how many times taller than wide a terminal character
+	// is. A cell looks square when it has this many columns per line.
+	glyphAspect = 2
 	// minColumnWidth is the least a column of projects needs to still fit two
 	// cells in it.
 	minColumnWidth = 2 * tightCellWidth
@@ -49,9 +52,8 @@ type Dims struct {
 }
 
 // row is one line of cells from the same project, side by side. A project
-// with many cells occupies several rows; a project with one cell takes up
-// the whole width. This is what makes every cell fit on screen without any
-// of them turning into a strip.
+// splits into as many rows as leaves its cells closest to square, so none of
+// them turns into a strip, lying down or standing up.
 type row struct {
 	project int
 	cells   []int
@@ -229,9 +231,9 @@ func widthProjectWants(project protocol.Project) int {
 	return ((total + rows - 1) / rows) * tightCellWidth
 }
 
-// planRows breaks each project into rows of cells that fit the width,
-// balanced so no row is left with just one cell. When the rows don't fit
-// the height the project has, cells squeeze instead of falling off screen.
+// planRows breaks each project into rows of cells, as many per row as
+// leaves them closest to square. When the rows don't fit the height the
+// project has, cells squeeze instead of falling off screen.
 func planRows(state protocol.State, start, end, width, body int) []row {
 	projectHeight := max(body/max(end-start, 1)-1, minCellHeight)
 	rowsThatFit := max(projectHeight/minCellHeight, 1)
@@ -242,9 +244,7 @@ func planRows(state protocol.State, start, end, width, body int) []row {
 		if total == 0 {
 			continue
 		}
-		rowCount := min(squareRows(total), rowsThatFit)
-		fitInWidth := min(max(width/minCellWidth, 1), (total+rowCount-1)/rowCount)
-		perRow := balance(total, fitInWidth)
+		perRow := squarestPerRow(total, width, projectHeight)
 		if (total+perRow-1)/perRow > rowsThatFit {
 			tight := min((total+rowsThatFit-1)/rowsThatFit, max(width/tightCellWidth, 1))
 			perRow = balance(total, max(tight, perRow))
@@ -261,9 +261,37 @@ func planRows(state protocol.State, start, end, width, body int) []row {
 	return rows
 }
 
+// squarestPerRow says how many cells a project puts per row so that its most
+// stretched cell is as close to square as the room allows: two cells sit side
+// by side on a wide screen and one above the other in a narrow column, four
+// become 2x2. The last row counts too, since it may hold fewer, wider cells.
+// ponytail: assumes the project gets an even share of its column's height;
+// weigh by row count if projects sharing a column come out lopsided.
+func squarestPerRow(total, width, height int) int {
+	fitInWidth := min(max(width/minCellWidth, 1), total)
+	best, least := fitInWidth, 0.0
+	for perRow := 1; perRow <= fitInWidth; perRow++ {
+		rows := (total + perRow - 1) / perRow
+		cellHeight := max(height/rows, 1)
+		worst := max(stretch(width/perRow, cellHeight), stretch(width/(total-(rows-1)*perRow), cellHeight))
+		if least == 0 || worst < least {
+			best, least = perRow, worst
+		}
+	}
+	return best
+}
+
+// stretch is how far a cell is from looking square: 1 is square, 3 is three
+// times longer one way than the other, whichever way.
+func stretch(width, height int) float64 {
+	ratio := float64(max(width, 1)) / float64(glyphAspect*height)
+	return max(ratio, 1/ratio)
+}
+
 // squareRows says how many rows a project's cells split into for the
-// squarest grid: four cells become 2x2 instead of a strip of four, two stay
-// side by side. It's the rounded square root of the total.
+// squarest grid by count alone, which is what a column's width is sized for:
+// four cells become 2x2 instead of a strip of four, two stay side by side.
+// It's the rounded square root of the total.
 func squareRows(total int) int {
 	rows := 1
 	for rows*(rows+1) < total {

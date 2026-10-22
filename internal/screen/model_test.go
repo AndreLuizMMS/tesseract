@@ -243,7 +243,7 @@ func TestArrowsOnA2x2GridMoveLiterally(t *testing.T) {
 			ID: "c" + string(rune('0'+i)), Type: "session", Name: "session", State: "working", Live: true,
 		})
 	}
-	m := &Model{state: state, view: viewGrid, sizes: map[string]Dims{}, width: 200, height: 40}
+	m := &Model{state: state, view: viewGrid, sizes: map[string]Dims{}, width: 200, height: 57}
 
 	// 0 1
 	// 2 3

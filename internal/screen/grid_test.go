@@ -268,6 +268,43 @@ func TestOneCellProjectsBecomeColumns(t *testing.T) {
 	}
 }
 
+// TestCellsStayCloseToSquare — a project splits its cells into whatever rows
+// leave them closest to square: no cell becomes a strip, lying down or
+// standing up.
+func TestCellsStayCloseToSquare(t *testing.T) {
+	state := protocol.State{Projects: []protocol.Project{{ID: "p1", Name: "regula-mais", Path: "/dev/rm"}}}
+	for total := 2; total <= 9; total++ {
+		state.Projects[0].Cells = nil
+		for i := range total {
+			state.Projects[0].Cells = append(state.Projects[0].Cells, protocol.Cell{
+				ID: "c" + strconv.Itoa(i), Type: "session", Name: "session" + strconv.Itoa(i),
+				State: "working", Live: true,
+			})
+		}
+		for _, size := range [][2]int{{200, 57}, {200, 40}, {300, 40}} {
+			for id, inner := range Arrange(state, Focus{}, size[0], size[1]).Inners() {
+				if stretch(inner.Cols, inner.Rows) > 3 {
+					t.Fatalf("%d cells on %dx%d: cell %s is a strip: %#v", total, size[0], size[1], id, inner)
+				}
+			}
+		}
+	}
+
+	// Beside another project: each project keeps a side of the screen to
+	// itself, and the one with two cells stacks them on its side, since side
+	// by side they'd be two tall strips.
+	state.Projects[0].Cells = state.Projects[0].Cells[:2]
+	state.Projects = append(state.Projects, protocol.Project{ID: "p2", Name: "tesseract", Path: "/dev/ts",
+		Cells: []protocol.Cell{{ID: "alone", Type: "session", Name: "session 1", State: "working", Live: true}}})
+	d := Arrange(state, Focus{}, 200, 57)
+	if len(d.columns) != 2 || len(d.columns[0].rows) != 2 || len(d.columns[1].rows) != 1 {
+		t.Fatalf("two projects should be two columns, the first with two stacked cells: %#v", d.columns)
+	}
+	if down, found := Neighbor(state, Focus{}, 200, 57, 0, 1); !found || down.Cell != 1 {
+		t.Fatalf("the down arrow should reach the cell underneath: %#v", down)
+	}
+}
+
 // TestTabsShowUpInsteadOfType — a cell with tabs shows the tabs, with the
 // active one highlighted.
 func TestTabsShowUpInsteadOfType(t *testing.T) {
@@ -781,7 +818,7 @@ func TestFourCellsBecomeA2x2Grid(t *testing.T) {
 		})
 	}
 
-	d := Arrange(state, Focus{}, 200, 40)
+	d := Arrange(state, Focus{}, 200, 57)
 	rows := d.allRows()
 	if len(rows) != 2 {
 		t.Fatalf("four cells should take up two rows: %#v", rows)
