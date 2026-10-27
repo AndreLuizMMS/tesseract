@@ -41,6 +41,8 @@ type Engine struct {
 	once        sync.Once
 	// down says Shutdown already ran (see save).
 	down bool
+	// accounts says which Claude account a cell born now runs on.
+	accounts *accounts
 }
 
 type project struct {
@@ -112,6 +114,7 @@ func New(stateDir string, config Config) *Engine {
 		config:   config,
 		screen:   "grid",
 		stop:     make(chan struct{}),
+		accounts: newAccounts(config.ClaudeAccounts),
 	}
 }
 
@@ -153,7 +156,7 @@ func (e *Engine) Start() error {
 			if c.id == "" {
 				c.id = newIdentity()
 			}
-			if err := e.wake(p, c); err != nil {
+			if err := e.wake(p, c, ""); err != nil {
 				e.notice = err.Error()
 			}
 			p.cells = append(p.cells, c)
@@ -200,8 +203,9 @@ func (e *Engine) sweepHistories() {
 	}
 }
 
-// wake starts a reconstructed cell's process. Called with the lock held.
-func (e *Engine) wake(p *project, c *liveCell) error {
+// wake starts a reconstructed cell's process, with prompt as the first thing
+// its agent hears. Called with the lock held.
+func (e *Engine) wake(p *project, c *liveCell, prompt string) error {
 	proc, err := cell.New(c.kind)
 	if err != nil {
 		return err
@@ -224,6 +228,7 @@ func (e *Engine) wake(p *project, c *liveCell) error {
 		Directory:  p.path,
 		Name:       c.name,
 		Target:     c.target,
+		Prompt:     prompt,
 		History:    record,
 		Columns:    80,
 		Lines:      24,
@@ -267,6 +272,10 @@ func (e *Engine) profiles() map[string]cell.Profile {
 	}
 	claude := profiles["claude"]
 	claude.Args = append(append([]string{}, claude.Args...), e.claudeArgs(claude.Args)...)
+	if len(e.accounts.folders) > 0 {
+		claude.Accounts = e.accounts.folders
+		claude.Account = e.accounts.current
+	}
 	profiles["claude"] = claude
 	return profiles
 }
@@ -334,7 +343,7 @@ func (e *Engine) Create(request protocol.Create) (string, error) {
 		c.name = autoName(p, request.Type)
 	}
 
-	if err := e.wake(p, c); err != nil {
+	if err := e.wake(p, c, ""); err != nil {
 		if c.record != nil {
 			c.record.Close()
 		}

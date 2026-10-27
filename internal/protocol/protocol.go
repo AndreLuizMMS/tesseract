@@ -236,7 +236,9 @@ type Report struct {
 	Cell string `json:"cell"`
 	Tab  string `json:"tab,omitempty"`
 	// Kind picks which of the fields below matter: "state", "session",
-	// "quota", "title", "delivered", "doc" or "edit".
+	// "quota", "limit", "title", "delivered", "doc" or "edit". A "limit" is
+	// the account's usage running out mid-turn, with ResetsAt saying when it
+	// comes back, when the mod knows.
 	Kind string `json:"kind"`
 	// Delivery is the ID of the Deliver the mod is answering, and Refused
 	// says its session had nowhere to put it.

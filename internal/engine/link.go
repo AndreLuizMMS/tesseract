@@ -53,6 +53,8 @@ func (e *Engine) Report(report protocol.Report) error {
 	switch report.Kind {
 	case "quota":
 		return reportQuota(report.Percent, report.Weekly, report.ResetsAt)
+	case "limit":
+		return e.reportLimit(c, report)
 	case "context":
 		return e.reportContext(c, report)
 	case "title":

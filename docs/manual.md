@@ -227,6 +227,7 @@ defaults.
   "roster": false,
   "claudeTheme": "dark-ansi",
   "dockerDeny": true,
+  "claudeAccounts": ["~/.claude", "~/.claude-2"],
   "agents": {
     "claude": {
       "program": "claude",
@@ -288,6 +289,22 @@ mods aren't affected.
 A rule matches the command's text, so the same command behind `sh -c`, a full path or a
 global flag is the guard's to stop; and `docker compose down` alone matches none of them.
 Passing your own `--settings` in `args` turns this off along with the theme.
+
+`claudeAccounts` lists the config folders of your Claude accounts, primary first. Every
+Claude cell is born on the first account that isn't at its usage limit, so the primary is
+used whenever it can be. When a turn hits the limit, the `tesseract-link` mod says so, that
+account sits out until its window resets, and the cell's Claude comes back up on the next
+account **on the same conversation**: the transcript is copied into that account and
+resumed, with a first message telling the agent to pick up where it left off. In a session
+only the claude tab restarts; the shell and the other tabs don't notice. With every account
+out the cell stays where it is, and the notice says so. A cell already running on the second
+account stays there until it restarts; the next cell born goes back to the primary.
+
+Log each extra account in once, outside Tesseract: `CLAUDE_CONFIG_DIR=~/.claude-2 claude`,
+then `/login`. A folder you trusted on Claude Code's own account is trusted on the others when a cell lands
+there, so a conversation that moved doesn't come back up stuck on that question; a folder
+you never trusted still asks. Each folder has its own MCP servers, plugins and skills. Empty or with a single
+folder, every cell runs on Claude Code's own folder and nothing changes.
 
 With the mods on, a prompt sent from the mosaic without entering the cell is delivered
 as your own message and queued behind whatever is running, instead of being typed into

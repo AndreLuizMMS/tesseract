@@ -41,7 +41,7 @@ func (e *Engine) Resume(cellID string) error {
 			if c.record != nil {
 				_ = c.record.Close()
 			}
-			if err := e.wake(p, c); err != nil {
+			if err := e.wake(p, c, ""); err != nil {
 				return err
 			}
 			e.markDirty()

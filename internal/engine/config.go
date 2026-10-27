@@ -58,6 +58,12 @@ type Config struct {
 	// Roster loads the tesseract-roster mod inside cells. Off by default: the
 	// mosaic already says who's calling.
 	Roster bool `json:"roster"`
+	// ClaudeAccounts are the config folders of the Claude accounts on this
+	// machine, primary first ("~/.claude", "~/.claude-2"). A cell is born on
+	// the first one that isn't at its usage limit, and a conversation that
+	// hits the limit comes back up on the next one, where it left off. Empty,
+	// every cell runs on Claude Code's own folder.
+	ClaudeAccounts []string `json:"claudeAccounts,omitempty"`
 	// Agents is the profile of each agent type.
 	Agents map[string]AgentProfile `json:"agents,omitempty"`
 }
