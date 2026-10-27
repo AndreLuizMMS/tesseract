@@ -48,6 +48,9 @@ let waiting: Pick<Payload, 'detail' | 'ask'> = {}
 let isTurnRunning = false
 let unread: Pick<Payload, 'detail' | 'summary'> | undefined
 let isStopped = false
+// Quando volta a janela que a última medição mostrou cheia; vai junto do
+// relato de limite, para o engine saber até quando a conta fica de fora.
+let limitResetsAt: string | undefined
 // Último preenchimento de contexto mandado: só a mudança é reportada.
 let reportedContext: number | undefined
 let reportedSession = ''
@@ -58,7 +61,7 @@ let isBackground = false
 let isOver = false
 
 type Payload = {
-  kind: 'state' | 'session' | 'quota' | 'context' | 'title' | 'delivered'
+  kind: 'state' | 'session' | 'quota' | 'limit' | 'context' | 'title' | 'delivered'
   delivery?: string
   refused?: boolean
   state?: 'working' | 'idle' | 'answered' | 'approve' | 'interrupted' | 'ended'
@@ -214,6 +217,16 @@ async function reportQuota($: EngineInterface, limits: readonly SessionRateLimit
   if (window === undefined) return
   const weekly = limits.find(limit => limit.kind === 'seven_day')?.percentUsed
   await report($, { kind: 'quota', percent: window.percentUsed, resetsAt: window.resetsAt, weekly })
+}
+
+// fullWindowReset é o reset mais distante entre as janelas que chegaram a
+// 100%: a conta só volta quando todas as cheias voltarem.
+function fullWindowReset(limits: readonly SessionRateLimit[]): string | undefined {
+  return limits
+    .filter(limit => limit.percentUsed >= 100 && limit.resetsAt !== undefined)
+    .map(limit => limit.resetsAt as string)
+    .sort((a, b) => Date.parse(a) - Date.parse(b))
+    .at(-1)
 }
 
 // reportContext manda o preenchimento da janela de contexto, que é da
@@ -438,8 +451,17 @@ export const register: Register = (on, options) => {
     }
   })
 
+  // O limite de uso da conta acabou e o turno parou no meio: o engine leva a
+  // conversa para a próxima conta da lista, quando houver uma livre.
+  on('classic.StopFailure', async ($, e, next) => {
+    const result = await next(e)
+    if (e.error === 'rate_limit') await report($, { kind: 'limit', resetsAt: limitResetsAt })
+    return result
+  })
+
   on('session.measure', async ($, e, next) => {
     const echoed = await next(e)
+    limitResetsAt = fullWindowReset(e.rateLimits)
     if (withQuota) {
       await reportQuota($, e.rateLimits)
       await reportContext($, e.context.percent)

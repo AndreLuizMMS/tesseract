@@ -52,6 +52,7 @@ function world(on: On, env: Record<string, string>, lines: readonly string[] = [
   on('session.id', () => ({ value: SESSION }))
   on('classic.SessionStart', () => ({}))
   on('classic.PermissionRequest', () => ({}))
+  on('classic.StopFailure', () => ({}))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
@@ -307,6 +308,23 @@ test('a medição leva as duas janelas e o contexto, este só quando muda', asyn
   await measure(33.1)
   await measure(34)
   expect(reports.filter(r => r.kind === 'context').map(r => r.context)).toEqual([33, 34])
+})
+
+test('limite de uso vira relato de limite, com o reset da janela cheia', async ($, on) => {
+  const { reports } = world(on, CELL)
+  await $.classic.StopFailure({ error: 'overloaded' })
+  await $.session.measure({
+    context: { window: 1000000 },
+    rateLimits: [
+      { kind: 'seven_day', percentUsed: 61, resetsAt: '2026-10-12T00:00:00.000Z' },
+      { kind: 'five_hour', percentUsed: 100, resetsAt: '2026-10-08T21:10:00.000Z' },
+    ],
+    changed: ['rateLimits'],
+  })
+  await $.classic.StopFailure({ error: 'rate_limit' })
+  expect(reports.filter(r => r.kind === 'limit').map(({ at: _at, ...rest }) => rest)).toEqual([
+    { kind: 'limit', resetsAt: '2026-10-08T21:10:00.000Z' },
+  ])
 })
 
 test('quota desligada não reporta', { options: { quota: false } }, async ($, on) => {

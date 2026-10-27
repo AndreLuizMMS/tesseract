@@ -26,6 +26,7 @@ máquina: os dois caminhos terminam no socket local do engine.
 | Turno termina sem texto | `interrupted` | idem: não há o que ler |
 | `/clear`, `/resume`, `/branch` | id novo da conversa, e `idle` | o reboot retoma a conversa certa |
 | Medição de uso | `quota`: janelas de 5 horas e de 7 dias | `quota 12%` na linha de status (uma só; a de 7 dias só entra quando é a que está acabando) |
+| Turno para no limite de uso da conta (`StopFailure` com `rate_limit`) | `limit` + quando a janela cheia volta | com `claudeAccounts` no config, a conversa continua na próxima conta livre |
 | Medição de uso, ou `/clear` | `context`: preenchimento da janela da conversa, quando muda | `ctx 86%` no cabeçalho da célula, só a partir de 80% |
 | Sessão encerra | `ended` | a célula mostra o processo saindo |
 
