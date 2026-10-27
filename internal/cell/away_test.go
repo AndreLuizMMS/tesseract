@@ -87,10 +87,7 @@ func TestResumeTakesTheConversationBackFromTheBackground(t *testing.T) {
 		t.Fatalf("prepare agent: %v", err)
 	}
 	const hosted, plain = "d01ea55f-df74-49cb-bb35-e6f238303680", "99bb2e3a-9b13-4271-845d-adb4fdc1f4a8"
-	folder, err := claudeFolder(dir)
-	if err != nil {
-		t.Fatalf("folder: %v", err)
-	}
+	folder := claudeFolder(filepath.Join(home, ".claude"), dir)
 	for _, path := range []string{folder, filepath.Join(home, ".claude", "jobs", hosted[:8])} {
 		if err := os.MkdirAll(path, 0o755); err != nil {
 			t.Fatalf("prepare disk: %v", err)

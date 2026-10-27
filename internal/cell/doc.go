@@ -29,7 +29,7 @@ func (s *Session) OpenDoc(path string) error {
 	if found < 0 {
 		return fmt.Errorf("the session has no md tab")
 	}
-	if err := s.openTab(tab); err != nil {
+	if err := s.openTab(tab, ""); err != nil {
 		return err
 	}
 

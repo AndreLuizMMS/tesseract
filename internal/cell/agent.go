@@ -46,8 +46,11 @@ type Agent struct {
 	turn          *Turn
 	renameCommand string
 	conversation  string
-	bornAt        time.Time
-	stop          chan struct{}
+	// account is the config folder of the Claude account the agent runs on;
+	// empty for an agent that has no accounts to choose from.
+	account string
+	bornAt  time.Time
+	stop    chan struct{}
 	// away says the screen shows something other than the conversation (see
 	// Markers.Away). It's read off the screen on every watch.
 	away             atomic.Bool
@@ -65,7 +68,7 @@ type Agent struct {
 }
 
 // spawn brings the agent up and starts following its turn.
-func (a *Agent) spawn(cfg Config, profile Profile, program string, args []string, markers Markers) error {
+func (a *Agent) spawn(cfg Config, profile Profile, program string, args []string, markers Markers, environment ...string) error {
 	// The user's config wins: it exists for the day the agent changes the
 	// text it writes on its own screen.
 	// It replaces what matches anywhere on the screen; the line markers
@@ -80,7 +83,7 @@ func (a *Agent) spawn(cfg Config, profile Profile, program string, args []string
 	a.conversation = cfg.Conversation
 	a.bornAt = time.Now()
 	a.stop = make(chan struct{})
-	if err := a.start(cfg, program, args, append(terminalEnvironment(), linkEnvironment(cfg)...)); err != nil {
+	if err := a.start(cfg, program, args, append(append(terminalEnvironment(), linkEnvironment(cfg)...), environment...)); err != nil {
 		return err
 	}
 	go a.watchTurn()
@@ -209,6 +212,10 @@ func (a *Agent) ConversationName() (string, error) {
 	}
 	return name, nil
 }
+
+// Account is the config folder of the account the agent runs on. The tab is
+// the session's to use: a single agent is its own only tab.
+func (a *Agent) Account(string) string { return a.account }
 
 // Conversation is the conversation's identity, which the engine keeps to
 // reattach later.

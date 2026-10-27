@@ -1,6 +1,7 @@
 package cell
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -168,13 +169,94 @@ func TestDescriptorsAreConsistent(t *testing.T) {
 // dying at the start after a crash: a conversation that never reached disk
 // starts over with the same identity instead of being resumed.
 func TestAgentWithoutTranscriptDoesNotTryToResume(t *testing.T) {
-	if hasTranscript(t.TempDir(), "99b7c1fb-cb36-4485-b29c-324c994d4607") {
+	if hasTranscript(t.TempDir(), t.TempDir(), "99b7c1fb-cb36-4485-b29c-324c994d4607") {
 		t.Fatal("a conversation that never existed can't look resumable")
 	}
-	if hasTranscript(t.TempDir(), "") {
+	if hasTranscript(t.TempDir(), t.TempDir(), "") {
 		t.Fatal("a conversation without an identity isn't resumable")
 	}
 	if cursorHasConversation("conversation-that-does-not-exist") {
 		t.Fatal("a nonexistent Cursor conversation can't look resumable")
+	}
+}
+
+// TestConversationFollowsTheNewestTranscript is what keeps the context when a
+// conversation changes accounts: the account it lands on adopts the newest
+// copy, and an older copy never overwrites a newer one.
+func TestConversationFollowsTheNewestTranscript(t *testing.T) {
+	const conversation = "99b7c1fb-cb36-4485-b29c-324c994d4607"
+	primary, second, project := t.TempDir(), t.TempDir(), "/home/someone/app"
+	write := func(account, text string, at time.Time) {
+		folder := claudeFolder(account, project)
+		if err := os.MkdirAll(folder, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(folder, conversation+".jsonl")
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func(account string) string {
+		content, _ := os.ReadFile(filepath.Join(claudeFolder(account, project), conversation+".jsonl"))
+		return string(content)
+	}
+	accounts := []string{primary, second}
+
+	write(primary, "turns on the primary", time.Now().Add(-time.Hour))
+	adoptTranscript(accounts, second, project, conversation)
+	if read(second) != "turns on the primary" || !hasTranscript(second, project, conversation) {
+		t.Fatalf("second account got %q: it should resume the primary's conversation", read(second))
+	}
+
+	write(second, "turns on the primary + on the second", time.Now())
+	adoptTranscript(accounts, primary, project, conversation)
+	if read(primary) != "turns on the primary + on the second" {
+		t.Fatalf("primary got %q: coming back must bring what was said on the second", read(primary))
+	}
+
+	write(primary, "older", time.Now().Add(-2*time.Hour))
+	write(second, "newer", time.Now())
+	adoptTranscript(accounts, second, project, conversation)
+	if read(second) != "newer" {
+		t.Fatal("an older copy overwrote a newer one")
+	}
+}
+
+// TestSecondAccountTrustsWhatThePrimaryTrusts keeps a conversation moved to
+// another account from coming back up stuck on the folder-trust question —
+// and keeps a folder never trusted from being trusted behind the user's back.
+func TestSecondAccountTrustsWhatThePrimaryTrusts(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	native := `{"userID":"x","firstStartTime":12345678901234567890,"projects":{"/srv/app":{"hasTrustDialogAccepted":true}}}`
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(native), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	second := filepath.Join(home, ".claude-2")
+	if err := os.MkdirAll(second, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(second, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"b@x"},"big":98765432109876543210}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	carryTrust(second, "/srv/app/")
+	carryTrust(second, "/srv/other")
+	state, err := readState(filepath.Join(second, ".claude.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !trusted(state, "/srv/app") {
+		t.Fatal("a folder the primary trusts must be trusted on the second account")
+	}
+	if trusted(state, "/srv/other") {
+		t.Fatal("a folder the primary never trusted was trusted on the second account")
+	}
+	if state["oauthAccount"] == nil || fmt.Sprint(state["big"]) != "98765432109876543210" {
+		t.Fatalf("the rest of the file changed: %v", state)
 	}
 }

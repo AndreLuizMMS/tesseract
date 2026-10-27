@@ -72,7 +72,7 @@ func (s *Session) Spawn(cfg Config) error {
 			s.active = i
 		}
 	}
-	if err := s.openTab(s.tabs[s.active]); err != nil {
+	if err := s.openTab(s.tabs[s.active], ""); err != nil {
 		return err
 	}
 	if s.sleepAfter > 0 {
@@ -179,8 +179,9 @@ func (s *Session) AsleepTabs() []string {
 	return sleeping
 }
 
-// openTab brings up a tab's agent, if it isn't up already.
-func (s *Session) openTab(tab string) error {
+// openTab brings up a tab's agent, if it isn't up already, with prompt as
+// the first thing it hears.
+func (s *Session) openTab(tab, prompt string) error {
 	s.mu.Lock()
 	if _, alreadyOpen := s.open[tab]; alreadyOpen {
 		s.mu.Unlock()
@@ -206,6 +207,7 @@ func (s *Session) openTab(tab string) error {
 	}
 
 	config.Tab = tab
+	config.Prompt = prompt
 	config.Conversation = conversation
 	config.History = record
 	config.Columns, config.Lines = columns, lines
@@ -238,6 +240,29 @@ func (s *Session) openTab(tab string) error {
 	}
 	s.mu.Unlock()
 	return nil
+}
+
+// RespawnTab takes one tab's agent down and brings it back up on the same
+// conversation, with prompt as the first thing it hears.
+func (s *Session) RespawnTab(tab, prompt string) error {
+	s.mu.Lock()
+	item := s.open[tab]
+	s.mu.Unlock()
+	if item != nil {
+		s.sleepTab(tab, item)
+	}
+	return s.openTab(tab, prompt)
+}
+
+// Account is the account the tab's agent runs on, while it's up.
+func (s *Session) Account(tab string) string {
+	s.mu.Lock()
+	item := s.open[tab]
+	s.mu.Unlock()
+	if withAccount, ok := item.(WithAccount); ok {
+		return withAccount.Account(tab)
+	}
+	return ""
 }
 
 // current is the active tab's cell, or nil while it hasn't come up yet.
@@ -282,7 +307,7 @@ func (s *Session) SwitchTab(step int) error {
 	tab := s.tabs[s.active]
 	s.mu.Unlock()
 
-	if err := s.openTab(tab); err != nil {
+	if err := s.openTab(tab, ""); err != nil {
 		return err
 	}
 	// The tab that comes back into view rechecks whatever it needs — the

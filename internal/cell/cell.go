@@ -100,6 +100,11 @@ type Profile struct {
 	Args          []string
 	RenameCommand string
 	Markers       Markers
+	// Accounts are the config folders of every Claude account on this
+	// machine, primary first, and Account picks the one a cell born now runs
+	// on. Both empty: Claude Code's own folder, and nothing else.
+	Accounts []string
+	Account  func() string
 }
 
 // Keystroke is one key reaching the cell. It carries the key, not the raw
@@ -145,6 +150,19 @@ type WithIdle interface {
 // at, and says which ones are sleeping.
 type WithSleep interface {
 	AsleepTabs() []string
+}
+
+// WithAccount is a cell whose agent runs on one of several accounts of the
+// same CLI. The tab says which agent, on a cell that has more than one.
+type WithAccount interface {
+	Account(tab string) string
+}
+
+// WithRespawn is a cell with tabs that can bring one tab's agent back up on
+// its own, with prompt as the first thing it hears — without taking down
+// what runs in the other tabs.
+type WithRespawn interface {
+	RespawnTab(tab, prompt string) error
 }
 
 // WithHistory is a cell that keeps more than one history inside and knows
