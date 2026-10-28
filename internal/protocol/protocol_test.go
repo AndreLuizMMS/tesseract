@@ -41,6 +41,7 @@ func testCases() []testCase {
 		{"docker", TypeDocker, Docker{Project: "p1", Action: "up", Service: "api"}, func() any { return new(Docker) }},
 		{"status", TypeStatus, Summary{}, func() any { return new(Summary) }},
 		{"stop", TypeStop, Summary{}, func() any { return new(Summary) }},
+		{"accounts", TypeAccounts, Summary{}, func() any { return new(Summary) }},
 		{"summary", TypeSummary, Summary{Text: "engine running · 1 project"}, func() any { return new(Summary) }},
 		{"error", TypeError, Error{Message: "path does not exist"}, func() any { return new(Error) }},
 		{"report", TypeReport, Report{
@@ -113,7 +114,7 @@ func TestEveryTypeHasCase(t *testing.T) {
 	all := []string{
 		TypeKey, TypeSize, TypeScroll, TypeCreate, TypeKill, TypeRename,
 		TypeResume, TypeTab, TypePrompt, TypeComplete, TypeScreen, TypeSearch,
-		TypeDocker, TypeEditor, TypeGoToLine, TypeStatus, TypeStop, TypeState, TypeCompleted,
+		TypeDocker, TypeEditor, TypeGoToLine, TypeStatus, TypeStop, TypeAccounts, TypeState, TypeCompleted,
 		TypeMatches, TypeServices, TypeSummary, TypeError,
 		TypeReport, TypeLink, TypeDeliver,
 	}

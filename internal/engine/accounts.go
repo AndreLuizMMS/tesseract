@@ -28,23 +28,60 @@ const failoverPrompt = "The previous Claude account hit its usage limit and this
 // is out sends the next cell to it once more, and that cell's limit moves it
 // on — one failed turn, not a lost conversation.
 type accounts struct {
-	folders []string
 	mu      sync.Mutex
+	folders []string
 	out     map[string]time.Time
 }
 
 func newAccounts(folders []string) *accounts {
+	return &accounts{folders: ExpandAccounts(folders), out: map[string]time.Time{}}
+}
+
+// ExpandAccounts turns the folders the config lists into absolute paths:
+// "~/" is the home, blanks are dropped.
+func ExpandAccounts(folders []string) []string {
 	home, _ := os.UserHomeDir()
 	expanded := make([]string, 0, len(folders))
 	for _, folder := range folders {
+		folder = strings.TrimSpace(folder)
 		if rest, ok := strings.CutPrefix(folder, "~/"); ok && home != "" {
 			folder = filepath.Join(home, rest)
 		}
-		if folder = strings.TrimSpace(folder); folder != "" {
+		if folder != "" {
 			expanded = append(expanded, filepath.Clean(folder))
 		}
 	}
-	return &accounts{folders: expanded, out: map[string]time.Time{}}
+	return expanded
+}
+
+// list is the accounts, primary first.
+func (a *accounts) list() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.folders...)
+}
+
+// set swaps the accounts for the ones the config lists now. An account that
+// stays keeps its limit.
+func (a *accounts) set(folders []string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.folders = ExpandAccounts(folders)
+}
+
+// ReloadAccounts reads the Claude accounts in the config again. Cells born
+// from now on choose among them; the ones running stay where they are.
+func (e *Engine) ReloadAccounts() (string, error) {
+	config, err := LoadConfig(ConfigPath())
+	if err != nil {
+		return "", err
+	}
+	e.accounts.set(config.ClaudeAccounts)
+	folders := e.accounts.list()
+	if len(folders) < 2 {
+		return "one Claude account: no failover", nil
+	}
+	return fmt.Sprintf("%d Claude accounts, primary %s", len(folders), filepath.Base(folders[0])), nil
 }
 
 // current is the account a cell born now runs on (see pick).
@@ -84,7 +121,7 @@ func (a *accounts) exhaust(folder string, until time.Time) {
 // account that's still free. With every account out the conversation stays
 // where it is: Claude Code is already saying so on the cell's screen.
 func (e *Engine) reportLimit(c *liveCell, report protocol.Report) error {
-	if len(e.accounts.folders) < 2 {
+	if len(e.accounts.list()) < 2 {
 		return nil
 	}
 	withAccount, ok := c.proc.(cell.WithAccount)

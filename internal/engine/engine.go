@@ -272,8 +272,8 @@ func (e *Engine) profiles() map[string]cell.Profile {
 	}
 	claude := profiles["claude"]
 	claude.Args = append(append([]string{}, claude.Args...), e.claudeArgs(claude.Args)...)
-	if len(e.accounts.folders) > 0 {
-		claude.Accounts = e.accounts.folders
+	if folders := e.accounts.list(); len(folders) > 0 {
+		claude.Accounts = folders
 		claude.Account = e.accounts.current
 	}
 	profiles["claude"] = claude

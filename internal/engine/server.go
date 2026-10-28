@@ -362,6 +362,14 @@ func (s *Server) handleRequest(envelope protocol.Message, respond func(string, a
 	case protocol.TypeStatus:
 		respond(protocol.TypeSummary, protocol.Summary{Text: s.engine.Summary()})
 
+	case protocol.TypeAccounts:
+		text, err := s.engine.ReloadAccounts()
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(protocol.TypeSummary, protocol.Summary{Text: text})
+
 	case protocol.TypeStop:
 		respond(protocol.TypeSummary, protocol.Summary{Text: "engine shut down"})
 		s.once.Do(func() { close(s.stop) })
