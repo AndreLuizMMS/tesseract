@@ -260,3 +260,57 @@ func TestSecondAccountTrustsWhatThePrimaryTrusts(t *testing.T) {
 		t.Fatalf("the rest of the file changed: %v", state)
 	}
 }
+
+// TestNewAccountWorksLikeThePrimary is what `ts account add` leaves behind:
+// the primary's own files through links, onboarding and MCP servers in the
+// state, and nothing the account already had written over.
+func TestNewAccountWorksLikeThePrimary(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	primary := filepath.Join(home, ".claude")
+	for _, folder := range []string{"skills", "plugins"} {
+		if err := os.MkdirAll(filepath.Join(primary, folder), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(primary, "CLAUDE.md"), []byte("rules"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	native := `{"hasCompletedOnboarding":true,"mcpServers":{"github":{"command":"gh"}},"oauthAccount":{"emailAddress":"a@x"}}`
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(native), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	second := filepath.Join(home, ".claude-2")
+	if err := os.MkdirAll(filepath.Join(second, "skills"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	for range 2 {
+		if err := SetUpClaudeAccount(second); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if target, err := os.Readlink(filepath.Join(second, "CLAUDE.md")); err != nil || target != filepath.Join(primary, "CLAUDE.md") {
+		t.Fatalf("CLAUDE.md should be the primary's own file: %q %v", target, err)
+	}
+	if _, err := os.Readlink(filepath.Join(second, "plugins")); err != nil {
+		t.Fatal("plugins should be the primary's own folder")
+	}
+	if _, err := os.Readlink(filepath.Join(second, "skills")); err == nil {
+		t.Fatal("a folder the account already had was swapped for a link")
+	}
+	if _, err := os.Lstat(filepath.Join(second, "agents")); err == nil {
+		t.Fatal("linked something the primary doesn't have")
+	}
+	state, err := readState(filepath.Join(second, ".claude.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state["hasCompletedOnboarding"] != true || state["mcpServers"] == nil {
+		t.Fatalf("onboarding and MCP servers should come from the primary: %v", state)
+	}
+	if state["oauthAccount"] != nil {
+		t.Fatal("the primary's login leaked into the new account")
+	}
+}

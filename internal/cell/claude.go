@@ -80,7 +80,7 @@ func (c *Claude) Spawn(cfg Config) error {
 	}
 	// The account is chosen at birth and holds for the process's life: a
 	// conversation only changes accounts by coming back up on the other one.
-	account := nativeAccount()
+	account := NativeAccount()
 	if profile.Account != nil {
 		if chosen := profile.Account(); chosen != "" {
 			account = chosen
@@ -91,7 +91,7 @@ func (c *Claude) Spawn(cfg Config) error {
 		return claudeConversationName(account, directory, conversation)
 	}
 	var environment []string
-	if account != nativeAccount() {
+	if account != NativeAccount() {
 		environment = []string{"CLAUDE_CONFIG_DIR=" + account}
 	}
 
@@ -124,9 +124,9 @@ func (c *Claude) Spawn(cfg Config) error {
 	return c.spawn(cfg, profile, program, args, claudeMarkers, environment...)
 }
 
-// nativeAccount is the folder Claude Code keeps everything in when nobody
+// NativeAccount is the folder Claude Code keeps everything in when nobody
 // points it elsewhere: the login, the transcripts, the background sessions.
-func nativeAccount() string {
+func NativeAccount() string {
 	if folder := os.Getenv("CLAUDE_CONFIG_DIR"); folder != "" {
 		return folder
 	}
@@ -140,7 +140,7 @@ func nativeAccount() string {
 // accountState is the file where an account keeps its answers per folder:
 // next to Claude Code's own folder (~/.claude.json), inside any other.
 func accountState(account string) string {
-	if account == nativeAccount() && os.Getenv("CLAUDE_CONFIG_DIR") == "" {
+	if account == NativeAccount() && os.Getenv("CLAUDE_CONFIG_DIR") == "" {
 		return filepath.Join(filepath.Dir(account), ".claude.json")
 	}
 	return filepath.Join(account, ".claude.json")
@@ -156,11 +156,11 @@ func accountState(account string) string {
 // rewriting the file in the same instant can lose this answer, and the
 // question shows up once more. Claude Code's own lock is the upgrade.
 func carryTrust(account, directory string) {
-	if account == nativeAccount() {
+	if account == NativeAccount() {
 		return
 	}
 	directory = strings.TrimSuffix(directory, "/")
-	native, _ := readState(accountState(nativeAccount()))
+	native, _ := readState(accountState(NativeAccount()))
 	if !trusted(native, directory) {
 		return
 	}
@@ -181,16 +181,89 @@ func carryTrust(account, directory string) {
 	projects[directory] = project
 	state["projects"] = projects
 
+	_ = writeState(path, state)
+}
+
+// writeState writes an account's state file aside and renames it over the
+// old one, so a Claude reading it never finds half a file.
+func writeState(path string, state map[string]any) error {
 	content, err := json.MarshalIndent(state, "", "  ")
-	if err != nil || os.MkdirAll(account, 0o700) != nil {
-		return
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
 	}
 	partial := path + ".partial"
-	if os.WriteFile(partial, content, 0o600) != nil {
+	if err := os.WriteFile(partial, content, 0o600); err != nil {
 		_ = os.Remove(partial)
-		return
+		return err
 	}
-	_ = os.Rename(partial, path)
+	return os.Rename(partial, path)
+}
+
+// sharedWithPrimary is what another account reads straight from Claude
+// Code's own folder, through a link: the instructions, the settings, the
+// skills, agents, commands, plugins and hooks. A copy would age the first
+// time the primary changed; the link is the primary's own file. What stays
+// apart is what belongs to the account — the login, the transcripts, the
+// state file.
+var sharedWithPrimary = []string{"CLAUDE.md", "settings.json", "skills", "agents", "commands", "plugins", "hooks", "output-styles"}
+
+// stateFromPrimary are the keys of the primary's state file another account
+// takes when it doesn't have its own: onboarding already done (a cell would
+// otherwise come up on the theme picker, with nobody looking), how Claude
+// Code was installed, and the user's MCP servers.
+//
+// ponytail: copied once, so an MCP server added to the primary later isn't
+// seen by the other accounts until `ts account add` runs again for them.
+var stateFromPrimary = []string{"hasCompletedOnboarding", "lastOnboardingVersion", "installMethod", "mcpServers"}
+
+// SetUpClaudeAccount makes folder an account that works like Claude Code's
+// own from its first session. Whatever the folder already has stays as it
+// is, so running it again only fills in what's missing.
+func SetUpClaudeAccount(folder string) error {
+	primary := NativeAccount()
+	if folder == primary {
+		return nil
+	}
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		return err
+	}
+	for _, name := range sharedWithPrimary {
+		source := filepath.Join(primary, name)
+		link := filepath.Join(folder, name)
+		if _, err := os.Stat(source); err != nil {
+			continue
+		}
+		if _, err := os.Lstat(link); err == nil {
+			continue
+		}
+		if err := os.Symlink(source, link); err != nil {
+			return err
+		}
+	}
+
+	native, err := readState(accountState(primary))
+	if err != nil {
+		return err
+	}
+	path := accountState(folder)
+	state, err := readState(path)
+	if err != nil {
+		return err
+	}
+	changed := false
+	for _, key := range stateFromPrimary {
+		value, inPrimary := native[key]
+		if _, inAccount := state[key]; inPrimary && !inAccount {
+			state[key], changed = value, true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return writeState(path, state)
 }
 
 // readState reads an account's state file. A missing file is an empty one;
