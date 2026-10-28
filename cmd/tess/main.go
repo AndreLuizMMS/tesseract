@@ -35,6 +35,9 @@ const usage = `⧉ ts — terminal agent mosaic
   ts stop            shuts down the engine and every cell
   ts reset           clears the saved state and tears everything down, keeping the configuration
   ts engine          runs the engine in the foreground (what systemd calls)
+  ts account         lists the Claude accounts, primary first, and who is logged into each
+  ts account add     sets up another Claude account and logs it in: a conversation moves
+                     to it when the primary runs out
 
   what the mods inside a Claude Code cell call, not you:
   ts report <json>   tells the engine the cell's turn state, session or usage
@@ -61,6 +64,8 @@ func main() {
 		err = stopEngine()
 	case "reset":
 		err = clearState()
+	case "account":
+		err = account(os.Args[2:])
 	case "report":
 		err = sendReport(os.Args[2:])
 	case "link":

@@ -300,11 +300,21 @@ only the claude tab restarts; the shell and the other tabs don't notice. With ev
 out the cell stays where it is, and the notice says so. A cell already running on the second
 account stays there until it restarts; the next cell born goes back to the primary.
 
-Log each extra account in once, outside Tesseract: `CLAUDE_CONFIG_DIR=~/.claude-2 claude`,
-then `/login`. A folder you trusted on Claude Code's own account is trusted on the others when a cell lands
-there, so a conversation that moved doesn't come back up stuck on that question; a folder
-you never trusted still asks. Each folder has its own MCP servers, plugins and skills. Empty or with a single
-folder, every cell runs on Claude Code's own folder and nothing changes.
+`ts account add` sets up the next account and is the only step: it creates `~/.claude-2`,
+runs Claude Code's login for it (sign in with the **other** account — a private window
+keeps the primary's browser login out of the way), refuses and logs out if you signed in
+with the primary again, adds the folder to `claudeAccounts`, and tells a running engine,
+with no restart. The new account reads the primary's `CLAUDE.md`, `settings.json`,
+skills, agents, commands, plugins and hooks through links, so what you change on the
+primary holds on every account; its MCP servers and onboarding are copied once into the
+account's own state. Only the login and the transcripts are its own. `ts account` lists
+the accounts, primary first, and who is logged into each; `ts account add work` names the
+folder `~/.claude-work` instead.
+
+A folder you trusted on Claude Code's own account is trusted on the others when a cell
+lands there, so a conversation that moved doesn't come back up stuck on that question; a
+folder you never trusted still asks. Empty or with a single folder, every cell runs on
+Claude Code's own folder and nothing changes.
 
 With the mods on, a prompt sent from the mosaic without entering the cell is delivered
 as your own message and queued behind whatever is running, instead of being typed into
