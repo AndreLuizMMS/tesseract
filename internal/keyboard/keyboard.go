@@ -84,6 +84,9 @@ const (
 	Help       Action = "help"
 	Close      Action = "close"
 
+	// Accounts: the list of Claude accounts for the focused cell.
+	SwitchAccount Action = "switch-account"
+
 	// Form.
 	Confirm       Action = "confirm"
 	Cancel        Action = "cancel"
@@ -155,6 +158,7 @@ var shortcuts = map[Mode][]Shortcut{
 		{Key: "d", Action: OpenDocker, Help: "opens the focused project's Docker panel"},
 		{Key: "ctrl+e", Action: OpenEditor, Help: "picks an IDE and opens the project's directory there, or the file the agent last edited"},
 		{Key: "m", Action: OpenDoc, Help: "reads the markdown the focused cell's agent just wrote, in the cell's md tab"},
+		{Key: "a", Action: SwitchAccount, Help: "picks the Claude account the focused cell's conversation runs on, and moves it there"},
 
 		{Key: "/", Action: SearchTerm, Help: "searches the focused cell's history"},
 		{Key: "pgup", Action: ScrollPageUp, Help: "scrolls the focused cell's history a page at a time", Group: "pgup/pgdn history"},

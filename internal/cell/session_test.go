@@ -144,6 +144,50 @@ func TestSessionKeepsEachTabsConversation(t *testing.T) {
 	}
 }
 
+// TestRespawnOnAnAccountHoldsForOneBirth — the claude tab comes back up on
+// the account it was sent to, and the next time it comes up it picks again,
+// the way every birth does.
+func TestRespawnOnAnAccountHoldsForOneBirth(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	dir := t.TempDir()
+	fake := fakeAgent(t, dir)
+	primary, second := filepath.Join(home, ".claude"), filepath.Join(home, ".claude-norven")
+
+	session := &Session{}
+	err := session.Spawn(Config{
+		ID: "c1", Directory: dir, Name: "work", Columns: 60, Lines: 12,
+		Profiles: map[string]Profile{"claude": {
+			Program: fake, Accounts: []string{primary, second},
+			Account: func() string { return primary },
+		}},
+	})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	t.Cleanup(func() { session.Kill() })
+
+	if got := session.Account("claude"); got != primary {
+		t.Fatalf("born on %q, want the account the profile picks", got)
+	}
+	if err := session.RespawnTab("claude", "", second); err != nil {
+		t.Fatalf("respawn: %v", err)
+	}
+	if got := session.Account("claude"); got != second {
+		t.Fatalf("respawned on %q, want the account it was sent to", got)
+	}
+	if session.Tab("claude") == nil || session.Tab("cursor") != nil {
+		t.Fatal("Tab hands over the tabs that are up, and only those")
+	}
+	if err := session.RespawnTab("claude", "", ""); err != nil {
+		t.Fatalf("respawn: %v", err)
+	}
+	if got := session.Account("claude"); got != primary {
+		t.Fatalf("the next birth picks again, got %q", got)
+	}
+}
+
 // TestSessionKillsAllTabs — killing the session takes every tab with it.
 func TestSessionKillsAllTabs(t *testing.T) {
 	session, _ := testSession(t)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 // SavedCell is the saved intent of a cell: what it is, not the process it was
@@ -41,6 +42,10 @@ type DesiredState struct {
 	// outlive the project leaving the screen — that's the moment they're
 	// worth the most.
 	Recents []string `json:"recents,omitempty"`
+	// Limits are the Claude accounts at their usage limit, by folder, and
+	// when each one comes back: a restarted engine doesn't send a cell to an
+	// account it already knows is out.
+	Limits map[string]time.Time `json:"limits,omitempty"`
 }
 
 // Save writes the desired state atomically: writes alongside and renames on
@@ -101,6 +106,7 @@ func Load(path string) (DesiredState, error) {
 		Projects []json.RawMessage `json:"projects"`
 		Screen   string            `json:"screen"`
 		Recents  []string          `json:"recents"`
+		Limits   json.RawMessage   `json:"limits"`
 	}
 	if err := json.Unmarshal(content, &raw); err != nil {
 		preserved, preserveErr := preserve(path)
@@ -111,6 +117,11 @@ func Load(path string) (DesiredState, error) {
 	}
 
 	state := DesiredState{Screen: raw.Screen, Recents: raw.Recents}
+	// A limit that doesn't read costs one turn on that account, never the
+	// grid.
+	if len(raw.Limits) > 0 && json.Unmarshal(raw.Limits, &state.Limits) != nil {
+		state.Limits = nil
+	}
 	lost := 0
 	for _, rawProject := range raw.Projects {
 		var project SavedProject

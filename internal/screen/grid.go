@@ -621,6 +621,19 @@ func cellBox(item protocol.Cell, hue theme.Hue, mode keyboard.Mode, focused bool
 		warning = text
 		filler -= lipgloss.Width(text)
 	}
+	// The account the conversation runs on, once there's more than one to
+	// tell apart, in amber while that account is at its limit. It opens the
+	// right end of the line, gives way to the window's warning and outlives
+	// the answer.
+	account := ""
+	if text := " " + item.Account + " "; item.Account != "" && filler >= lipgloss.Width(text)+2 {
+		paintAccount := paintNote
+		if item.AccountOut {
+			paintAccount = paintWarn
+		}
+		account = paintAccount.Render(text) + paintTop.Render(dash[4])
+		filler -= lipgloss.Width(text) + 1
+	}
 	if note != "" {
 		// One dash of the line always stays between the name and the answer.
 		if room := filler - 2; room >= 12 {
@@ -635,6 +648,7 @@ func cellBox(item protocol.Cell, hue theme.Hue, mode keyboard.Mode, focused bool
 		paintTop.Render(dash[0]) +
 			label +
 			paintTop.Render(strings.Repeat(dash[4], filler)) +
+			account +
 			paintNote.Render(note) +
 			paintWarn.Render(warning) +
 			paintState.Render(glyph) +

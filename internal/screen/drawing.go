@@ -209,24 +209,45 @@ func statusFigures(state protocol.State, mode keyboard.Mode, hidden int) []strin
 		figures = append(figures, strings.Join(tally, "  "))
 	}
 
-	if quota := state.Quota; quota != nil {
-		// A figure and nothing else while there's room to spare; once the
-		// window is about to run out it turns amber and says when it rolls
-		// over. One window at a time: the 7-day one takes the place of the
-		// 5-hour one only when it's the one about to run out.
-		paint, figure := mutedColor, "quota "+strconv.Itoa(quota.Percent)+"%"
+	// With more than one account each has its own number, side by side in
+	// the config's order: a number is the account's, never another's.
+	if len(state.Accounts) > 0 {
+		usage := make([]string, len(state.Accounts))
+		for i, account := range state.Accounts {
+			usage[i] = usageFigure(account.Name, account.Quota, mode)
+		}
+		figures = append(figures, strings.Join(usage, faintColor.Render(" │ ")))
+	} else if quota := state.Quota; quota != nil {
+		figures = append(figures, usageFigure("", quota, mode))
+	}
+	return figures
+}
+
+// usageFigure is one account's usage, after its name — the single account's
+// badge has no name, it says "quota". A figure and nothing else while there's
+// room to spare; once the window is about to run out it turns amber and says
+// when it rolls over. One window at a time: the 7-day one takes the place of
+// the 5-hour one only when it's the one about to run out. An account nobody
+// measured is its name alone.
+func usageFigure(name string, quota *protocol.Quota, mode keyboard.Mode) string {
+	paint, figure := mutedColor, name
+	if quota != nil {
+		label := name
+		if label == "" {
+			label = "quota"
+		}
+		figure = label + " " + strconv.Itoa(quota.Percent) + "%"
 		if quota.Percent >= 80 {
 			paint, figure = warnColor, figure+" · "+quota.Rollover
 		}
 		if quota.Weekly >= 80 && quota.Weekly > quota.Percent {
-			paint, figure = warnColor, "7d "+strconv.Itoa(quota.Weekly)+"%"
+			paint, figure = warnColor, strings.TrimSpace(name+" 7d "+strconv.Itoa(quota.Weekly)+"%")
 		}
-		if mode == keyboard.Type {
-			paint = faintColor
-		}
-		figures = append(figures, paint.Render(figure))
 	}
-	return figures
+	if mode == keyboard.Type {
+		paint = faintColor
+	}
+	return paint.Render(figure)
 }
 
 // footer is the status line of a screen with nothing to offer: an error

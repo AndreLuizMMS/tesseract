@@ -25,62 +25,75 @@ var quotaFiles = []string{"tesseract-quota.json", "squad-quota.json"}
 // minute to minute: hitting disk every frame would be wasted work.
 const quotaCacheTTL = 2 * time.Second
 
+// cachedQuota is the statusline file's number, per account folder.
 var cachedQuota struct {
 	sync.Mutex
+	by map[string]fileQuota
+}
+
+type fileQuota struct {
 	value *protocol.Quota
 	read  time.Time
 }
 
-// reportedQuota is the usage a cell's mod measured from inside Claude Code.
-// It's the first source: the statusline file only speaks when no mod has.
+// reportedQuota is the usage the cells' mods measured from inside Claude
+// Code, per account folder: each report counts for the account of the cell
+// that sent it, never for another. It's the first source: the statusline
+// file only speaks when no mod has.
 var reportedQuota struct {
 	sync.Mutex
+	by map[string]quotaReport
+}
+
+type quotaReport struct {
 	percent  int
 	weekly   int
 	rollover time.Time
 	at       time.Time
 }
 
-// reportedQuotaAt is the mod's number, while it's fresh. The time left is
-// worked out on every reading, because the clock runs between two reports.
-func reportedQuotaAt(now time.Time) *protocol.Quota {
+// reportedQuotaAt is the mod's number for the account, while it's fresh.
+// The time left is worked out on every reading, because the clock runs
+// between two reports.
+func reportedQuotaAt(account string, now time.Time) *protocol.Quota {
 	reportedQuota.Lock()
 	defer reportedQuota.Unlock()
-	if reportedQuota.at.IsZero() || now.Sub(reportedQuota.at) > quotaStaleAfter {
+	report := reportedQuota.by[account]
+	if report.at.IsZero() || now.Sub(report.at) > quotaStaleAfter {
 		return nil
 	}
-	quota := &protocol.Quota{Percent: reportedQuota.percent, Weekly: reportedQuota.weekly}
-	if !reportedQuota.rollover.IsZero() {
-		quota.Rollover = timeRemaining(reportedQuota.rollover.Sub(now))
+	quota := &protocol.Quota{Percent: report.percent, Weekly: report.weekly}
+	if !report.rollover.IsZero() {
+		quota.Rollover = timeRemaining(report.rollover.Sub(now))
 	}
 	return quota
 }
 
-// ReadQuota returns the 5-hour window's usage, or nil when the data doesn't
-// exist or is stale. A mod's report comes first and the statusline file is
-// what's left without one; with neither, everything still works — the badge
-// just doesn't show up.
-func ReadQuota() *protocol.Quota {
+// ReadQuota returns the account's 5-hour window usage, or nil when the data
+// doesn't exist or is stale. A mod's report comes first and the statusline
+// file in the account's own folder is what's left without one; with
+// neither, everything still works — the badge just doesn't show up.
+func ReadQuota(account string) *protocol.Quota {
 	now := time.Now()
-	if quota := reportedQuotaAt(now); quota != nil {
+	if quota := reportedQuotaAt(account, now); quota != nil {
 		return quota
 	}
 	cachedQuota.Lock()
 	defer cachedQuota.Unlock()
-	if now.Sub(cachedQuota.read) < quotaCacheTTL {
-		return cachedQuota.value
+	if cached := cachedQuota.by[account]; now.Sub(cached.read) < quotaCacheTTL {
+		return cached.value
 	}
-	cachedQuota.value, cachedQuota.read = readQuotaFromDisk(), now
-	return cachedQuota.value
+	if cachedQuota.by == nil {
+		cachedQuota.by = map[string]fileQuota{}
+	}
+	value := readQuotaFromDisk(account)
+	cachedQuota.by[account] = fileQuota{value: value, read: now}
+	return value
 }
 
-func readQuotaFromDisk() *protocol.Quota {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
+func readQuotaFromDisk(account string) *protocol.Quota {
 	for _, name := range quotaFiles {
-		if quota := readQuotaFile(filepath.Join(home, ".claude", name)); quota != nil {
+		if quota := readQuotaFile(filepath.Join(account, name)); quota != nil {
 			return quota
 		}
 	}

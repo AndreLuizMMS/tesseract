@@ -72,7 +72,7 @@ func (s *Session) Spawn(cfg Config) error {
 			s.active = i
 		}
 	}
-	if err := s.openTab(s.tabs[s.active], ""); err != nil {
+	if err := s.openTab(s.tabs[s.active], "", ""); err != nil {
 		return err
 	}
 	if s.sleepAfter > 0 {
@@ -180,8 +180,8 @@ func (s *Session) AsleepTabs() []string {
 }
 
 // openTab brings up a tab's agent, if it isn't up already, with prompt as
-// the first thing it hears.
-func (s *Session) openTab(tab, prompt string) error {
+// the first thing it hears and on account when one is given.
+func (s *Session) openTab(tab, prompt, account string) error {
 	s.mu.Lock()
 	if _, alreadyOpen := s.open[tab]; alreadyOpen {
 		s.mu.Unlock()
@@ -208,6 +208,7 @@ func (s *Session) openTab(tab, prompt string) error {
 
 	config.Tab = tab
 	config.Prompt = prompt
+	config.Account = account
 	config.Conversation = conversation
 	config.History = record
 	config.Columns, config.Lines = columns, lines
@@ -243,15 +244,23 @@ func (s *Session) openTab(tab, prompt string) error {
 }
 
 // RespawnTab takes one tab's agent down and brings it back up on the same
-// conversation, with prompt as the first thing it hears.
-func (s *Session) RespawnTab(tab, prompt string) error {
+// conversation, with prompt as the first thing it hears and on account when
+// one is given. The account holds until the tab next comes up.
+func (s *Session) RespawnTab(tab, prompt, account string) error {
 	s.mu.Lock()
 	item := s.open[tab]
 	s.mu.Unlock()
 	if item != nil {
 		s.sleepTab(tab, item)
 	}
-	return s.openTab(tab, prompt)
+	return s.openTab(tab, prompt, account)
+}
+
+// Tab is the cell of one tab, while it's up.
+func (s *Session) Tab(name string) Cell {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.open[name]
 }
 
 // Account is the account the tab's agent runs on, while it's up.
@@ -307,7 +316,7 @@ func (s *Session) SwitchTab(step int) error {
 	tab := s.tabs[s.active]
 	s.mu.Unlock()
 
-	if err := s.openTab(tab, ""); err != nil {
+	if err := s.openTab(tab, "", ""); err != nil {
 		return err
 	}
 	// The tab that comes back into view rechecks whatever it needs — the

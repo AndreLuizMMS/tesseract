@@ -96,6 +96,9 @@ type liveCell struct {
 	// tab's conversation window is (see said.go).
 	said    said
 	context map[string]int
+	// moving says the cell's Claude is on its way to another account: until
+	// it's up there, nothing else moves it (see moveTo).
+	moving bool
 }
 
 // New prepares an engine over a state directory.
@@ -132,6 +135,8 @@ func (e *Engine) Start() error {
 		e.screen = state.Screen
 	}
 	e.recents = state.Recents
+	// Before any cell wakes: each one picks the first account that's free.
+	e.accounts.restore(state.Limits)
 	for _, savedProject := range state.Projects {
 		p := &project{id: savedProject.ID, path: savedProject.Path, color: savedProject.Color, compose: docker.Detect(savedProject.Path)}
 		if p.id == "" {
@@ -156,7 +161,7 @@ func (e *Engine) Start() error {
 			if c.id == "" {
 				c.id = newIdentity()
 			}
-			if err := e.wake(p, c, ""); err != nil {
+			if err := e.wake(p, c, "", ""); err != nil {
 				e.notice = err.Error()
 			}
 			p.cells = append(p.cells, c)
@@ -204,8 +209,9 @@ func (e *Engine) sweepHistories() {
 }
 
 // wake starts a reconstructed cell's process, with prompt as the first thing
-// its agent hears. Called with the lock held.
-func (e *Engine) wake(p *project, c *liveCell, prompt string) error {
+// its agent hears and on account when one is given — otherwise its Claude
+// picks the first free one. Called with the lock held.
+func (e *Engine) wake(p *project, c *liveCell, prompt, account string) error {
 	proc, err := cell.New(c.kind)
 	if err != nil {
 		return err
@@ -237,6 +243,7 @@ func (e *Engine) wake(p *project, c *liveCell, prompt string) error {
 		SleepAfter: time.Duration(e.config.SleepAfterMinutes) * time.Minute,
 
 		Tab:           c.tab,
+		Account:       account,
 		Conversation:  conversations[c.kind],
 		Conversations: conversations,
 		// Off the lock: whoever calls this may be the cell's own birth, which
@@ -343,7 +350,7 @@ func (e *Engine) Create(request protocol.Create) (string, error) {
 		c.name = autoName(p, request.Type)
 	}
 
-	if err := e.wake(p, c, ""); err != nil {
+	if err := e.wake(p, c, "", ""); err != nil {
 		if c.record != nil {
 			c.record.Close()
 		}
@@ -559,9 +566,27 @@ func (e *Engine) Snapshot() protocol.State {
 	}
 	e.mu.Unlock()
 
-	snapshot.Quota = ReadQuota()
+	// One account keeps the single badge. With more, each one has its own
+	// number, and each Claude cell says which one it runs on.
+	folders := e.accounts.list()
+	switch len(folders) {
+	case 0:
+		snapshot.Quota = ReadQuota(cell.NativeAccount())
+	case 1:
+		snapshot.Quota = ReadQuota(folders[0])
+	default:
+		snapshot.Accounts = e.accounts.usage()
+	}
 	for _, next := range pending {
 		cellSnapshot := &snapshot.Projects[next.project].Cells[next.cell]
+		if len(folders) > 1 {
+			if agent, _ := claudeOf(next.proc); agent != nil {
+				if folder := accountOf(agent); folder != "" {
+					cellSnapshot.Account = accountName(folder)
+					_, cellSnapshot.AccountOut = e.accounts.outUntil(folder)
+				}
+			}
+		}
 		if withTabs, ok := next.proc.(cell.WithTabs); ok {
 			cellSnapshot.Tabs = withTabs.Tabs()
 			cellSnapshot.Tab = withTabs.ActiveTab()
@@ -724,7 +749,7 @@ func (e *Engine) save() {
 	if e.down {
 		return
 	}
-	state := DesiredState{Screen: e.screen, Recents: e.recents}
+	state := DesiredState{Screen: e.screen, Recents: e.recents, Limits: e.accounts.limits()}
 	for _, p := range e.projects {
 		saved := SavedProject{ID: p.id, Path: p.path, Color: p.color}
 		for _, c := range p.cells {

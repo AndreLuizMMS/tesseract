@@ -85,6 +85,11 @@ type Config struct {
 	// Tab is which tab is born active in a cell that has more than one.
 	Tab string
 
+	// Account, when set, is the Claude account this one birth runs on, in
+	// place of the one the profile picks. It holds for this process only:
+	// the next birth picks again.
+	Account string
+
 	// Profiles is how each agent type comes up on this machine. The cell
 	// looks up the profile of its own type; the one with tabs looks up each
 	// tab's.
@@ -159,10 +164,16 @@ type WithAccount interface {
 }
 
 // WithRespawn is a cell with tabs that can bring one tab's agent back up on
-// its own, with prompt as the first thing it hears — without taking down
-// what runs in the other tabs.
+// its own, with prompt as the first thing it hears and on account when one is
+// given — without taking down what runs in the other tabs.
 type WithRespawn interface {
-	RespawnTab(tab, prompt string) error
+	RespawnTab(tab, prompt, account string) error
+}
+
+// WithTab is a cell with tabs that hands over one tab's own cell, while that
+// tab is up: nil for a tab asleep or never opened.
+type WithTab interface {
+	Tab(name string) Cell
 }
 
 // WithHistory is a cell that keeps more than one history inside and knows

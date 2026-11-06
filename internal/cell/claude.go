@@ -81,7 +81,10 @@ func (c *Claude) Spawn(cfg Config) error {
 	// The account is chosen at birth and holds for the process's life: a
 	// conversation only changes accounts by coming back up on the other one.
 	account := NativeAccount()
-	if profile.Account != nil {
+	switch {
+	case cfg.Account != "":
+		account = cfg.Account
+	case profile.Account != nil:
 		if chosen := profile.Account(); chosen != "" {
 			account = chosen
 		}

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/andreluiz/tesseract/internal/protocol"
 )
 
 // forgetQuota discards the number cached between frames. Without this a test
@@ -14,8 +16,14 @@ import (
 func forgetQuota(t *testing.T) {
 	t.Helper()
 	cachedQuota.Lock()
-	cachedQuota.value, cachedQuota.read = nil, time.Time{}
+	cachedQuota.by = nil
 	cachedQuota.Unlock()
+}
+
+// homeQuota is the usage of the account in the test's home, where
+// prepareQuota leaves the statusline file.
+func homeQuota() *protocol.Quota {
+	return ReadQuota(filepath.Join(os.Getenv("HOME"), ".claude"))
 }
 
 // prepareQuota writes the file the user's statusline leaves, in a fake home
@@ -46,7 +54,7 @@ func prepareQuota(t *testing.T, name string, percentage int, resetsAt time.Time,
 func TestQuotaReadsTheStatuslineFile(t *testing.T) {
 	prepareQuota(t, "tesseract-quota.json", 59, time.Now().Add(2*time.Hour+47*time.Minute), 0)
 
-	quota := ReadQuota()
+	quota := homeQuota()
 	if quota == nil {
 		t.Fatal("the badge should show up")
 	}
@@ -63,7 +71,7 @@ func TestQuotaReadsTheStatuslineFile(t *testing.T) {
 // worthless.
 func TestQuotaDisappearsWhenTheFileIsStale(t *testing.T) {
 	prepareQuota(t, "tesseract-quota.json", 42, time.Now().Add(time.Hour), quotaStaleAfter+time.Minute)
-	if quota := ReadQuota(); quota != nil {
+	if quota := homeQuota(); quota != nil {
 		t.Fatalf("stale badge should disappear, came out %#v", quota)
 	}
 }
@@ -71,7 +79,7 @@ func TestQuotaDisappearsWhenTheFileIsStale(t *testing.T) {
 // TestQuotaWithoutFileDoesNotBreak.
 func TestQuotaWithoutFileDoesNotBreak(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if quota := ReadQuota(); quota != nil {
+	if quota := homeQuota(); quota != nil {
 		t.Fatalf("without a file there's no badge, came out %#v", quota)
 	}
 }
@@ -80,7 +88,7 @@ func TestQuotaWithoutFileDoesNotBreak(t *testing.T) {
 // keeps seeing the badge.
 func TestQuotaAcceptsTheOldFile(t *testing.T) {
 	prepareQuota(t, "squad-quota.json", 20, time.Now().Add(30*time.Minute), 0)
-	quota := ReadQuota()
+	quota := homeQuota()
 	if quota == nil || quota.Percent != 20 {
 		t.Fatalf("the old file should have worked, came out %#v", quota)
 	}
@@ -90,7 +98,7 @@ func TestQuotaAcceptsTheOldFile(t *testing.T) {
 // color.
 func TestQuotaAbove80ChangesRange(t *testing.T) {
 	prepareQuota(t, "tesseract-quota.json", 87, time.Now().Add(time.Hour), 0)
-	quota := ReadQuota()
+	quota := homeQuota()
 	if quota == nil {
 		t.Fatal("the badge should show up")
 	}
@@ -103,7 +111,7 @@ func TestQuotaAbove80ChangesRange(t *testing.T) {
 // weird badge.
 func TestQuotaNeverExceedsHundred(t *testing.T) {
 	prepareQuota(t, "tesseract-quota.json", 250, time.Now().Add(time.Hour), 0)
-	if quota := ReadQuota(); quota == nil || quota.Percent != 100 {
+	if quota := homeQuota(); quota == nil || quota.Percent != 100 {
 		t.Fatalf("percentage should cap at 100, came out %#v", quota)
 	}
 }
@@ -119,7 +127,7 @@ func TestQuotaWithUnreadableFileDoesNotBreak(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, ".claude", "tesseract-quota.json"), []byte("this is not json"), 0o644); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
-	if quota := ReadQuota(); quota != nil {
+	if quota := homeQuota(); quota != nil {
 		t.Fatalf("unreadable file doesn't become a badge: %#v", quota)
 	}
 }

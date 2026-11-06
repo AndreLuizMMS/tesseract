@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/andreluiz/tesseract/internal/cell"
 	"github.com/andreluiz/tesseract/internal/protocol"
 )
 
@@ -57,6 +58,6 @@ func BenchmarkSnapshotPlusJSON(b *testing.B) {
 func BenchmarkReadQuota(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		_ = ReadQuota()
+		_ = ReadQuota(cell.NativeAccount())
 	}
 }

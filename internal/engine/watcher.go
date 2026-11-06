@@ -30,6 +30,10 @@ const (
 	// anyone — the quota counter. Otherwise, a still grid produces no frame
 	// at all.
 	ticksBetweenRefresh = 10
+	// ticksBetweenRebalance spaces out the sweep that moves the cells at
+	// rest off an account at its limit (see rebalance): once a minute, the
+	// same minute a cell has to sit still before it moves.
+	ticksBetweenRebalance = 120
 )
 
 // Watch tracks the cells and notifies when one starts asking for attention.
@@ -62,6 +66,10 @@ func (e *Engine) watchTick(tick int) {
 	}
 	if tick%ticksBetweenDockerChecks == 1 {
 		changed = e.checkDocker() || changed
+	}
+	// Off the tick: a move brings a process up, and the watch can't wait.
+	if tick%ticksBetweenRebalance == 1 {
+		go e.rebalance()
 	}
 	// A still grid sends no snapshot: whoever draws on the other side has
 	// nothing to redraw, and the engine doesn't pay for JSON for nothing.

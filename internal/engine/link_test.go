@@ -19,7 +19,7 @@ func forgetReportedQuota(t *testing.T) {
 	t.Helper()
 	clear := func() {
 		reportedQuota.Lock()
-		reportedQuota.at = time.Time{}
+		reportedQuota.by = nil
 		reportedQuota.Unlock()
 	}
 	clear()
@@ -139,7 +139,10 @@ func TestReportRefusesWhatItCannotTrust(t *testing.T) {
 			t.Errorf("%s: the report should have been refused", name)
 		}
 	}
-	if ReadQuota() != nil && reportedQuotaAt(time.Now()) != nil {
+	reportedQuota.Lock()
+	kept := len(reportedQuota.by)
+	reportedQuota.Unlock()
+	if kept != 0 {
 		t.Fatal("a refused quota report was kept")
 	}
 
@@ -159,11 +162,13 @@ func TestReportRefusesWhatItCannotTrust(t *testing.T) {
 // TestReportedQuotaBeatsTheFile — the mod's number comes first, and the
 // statusline file is what's left when no mod has spoken.
 func TestReportedQuotaBeatsTheFile(t *testing.T) {
-	e, id, _, _ := linkedCell(t)
+	// The cell runs on the home's own account, the one the file is in.
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	prepareQuota(t, "tesseract-quota.json", 12, time.Now().Add(time.Hour), 0)
 	forgetReportedQuota(t)
+	e, id, _, _ := linkedCell(t)
 
-	if quota := ReadQuota(); quota == nil || quota.Percent != 12 {
+	if quota := homeQuota(); quota == nil || quota.Percent != 12 {
 		t.Fatalf("with no report the file should be read, got %+v", quota)
 	}
 
@@ -172,16 +177,19 @@ func TestReportedQuotaBeatsTheFile(t *testing.T) {
 	if err := e.Report(report); err != nil {
 		t.Fatalf("report quota: %v", err)
 	}
-	quota := ReadQuota()
+	quota := homeQuota()
 	if quota == nil || quota.Percent != 59 || quota.Rollover != "2:47" {
 		t.Fatalf("the mod's number should win, got %+v", quota)
 	}
 
 	reportedQuota.Lock()
-	reportedQuota.at = time.Now().Add(-quotaStaleAfter - time.Minute)
+	for account, report := range reportedQuota.by {
+		report.at = time.Now().Add(-quotaStaleAfter - time.Minute)
+		reportedQuota.by[account] = report
+	}
 	reportedQuota.Unlock()
 	forgetQuota(t)
-	if quota := ReadQuota(); quota == nil || quota.Percent != 12 {
+	if quota := homeQuota(); quota == nil || quota.Percent != 12 {
 		t.Fatalf("a stale report should give way to the file, got %+v", quota)
 	}
 }

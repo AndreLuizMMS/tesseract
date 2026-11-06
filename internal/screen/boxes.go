@@ -150,6 +150,7 @@ func helpLines() []string {
 	body = append(body,
 		"  "+keyColor.Render(pad("▲ 120", 18))+mutedColor.Render("reading the history, that many lines back"),
 		"  "+warnColor.Render(pad("ctx 86%", 18))+mutedColor.Render("the conversation's window is about to run out"),
+		"  "+mutedColor.Render(pad("norven", 18))+mutedColor.Render("the Claude account the conversation runs on, with more than one — amber once it's at its limit"),
 		"  "+errorColor.Render(pad(theme.Do(theme.Down).Glyph+" docker", 18))+mutedColor.Render("a service of the project's stack fell"))
 	return body
 }

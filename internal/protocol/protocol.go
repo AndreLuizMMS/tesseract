@@ -30,7 +30,10 @@ const (
 	TypeStop     = "stop"
 	// TypeAccounts has the engine read the Claude accounts in the config
 	// again: one set up by `ts account add` is used without a restart.
-	TypeAccounts  = "accounts"
+	TypeAccounts = "accounts"
+	// TypeMove moves a cell's Claude conversation to the account the user
+	// picked.
+	TypeMove      = "move"
 	TypeReport    = "report"
 	TypeLink      = "link"
 	TypeDeliver   = "deliver"
@@ -218,6 +221,14 @@ type IDEs struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// Move brings the cell's Claude back up on another account, on the same
+// conversation and with nothing sent to it. Account is the account's name as
+// the State lists it.
+type Move struct {
+	Cell    string `json:"cell"`
+	Account string `json:"account"`
+}
+
 // GoToLine moves the cell's reading to a history line, which is where the
 // search ends up.
 type GoToLine struct {
@@ -356,6 +367,11 @@ type Cell struct {
 	// Context is how full the conversation's window is, in percent. Zero
 	// when nobody measured it.
 	Context int `json:"context,omitempty"`
+	// Account is the name of the Claude account the cell's conversation runs
+	// on, and AccountOut says that account is at its usage limit. Empty with a
+	// single account, or with no Claude running.
+	Account    string `json:"account,omitempty"`
+	AccountOut bool   `json:"accountOut,omitempty"`
 }
 
 // Project is one column of the mosaic.
@@ -385,7 +401,19 @@ type State struct {
 	Types   []CellType `json:"types"`
 	Screen  string     `json:"screen,omitempty"`
 	Quota   *Quota     `json:"quota,omitempty"`
-	Notice  string     `json:"notice"`
+	// Accounts are the Claude accounts, in the config's order, once there's
+	// more than one: each with its own usage, which then takes Quota's place.
+	Accounts []Account `json:"accounts,omitempty"`
+	Notice   string    `json:"notice"`
+}
+
+// Account is one Claude account: its name, its usage when someone measured
+// it, and Until — the clock time it comes back, "15:04" — while it's at its
+// limit. An account at its limit reads 100%, rolling over when it comes back.
+type Account struct {
+	Name  string `json:"name"`
+	Quota *Quota `json:"quota,omitempty"`
+	Until string `json:"until,omitempty"`
 }
 
 // Quota is the 5-hour window usage shown in the title bar.

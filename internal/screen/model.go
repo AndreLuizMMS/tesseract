@@ -98,12 +98,13 @@ type Model struct {
 	sizes     map[string]Dims
 	selection *Selection
 
-	panel        *DockerPanel
-	idePicker    *IDEPicker
-	form         *Form
-	question     *Question
-	confirmation *Confirmation
-	help         bool
+	panel         *DockerPanel
+	idePicker     *IDEPicker
+	accountPicker *AccountPicker
+	form          *Form
+	question      *Question
+	confirmation  *Confirmation
+	help          bool
 	// helpScroll is the help's first line showing, when it doesn't all fit.
 	helpScroll   int
 	results      *protocol.Matches
@@ -298,7 +299,7 @@ func (m *Model) Mode() keyboard.Mode {
 		return keyboard.DockerPanel
 	case m.idePicker != nil:
 		return keyboard.IDEPanel
-	case m.form != nil || m.question != nil || m.confirmation != nil:
+	case m.form != nil || m.question != nil || m.confirmation != nil || m.accountPicker != nil:
 		return keyboard.Form
 	case m.typing:
 		return keyboard.Type
@@ -317,6 +318,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.handlePanel(key)
 	case m.idePicker != nil:
 		return m, m.handleIDEPicker(key)
+	case m.accountPicker != nil:
+		m.handleAccountPicker(key)
+		return m, nil
 	case m.form != nil:
 		return m, m.handleForm(key, msg.Text, erased)
 	case m.question != nil:
@@ -519,6 +523,10 @@ func (m *Model) handleNavigate(key string) (tea.Model, tea.Cmd) {
 		if item != nil {
 			m.send(protocol.TypeOpenDoc, protocol.OpenDoc{Cell: item.ID})
 		}
+	case keyboard.SwitchAccount:
+		if item != nil {
+			m.accountPicker, m.err = NewAccountPicker(*item, m.state.Accounts)
+		}
 	case keyboard.OpenEditor:
 		if project != nil {
 			m.idePicker = NewIDEPicker(project.ID, project.Name, item)
@@ -602,6 +610,24 @@ func (m *Model) handleIDEPicker(key string) tea.Cmd {
 		m.send(protocol.TypeEditor, *request)
 	}
 	return nil
+}
+
+// handleAccountPicker hands the key to the account picker, which owns the
+// keyboard while it's open. Why an account can't be picked lands on the
+// status line, under the picker still open.
+func (m *Model) handleAccountPicker(key string) {
+	current := ""
+	if item := m.cellByID(m.accountPicker.Cell); item != nil {
+		current = item.Account
+	}
+	move, refusal, open := m.accountPicker.Key(keyboard.Lookup(keyboard.Form, key), m.state.Accounts, current)
+	m.err = refusal
+	if !open {
+		m.accountPicker = nil
+	}
+	if move != nil {
+		m.send(protocol.TypeMove, *move)
+	}
 }
 
 // spinPanel advances the drawing of whichever animated dialog is open and,
@@ -993,6 +1019,12 @@ func (m *Model) View() tea.View {
 		drawing = overlay(drawing, m.panel.Draw(m.width), m.width, m.height)
 	case m.idePicker != nil:
 		drawing = overlay(drawing, m.idePicker.Draw(m.width), m.width, m.height)
+	case m.accountPicker != nil:
+		var item protocol.Cell
+		if found := m.cellByID(m.accountPicker.Cell); found != nil {
+			item = *found
+		}
+		drawing = overlay(drawing, m.accountPicker.Draw(m.width, m.state.Accounts, item), m.width, m.height)
 	case m.form != nil:
 		drawing = overlay(drawing, m.form.Draw(m.width), m.width, m.height)
 	case m.question != nil:

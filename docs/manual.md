@@ -165,6 +165,31 @@ picker gains a line of its own: `f` opens `internal/cell/md.go:42`, the last fil
 touched, at the line. The IDE is started on its own, tied to nothing of the engine's: the
 shortcut comes back at once and the window outlives the screen closing.
 
+### Claude accounts
+
+With more than one Claude account set up (`claudeAccounts`, under
+[Configuration](#configuration)), every cell with Claude running wears its account on its
+top line — `primary` for Claude Code's own `~/.claude`, `norven` for `~/.claude-norven` —
+in amber while that account is at its limit:
+
+```
+╭ claude  doxar ─────────────────── norven ─ ⬤ ╮
+```
+
+A narrow cell drops the answer's summary before the account, and the account before
+`ctx %`, the state and the name. In a session the account stays on every tab, since it's
+the conversation's; a tab asleep or a stopped cell shows none. The list (`v`) shows it on
+the preview.
+
+`a` opens the list of accounts for the focused cell, in the config's order, with each
+one's usage, the one it runs on marked and, for one at its limit, when it's back. `↵` on
+another account moves the conversation there: only the claude tab restarts, on the same
+conversation, and **nothing is sent to it** — it comes back at its prompt, waiting for
+you. On a cell that's working or waiting on an approval the list warns that moving cuts
+the turn in progress, and lets you. An account at its limit is refused with the time it's
+back; a cell with no Claude up, or a single account, says why instead of opening the list.
+The choice lasts until the cell restarts.
+
 ## The two modes
 
 <p align="center">
@@ -294,11 +319,26 @@ Passing your own `--settings` in `args` turns this off along with the theme.
 Claude cell is born on the first account that isn't at its usage limit, so the primary is
 used whenever it can be. When a turn hits the limit, the `tesseract-link` mod says so, that
 account sits out until its window resets, and the cell's Claude comes back up on the next
-account **on the same conversation**: the transcript is copied into that account and
+free account **on the same conversation**: the transcript is copied into that account and
 resumed, with a first message telling the agent to pick up where it left off. In a session
-only the claude tab restarts; the shell and the other tabs don't notice. With every account
-out the cell stays where it is, and the notice says so. A cell already running on the second
-account stays there until it restarts; the next cell born goes back to the primary.
+only the claude tab restarts; the shell and the other tabs don't notice. Only a turn that
+stopped at the limit takes an account out: usage at 100% doesn't, since an account with
+paid extra usage keeps working past it.
+
+Every other cell on that account moves too, with nothing sent to it, as soon as it's at
+rest — at its prompt, nothing unread, and untouched for a minute, so a prompt you're
+halfway through typing is never thrown away. A cell working or waiting on an approval
+moves once it comes to rest; one with an answer you haven't read stays, glyph and summary
+on show, until you read it or its next turn hits the limit. A cell in the background,
+stopped or asleep picks its account when it comes back. The engine checks this once a
+minute while an account is out, so an account whose window reset is used again within a
+minute. With every account out nobody moves, and one notice says when the first one is
+back. Each move is a notice: `regula-mais: primary at its limit, moved to norven`.
+
+Which account is out, and until when, is saved with the engine's state: a restarted
+engine sends its cells straight to an account that's free. A cell stays on the account it
+moved to until it restarts — `r`, a reboot of the engine, a tab that wakes — and then goes
+back to the first free one, the primary whenever it can.
 
 `ts account add` sets up the next account and is the only step: it creates `~/.claude-2`,
 runs Claude Code's login for it (sign in with the **other** account — a private window
@@ -323,12 +363,16 @@ the terminal. Renaming works the same way.
 The **quota** of the 5-hour window shows up at the right end of the status line by itself
 as soon as a Claude Code cell has measured it: `quota 12%`, and from 80% up in amber with
 the time it rolls over (`quota 86% · 0:41`). It stays one figure: the 7-day window takes its
-place (`7d 91%`) only when it's past 80% and ahead of the 5-hour one. How full a
-conversation's own context window is belongs to the cell, and shows on its top line
+place (`7d 91%`) only when it's past 80% and ahead of the 5-hour one. With more than one
+Claude account each one has its own figure, in the config's order, measured by the cells
+that run on it: `primary 100% · 2:47 │ norven 34%`. An account at its limit reads 100%, in
+amber, with the time until it's back; one nobody measured lately is its name alone. How
+full a conversation's own context window is belongs to the cell, and shows on its top line
 (`ctx 86%`) only from 80% up. Without the mods the figure falls back to the old way: your
 Claude Code statusline writes `~/.claude/tesseract-quota.json` (or the old
-`squad-quota.json`) in the format `{"used_percentage": 59, "resets_at": 1786955400}`. With
-neither, everything still works — the figure just doesn't show up.
+`squad-quota.json`) in the format `{"used_percentage": 59, "resets_at": 1786955400}`, and
+the file counts for the account whose folder it's in. With neither, everything still
+works — the figure just doesn't show up.
 
 The mod has three switches of its own, in Claude Code's `/config`: **Detalhe na
 notificação** (off, the notice goes back to a plain "approve" and no text of

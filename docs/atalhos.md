@@ -40,6 +40,7 @@ The whole map comes straight from the code: no key that doesn't exist shows up h
 | `d` | opens the Docker panel for the focused project |
 | `ctrl+e` | opens a picker with every IDE found on the machine: `↵` opens the project's directory in the one you choose, `f` the last file the cell's agent edited, at the line |
 | `m` | reads the markdown the focused cell's agent just wrote, in the cell's `md` tab — the status line says so when there is one |
+| `a` | with two or more Claude accounts, lists them with their usage: `↵` moves the focused cell's conversation to the picked one — same conversation, nothing sent |
 | mouse wheel | scrolls the cell's history |
 | drag with mouse | marks a section of the cell and **copies on release** |
 | `/` | searches the focused cell's history |

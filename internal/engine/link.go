@@ -52,7 +52,7 @@ func (e *Engine) Report(report protocol.Report) error {
 
 	switch report.Kind {
 	case "quota":
-		return reportQuota(report.Percent, report.Weekly, report.ResetsAt)
+		return reportQuota(c, report)
 	case "limit":
 		return e.reportLimit(c, report)
 	case "context":
@@ -151,25 +151,35 @@ func cleanDetail(raw string) string {
 
 // reportQuota keeps the usage a mod measured, which beats the file the
 // user's statusline leaves: it arrives by itself, from any cell, with no
-// script to install.
-func reportQuota(percent, weekly float64, resetsAt string) error {
+// script to install. It counts for the account the reporting tab runs on.
+func reportQuota(c *liveCell, report protocol.Report) error {
+	percent, weekly := report.Percent, report.Weekly
 	if math.IsNaN(percent) || percent < 0 || math.IsNaN(weekly) || weekly < 0 {
 		return fmt.Errorf("invalid usage percentage")
 	}
 	var rollover time.Time
-	if resetsAt != "" {
-		parsed, err := time.Parse(time.RFC3339, resetsAt)
+	if report.ResetsAt != "" {
+		parsed, err := time.Parse(time.RFC3339, report.ResetsAt)
 		if err != nil {
 			return fmt.Errorf("invalid reset time")
 		}
 		rollover = parsed
 	}
+	account := ""
+	if withAccount, ok := c.proc.(cell.WithAccount); ok {
+		account = withAccount.Account(report.Tab)
+	}
 	reportedQuota.Lock()
 	defer reportedQuota.Unlock()
-	reportedQuota.percent = min(int(percent+0.5), 100)
-	reportedQuota.weekly = min(int(weekly+0.5), 100)
-	reportedQuota.rollover = rollover
-	reportedQuota.at = time.Now()
+	if reportedQuota.by == nil {
+		reportedQuota.by = map[string]quotaReport{}
+	}
+	reportedQuota.by[account] = quotaReport{
+		percent:  min(int(percent+0.5), 100),
+		weekly:   min(int(weekly+0.5), 100),
+		rollover: rollover,
+		at:       time.Now(),
+	}
 	return nil
 }
 

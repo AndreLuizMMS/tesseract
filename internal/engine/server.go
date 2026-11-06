@@ -370,6 +370,14 @@ func (s *Server) handleRequest(envelope protocol.Message, respond func(string, a
 		}
 		respond(protocol.TypeSummary, protocol.Summary{Text: text})
 
+	case protocol.TypeMove:
+		request, err := protocol.Unpack[protocol.Move](envelope)
+		if err != nil {
+			fail(err)
+			return
+		}
+		fail(s.engine.MoveAccount(request.Cell, request.Account))
+
 	case protocol.TypeStop:
 		respond(protocol.TypeSummary, protocol.Summary{Text: "engine shut down"})
 		s.once.Do(func() { close(s.stop) })
